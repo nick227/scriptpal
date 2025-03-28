@@ -1,0 +1,28 @@
+{
+    "name": "scriptpal",
+    "version": "1.0.0",
+    "main": "server.js",
+    "type": "module",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "node server.js"
+    },
+    "keywords": [
+        "ai",
+        "writing",
+        "assistant"
+    ],
+    "author": "nrios",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+        "axios": "^1.8.4",
+        "cookie-parser": "^1.4.7",
+        "cors": "^2.8.5",
+        "express": "^4.21.2",
+        "@langchain/core": "^0.1.x",
+        "@langchain/openai": "^0.1.x",
+        "mysql": "^2.18.1",
+        "openai": "^4.90.0"
+    }
+}

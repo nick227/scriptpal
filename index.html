@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal</title>
+    <link rel="stylesheet" href="css/style.css">
+    <meta name="description" content="ScriptPal is a collaborative film script writing platform.">
+    <meta name="author" content="ScriptPal">
+    <meta name="keywords" content="ScriptPal, film, script, writing, collaborative">
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    <meta name="google" content="notranslate">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+
+<body>
+    <div class="navbar">
+        <h1 class="title">ScriptPal</h1>
+        <div class="user-info"></div>
+        <div class="user-forms">
+            <form id="login-form" class="login-form">
+                <input type="email" id="email" placeholder="Enter email">
+                <button type="submit">Login</button>
+            </form>
+            <form id="register-form" class="register-form">
+                <input type="email" id="register-email" placeholder="Register with email">
+                <button type="submit">Register</button>
+            </form>
+        </div>
+        <div class="button-set">
+            <button id="settings-view" class="active view-button">response</button>
+            <button id="history-view" class="view-button">history</button>
+            <button id="settings-view" class="view-button">settings</button>
+            <button id="toggle-view">toggle view</button>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-messages"></div>
+        <div class="chat-inputs">
+            <textarea id="message" placeholder="Type your message here..."></textarea>
+            <div class="chat-controls">
+                <button id="send"><i
+                            class="fas fa-paper-plane"></i></button>
+                <button id="record"><i
+                            class="fas fa-microphone"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/init.js"></script>
+</body>
+
+</html>
