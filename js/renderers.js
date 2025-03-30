@@ -1,119 +1,135 @@
-import { ERROR_MESSAGES, MESSAGE_TYPES } from './constants.js';
+import { MESSAGE_TYPES } from './constants.js';
 
 export class BaseRenderer {
-    constructor(container = null) {
+    constructor(container) {
         this.container = container;
     }
 
-    createElement(tag, className = '', content = '') {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        if (content) element.textContent = content;
-        return element;
-    }
-
     clear() {
-        if (this.container) {
-            this.container.innerHTML = '';
-        }
+        this.container.innerHTML = '';
     }
 
     scrollToBottom() {
-        console.log('BaseRenderer: Scrolling to bottom');
         this.container.scrollTop = this.container.scrollHeight;
     }
 
-    appendElement(element) {
-        if (!element) {
-            console.log('BaseRenderer: No element to append');
-            return;
+    createElement(tag, className, content = '') {
+        const element = document.createElement(tag);
+        element.className = className;
+        if (content) {
+            element.textContent = content;
         }
-        console.log('BaseRenderer: Appending element:', element);
+        return element;
+    }
+
+    appendElement(element) {
         this.container.appendChild(element);
         this.scrollToBottom();
     }
-}
 
-export class UserRenderer extends BaseRenderer {
-    constructor(container, user) {
-        super(container);
-        this.user = user;
+    createContainer(className) {
+        return this.createElement('div', className);
     }
 
-    updateUserInfo(user) {
-        if (!this.container) return;
-
-        if (user) {
-            this.container.textContent = `Welcome, ${user.name || user.email}`;
+    toggleClass(element, className, condition) {
+        if (condition) {
+            element.classList.add(className);
         } else {
-            this.container.textContent = 'Please log in';
+            element.classList.remove(className);
         }
     }
 }
 
 export class MessageRenderer extends BaseRenderer {
-    constructor(container) {
+    constructor(container, chat) {
         super(container);
+        this.chat = chat;
+        this.buttonRenderer = new ButtonContainerRenderer(container);
     }
 
     render(content, type = MESSAGE_TYPES.USER) {
-        if (!this.container) {
-            console.error('Message container not found');
-            return;
-        }
-
-        const messageElement = this.createElement('div', `message ${type}`);
-        messageElement.innerHTML = content;
-        this.container.appendChild(messageElement);
-        this.container.scrollTop = this.container.scrollHeight;
+        const messageDiv = this.createElement('div', `message ${type}`, content);
+        this.appendElement(messageDiv);
     }
 
     renderButtons(buttons) {
-        if (!this.container) {
-            console.error('Message container not found');
-            return;
-        }
-
-        const buttonContainer = this.createElement('div', 'assistant-buttons');
-        if (typeof buttons === 'string') {
-            buttonContainer.innerHTML = buttons;
-        } else {
-            buttons.forEach(text => {
-                const buttonElement = this.createElement('button', 'dynamic-button');
-                buttonElement.textContent = text;
-                buttonContainer.appendChild(buttonElement);
-            });
-        }
-        this.container.appendChild(buttonContainer);
-        this.container.scrollTop = this.container.scrollHeight;
+        this.buttonRenderer.render(buttons, (text) => {
+            if (this.chat) {
+                this.chat.handleButtonClick(text);
+            }
+        });
     }
 }
 
-export class AssistantResponseRenderer extends BaseRenderer {
-    constructor() {
-        super();
+export class ScriptRenderer extends BaseRenderer {
+    constructor(container, onScriptSelect) {
+        super(container);
+        this.onScriptSelect = onScriptSelect;
     }
 
-    render(response) {
-        if (!response) return null;
+    render(scripts, currentScriptId) {
+        this.clear();
 
-        const container = this.createElement('div', 'assistant-response');
+        scripts.forEach(script => {
+            const scriptElement = this.createContainer('script-item');
+            this.toggleClass(scriptElement, 'active', script.id === currentScriptId);
 
-        if (response.html) {
-            container.innerHTML = response.html;
+            const titleElement = this.createElement('h3', '', script.title);
+            scriptElement.appendChild(titleElement);
+
+            const descriptionElement = this.createElement('p', '', script.description || 'No description');
+            scriptElement.appendChild(descriptionElement);
+
+            scriptElement.addEventListener('click', () => this.onScriptSelect(script.id));
+            this.appendElement(scriptElement);
+        });
+    }
+}
+
+export class ButtonElementRenderer extends BaseRenderer {
+    render(button, onClick) {
+        if (!button || !button.text) return null;
+
+        const buttonElement = this.createElement('button', 'action-button', button.text);
+        if (onClick) {
+            buttonElement.addEventListener('click', () => onClick(button.text));
         }
+        return buttonElement;
+    }
+}
 
-        if (response.buttons && Array.isArray(response.buttons)) {
-            const buttonContainer = this.createElement('div', 'assistant-buttons');
-            response.buttons.forEach(button => {
-                const buttonElement = this.createElement('button', 'dynamic-button');
-                buttonElement.textContent = button.text;
-                buttonElement.addEventListener('click', () => button.action());
+export class ButtonContainerRenderer extends BaseRenderer {
+    constructor(container) {
+        super(container);
+        this.buttonRenderer = new ButtonElementRenderer(container);
+    }
+
+    render(buttons, onClick) {
+        if (!Array.isArray(buttons) || buttons.length === 0) return;
+
+        const buttonContainer = this.createContainer('button-container');
+
+        buttons.forEach(button => {
+            const buttonElement = this.buttonRenderer.render(button, onClick);
+            if (buttonElement) {
                 buttonContainer.appendChild(buttonElement);
-            });
-            container.appendChild(buttonContainer);
-        }
+            }
+        });
 
-        return container;
+        this.appendElement(buttonContainer);
+    }
+}
+
+export class RendererFactory {
+    static createMessageRenderer(container, chat) {
+        return new MessageRenderer(container, chat);
+    }
+
+    static createScriptRenderer(container, onScriptSelect) {
+        return new ScriptRenderer(container, onScriptSelect);
+    }
+
+    static createButtonContainerRenderer(container) {
+        return new ButtonContainerRenderer(container);
     }
 }

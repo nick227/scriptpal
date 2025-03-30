@@ -2,7 +2,6 @@
  * API Configuration
  */
 export const API_ENDPOINTS = {
-    BASE: 'http://localhost:3000',
     CHAT: '/chat',
     SCRIPT: '/script',
     USER: '/user'
@@ -18,18 +17,29 @@ export const API_HEADERS = {
 export const UI_ELEMENTS = {
     CHAT_CONTAINER: '.chat-container',
     MESSAGES_CONTAINER: '.chat-messages',
+    OUTPUT_CONTAINER: '.output-container',
+    OUTPUT_PANEL: '.output-panel',
+    USER_SCRIPTS_PANEL: '.user-scripts',
+    SCRIPT_EDITOR_PANEL: '.script-editor',
+    CHAT_INPUTS: '.chat-inputs',
+    CONTAINER_INPUT: '.container-input',
     INPUT: '#message',
     SEND_BUTTON: '#send',
     RECORD_BUTTON: '#record',
     TOGGLE_VIEW: '#toggle-view',
+    EDITOR_VIEW: '#editor-view',
+    SETTINGS_VIEW: '#settings-view',
     CHAT_BUTTONS: '.chat-buttons',
     ASSISTANT_RESPONSE: '.assistant-response',
+    SITE_CONTROLS: '.site-controls',
     USER_INFO: '.user-info',
     LOGIN_FORM: '#login-form',
     REGISTER_FORM: '#register-form',
     LOGOUT_BUTTON: '.logout-button',
     ERROR_MESSAGE: '.error-message',
-    SUCCESS_MESSAGE: '.success-message'
+    SUCCESS_MESSAGE: '.success-message',
+    LOADING_INDICATOR: '.loading-indicator',
+    CONTROL_BUTTON: '.view-button'
 };
 
 /**

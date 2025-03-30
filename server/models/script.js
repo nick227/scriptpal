@@ -12,6 +12,27 @@ const scriptModel = {
     },
     getAllScriptsByUser: async(user_id) => {
         return await db.getAllScriptsByUser(user_id);
+    },
+    getScriptProfile: async(id) => {
+        console.log('getScriptProfile');
+        const script = await db.getScript(id);
+        if (!script) return null;
+
+        // Get additional profile data
+        const elements = await db.getScriptElements(id);
+        const personas = await db.getScriptPersonas(id);
+        const conversations = await db.getScriptConversations(id);
+
+        return {
+            ...script,
+            elements,
+            personas,
+            conversations
+        };
+    },
+    getScriptStats: async(id) => {
+        console.log('getScriptStats');
+        return await db.getScriptStats(id);
     }
 }
 

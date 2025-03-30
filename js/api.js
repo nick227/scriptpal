@@ -3,160 +3,165 @@ import { utils } from './utils.js';
 
 export class ScriptPalAPI {
     constructor() {
-        this.baseUrl = API_ENDPOINTS.BASE;
+        // Only add port 3000 for localhost
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        this.baseUrl = window.location.protocol + '//' + window.location.hostname + (isLocalhost ? ':3000' : '');
+        this.isLoading = false;
+        this.requestQueue = new Set();
+
+        // Set up postMessage listener
+        window.addEventListener('message', this._handlePostMessage.bind(this));
+    }
+
+    _handlePostMessage(event) {
+        // Verify origin
+        const allowedOrigins = [
+            window.location.origin,
+            'http://localhost:3000',
+            'http://127.0.0.1:3000'
+        ];
+
+        if (!allowedOrigins.includes(event.origin)) {
+            console.warn('Ignoring postMessage from unrecognized origin:', event.origin);
+            return;
+        }
+
+        // Handle the message
+        if (event.data && event.data.type === 'auth') {
+            // Handle auth-related messages
+            this._handleAuthMessage(event.data);
+        }
+    }
+
+    _handleAuthMessage(data) {
+        // Handle different auth message types
+        switch (data.action) {
+            case 'login':
+                // Handle login
+                break;
+            case 'logout':
+                // Handle logout
+                break;
+            default:
+                console.warn('Unknown auth message type:', data.action);
+        }
+    }
+
+    getRandomButtons() {
+        return this._makeRequest('/welcome/buttons', {
+            method: 'GET'
+        });
+    }
+
+    setLoading(loading) {
+        this.isLoading = loading;
     }
 
     async _handleResponse(response) {
-        const data = await response.json();
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                return null;
+        try {
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Invalid response format');
             }
-            throw new Error(data.error || ERROR_MESSAGES.API_ERROR);
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    return null;
+                }
+                throw new Error(data.error || ERROR_MESSAGES.API_ERROR);
+            }
+            return data;
+        } catch (error) {
+            console.error('Response handling error:', error);
+            throw error;
         }
-        return data;
     }
 
-    async login(email) {
+    async _makeRequest(endpoint, options = {}) {
+        const requestId = `${options.method || 'GET'}-${endpoint}`;
+
+        if (this.requestQueue.has(requestId)) {
+            console.warn(`Ignoring duplicate request: ${requestId}`);
+            return null;
+        }
+
+        if (this.isLoading) {
+            console.warn('Ignoring API request while loading');
+            return null;
+        }
+
         try {
-            const response = await fetch(`${this.baseUrl}/login`, {
-                method: 'POST',
-                headers: API_HEADERS,
+            this.isLoading = true;
+            this.requestQueue.add(requestId);
+            console.log('Making API request to:', `${this.baseUrl}${endpoint}`);
+
+            const response = await fetch(`${this.baseUrl}${endpoint}`, {
+                ...options,
+                headers: {
+                    ...API_HEADERS,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
                 credentials: 'include',
-                body: JSON.stringify({ email })
+                mode: 'cors',
+                cache: 'no-cache',
+                referrerPolicy: 'no-referrer',
+                redirect: 'follow'
             });
+
+            if (!response) {
+                throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+            }
 
             return await this._handleResponse(response);
         } catch (error) {
-            console.error('Login error:', error);
+            console.error(`API request error for ${endpoint}:`, error);
+            if (error.message === 'Failed to fetch') {
+                throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+            }
             throw error;
+        } finally {
+            this.isLoading = false;
+            this.requestQueue.delete(requestId);
         }
+    }
+
+    // Auth methods
+    async login(email) {
+        return this._makeRequest('/login', {
+            method: 'POST',
+            body: JSON.stringify({ email })
+        });
     }
 
     async logout() {
-        try {
-            const response = await fetch(`${this.baseUrl}/logout`, {
-                method: 'POST',
-                headers: API_HEADERS,
-                credentials: 'include'
-            });
-
-            return await this._handleResponse(response);
-        } catch (error) {
-            console.error('Logout error:', error);
-            throw error;
-        }
+        return this._makeRequest('/logout', {
+            method: 'POST'
+        });
     }
 
     async getUser(id) {
-        try {
-            const response = await fetch(`${this.baseUrl}/user/${id}`, {
-                method: 'GET',
-                headers: API_HEADERS,
-                credentials: 'include'
-            });
-
-            return await this._handleResponse(response);
-        } catch (error) {
-            console.error('Get user error:', error);
-            throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);
-        }
+        return this._makeRequest(`/user/${id}`, {
+            method: 'GET'
+        });
     }
 
     async createUser(userData) {
-        try {
-            const response = await fetch(`${this.baseUrl}/user`, {
-                method: 'POST',
-                headers: API_HEADERS,
-                credentials: 'include',
-                body: JSON.stringify(userData)
-            });
-
-            return await this._handleResponse(response);
-        } catch (error) {
-            console.error('Create user error:', error);
-            throw new Error(ERROR_MESSAGES.USER_CREATION_FAILED);
-        }
-    }
-
-    async getResponse(content) {
-        try {
-            const scriptId = localStorage.getItem('currentScriptId');
-            const requestBody = {
-                prompt: content,
-                scriptId: scriptId
-            };
-
-            console.log('Sending request to:', `${this.baseUrl}/chat`);
-            console.log('Request body:', requestBody);
-
-            const response = await fetch(`${this.baseUrl}/chat`, {
-                method: 'POST',
-                headers: API_HEADERS,
-                credentials: 'include',
-                body: JSON.stringify(requestBody)
-            });
-
-            console.log('Response status:', response.status);
-            const result = await this._handleResponse(response);
-            console.log('API response:', result);
-
-            // Handle both array and single object responses
-            const processedResult = Array.isArray(result) ? result[0] : result;
-
-            // Handle both string and object responses
-            return typeof processedResult === 'string' ? { html: processedResult } : processedResult;
-        } catch (error) {
-            console.error('Chat API Error:', error);
-            throw new Error(ERROR_MESSAGES.NO_RESPONSE);
-        }
-    }
-
-    // Add methods for script operations
-    async getScript(id) {
-        try {
-            const response = await fetch(`${this.baseUrl}/script/${id}`, {
-                method: 'GET',
-                headers: API_HEADERS,
-                credentials: 'include'
-            });
-
-            return await this._handleResponse(response);
-        } catch (error) {
-            console.error('Get script error:', error);
-            throw new Error(ERROR_MESSAGES.SCRIPT_NOT_FOUND);
-        }
-    }
-
-    async createScript(scriptData) {
-        try {
-            const response = await fetch(`${this.baseUrl}/script`, {
-                method: 'POST',
-                headers: API_HEADERS,
-                credentials: 'include',
-                body: JSON.stringify(scriptData)
-            });
-
-            return await this._handleResponse(response);
-        } catch (error) {
-            console.error('Create script error:', error);
-            throw new Error(ERROR_MESSAGES.SCRIPT_CREATION_FAILED);
-        }
+        return this._makeRequest('/user', {
+            method: 'POST',
+            body: JSON.stringify(userData)
+        });
     }
 
     async getCurrentUser() {
         try {
-            const response = await fetch(`${this.baseUrl}/user/current`, {
-                method: 'GET',
-                headers: API_HEADERS,
-                credentials: 'include'
+            const result = await this._makeRequest('/user/current', {
+                method: 'GET'
             });
-
-            const result = await this._handleResponse(response);
             return result;
         } catch (error) {
-            console.error('Get current user error:', error);
             if (error.message !== ERROR_MESSAGES.NOT_AUTHENTICATED) {
                 throw error;
             }
@@ -164,21 +169,64 @@ export class ScriptPalAPI {
         }
     }
 
-    async getAllScriptsByUser(userId) {
-        try {
-            const url = `${this.baseUrl}/script?user_id=${userId}`;
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: API_HEADERS,
-                credentials: 'include'
-            });
-            const result = await this._handleResponse(response);
-            return result;
-        } catch (error) {
-            console.error('Get all scripts error:', error);
-            throw new Error(ERROR_MESSAGES.SCRIPT_NOT_FOUND);
-        }
+    // Chat methods
+    async getResponse(content) {
+        const scriptId = localStorage.getItem('currentScriptId');
+        const requestBody = {
+            prompt: content,
+            scriptId: scriptId
+        };
+
+        const result = await this._makeRequest('/chat', {
+            method: 'POST',
+            body: JSON.stringify(requestBody)
+        });
+
+        // Handle both array and single object responses
+        const processedResult = Array.isArray(result) ? result[0] : result;
+
+        // Handle both string and object responses
+        return typeof processedResult === 'string' ? { html: processedResult } : processedResult;
     }
 
-    // Add other API methods as needed...
+    // Script methods
+    async getScript(id) {
+        return this._makeRequest(`/script/${id}`, {
+            method: 'GET'
+        });
+    }
+
+    async createScript(scriptData) {
+        return this._makeRequest('/script', {
+            method: 'POST',
+            body: JSON.stringify(scriptData)
+        });
+    }
+
+    async updateScript(id, scriptData) {
+        return this._makeRequest(`/script/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(scriptData)
+        });
+    }
+
+    async deleteScript(id) {
+        return this._makeRequest(`/script/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
+    async getAllScriptsByUser(userId) {
+        return this._makeRequest(`/script?user_id=${userId}`, {
+            method: 'GET'
+        });
+    }
+
+    // Cleanup method
+    destroy() {
+        this.requestQueue.clear();
+        this.isLoading = false;
+        // Clean up postMessage listener
+        window.removeEventListener('message', this._handlePostMessage.bind(this));
+    }
 }

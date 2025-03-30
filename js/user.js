@@ -17,17 +17,50 @@ export class ScriptPalUser {
         }
     }
 
-    async login(email) {
+    async handleLogin(email) {
         try {
+            if (!email) {
+                throw new Error(ERROR_MESSAGES.INVALID_EMAIL);
+            }
+
             this.currentUser = await this.api.login(email);
+            if (!this.currentUser) {
+                throw new Error(ERROR_MESSAGES.LOGIN_FAILED);
+            }
             return this.currentUser;
         } catch (error) {
             console.error('Login failed:', error);
-            throw error;
+            if (error.message === ERROR_MESSAGES.INVALID_EMAIL) {
+                throw error;
+            }
+            if (error.message === 'Email already exists') {
+                throw new Error(ERROR_MESSAGES.USER_CREATION_FAILED);
+            }
+            throw new Error(ERROR_MESSAGES.LOGIN_FAILED);
         }
     }
 
-    async logout() {
+    async handleRegister(email) {
+        try {
+            if (!email) {
+                throw new Error(ERROR_MESSAGES.INVALID_EMAIL);
+            }
+
+            this.currentUser = await this.api.createUser({ email });
+            if (!this.currentUser) {
+                throw new Error(ERROR_MESSAGES.USER_CREATION_FAILED);
+            }
+            return this.currentUser;
+        } catch (error) {
+            console.error('Registration failed:', error);
+            if (error.message === ERROR_MESSAGES.INVALID_EMAIL) {
+                throw error;
+            }
+            throw new Error(ERROR_MESSAGES.USER_CREATION_FAILED);
+        }
+    }
+
+    async handleLogout() {
         try {
             await this.api.logout();
             this.currentUser = null;
@@ -44,16 +77,6 @@ export class ScriptPalUser {
         } catch (error) {
             console.error('Get user failed:', error);
             throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);
-        }
-    }
-
-    async createUser(userData) {
-        try {
-            const newUser = await this.api.createUser(userData);
-            return newUser;
-        } catch (error) {
-            console.error('Create user failed:', error);
-            throw new Error(ERROR_MESSAGES.USER_CREATION_FAILED);
         }
     }
 

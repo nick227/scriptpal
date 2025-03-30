@@ -22,14 +22,19 @@ export const validateSession = async(req, res, next) => {
         next();
     } catch (error) {
         console.error('Session validation error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error' });
     }
 };
 
 export const validateUserAccess = (req, res, next) => {
-    const requestedUserId = parseInt(req.params.id);
-    if (requestedUserId !== req.userId) {
-        return res.status(403).json({ error: 'Access denied' });
+    try {
+        const requestedUserId = parseInt(req.params.id);
+        if (requestedUserId !== req.userId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+        next();
+    } catch (error) {
+        console.error('User access validation error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
-    next();
 };

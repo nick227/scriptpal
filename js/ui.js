@@ -1,23 +1,149 @@
-import { CONFIG } from './config.js';
-import { MessageRenderer, UserRenderer, AssistantResponseRenderer } from './renderers.js';
-import { MESSAGE_TYPES, LAYOUTS, ERROR_MESSAGES, SUCCESS_MESSAGES, UI_ELEMENTS } from './constants.js';
+import { MESSAGE_TYPES, ERROR_MESSAGES, SUCCESS_MESSAGES, UI_ELEMENTS } from './constants.js';
+import { NotificationManager } from './ui/NotificationManager.js';
+import { StateManager } from './core/StateManager.js';
+import { ErrorManager } from './ui/ErrorManager.js';
+import { EventBus } from './core/EventBus.js';
+import { ChatWidget } from './widgets/chat/ChatWidget.js';
+import { AuthWidget } from './widgets/auth/AuthWidget.js';
+import { ScriptWidget } from './widgets/script/ScriptWidget.js';
+import { ViewManager } from './ui/ViewManager.js';
 
+/**
+ * Main UI class that coordinates all UI components
+ */
 export class ScriptPalUI {
     constructor(chat, user, script) {
-        this.chat = chat;
-        this.user = user;
-        this.script = script;
-        this.messageRenderer = null;
-        this.assistantRenderer = null;
+        if (!user) {
+            throw new Error('User dependency is required for ScriptPalUI');
+        }
+        this.dependencies = { chat, user, script };
+        this.stateManager = new StateManager();
+        this.eventBus = new EventBus();
         this.elements = {};
-        this.initializeElements();
+        this.widgets = {};
+        this.boundHandleViewChange = this.handleViewChange.bind(this);
+        this.boundHandleToggleView = this.handleToggleView.bind(this);
+    }
+
+    async initialize(currentUser) {
+        try {
+            // Initialize UI elements
+            this.initializeElements();
+
+            // Initialize view manager
+            this.viewManager = new ViewManager(this.elements);
+            this.viewManager.setupCurrentView();
+
+            // Create widgets with complete dependencies
+            this.widgets.auth = new AuthWidget(this.elements, this.stateManager, this.dependencies.user, this.eventBus);
+            this.widgets.chat = new ChatWidget(this.elements);
+            this.widgets.script = new ScriptWidget(this.elements);
+
+            // Set managers for widgets
+            this.widgets.chat.setManagers(this.stateManager, this.eventBus);
+            this.widgets.script.setManagers(this.stateManager, this.eventBus);
+
+            // Initialize widgets with their dependencies
+            await this.widgets.auth.initialize(this.elements);
+            if (this.dependencies.chat) {
+                await this.widgets.chat.initialize(this.dependencies.chat);
+            }
+            if (this.dependencies.script) {
+                await this.widgets.script.initialize(this.dependencies.script);
+            }
+
+            // Set up view navigation and state subscriptions
+            this.setupViewNavigation();
+            this.setupStateSubscriptions();
+
+            // Update UI based on auth state
+            if (currentUser) {
+                this.stateManager.setState(StateManager.KEYS.USER, currentUser);
+                this.stateManager.setState(StateManager.KEYS.AUTHENTICATED, true);
+            }
+        } catch (error) {
+            this.handleError(error);
+            throw error;
+        }
+    }
+
+    setupViewNavigation() {
+        if (this.elements.siteControls) {
+            this.elements.siteControls.addEventListener('click', this.boundHandleViewChange);
+        }
+        if (this.elements.toggleView) {
+            this.elements.toggleView.addEventListener('click', this.boundHandleToggleView);
+        }
+    }
+
+    handleToggleView() {
+        try {
+            if (this.viewManager) {
+                this.viewManager.toggleView();
+            }
+        } catch (error) {
+            this.handleError(error);
+        }
+    }
+
+    destroy() {
+        try {
+            // Clean up widgets
+            Object.values(this.widgets).forEach(widget => {
+                if (widget) {
+                    widget.destroy();
+                }
+            });
+            this.widgets = {};
+
+            // Clean up event listeners
+            if (this.elements.siteControls) {
+                this.elements.siteControls.removeEventListener('click', this.boundHandleViewChange);
+            }
+            if (this.elements.toggleView) {
+                this.elements.toggleView.removeEventListener('click', this.boundHandleToggleView);
+            }
+
+            // Reset state
+            this.stateManager.reset();
+
+            // Clear elements
+            this.elements = {};
+
+            // Clear dependencies
+            this.dependencies = {};
+
+            // Clear bound methods
+            this.boundHandleViewChange = null;
+            this.boundHandleToggleView = null;
+
+            // Clear view manager
+            this.viewManager = null;
+        } catch (error) {
+            console.error('Error during UI cleanup:', error);
+        }
     }
 
     updateComponents(chat, script) {
-        this.chat = chat;
-        this.script = script;
-        if (this.chat && !this.messageRenderer) {
-            this.messageRenderer = new MessageRenderer(this.elements.messagesContainer);
+        try {
+            // Update dependencies
+            this.dependencies.chat = chat;
+            this.dependencies.script = script;
+
+            // Initialize widgets if not already done
+            if (!this.widgets.chat || !this.widgets.script) {
+                this.initializeWidgets();
+            } else {
+                // Update existing widgets
+                if (this.widgets.chat) {
+                    this.widgets.chat.update(chat);
+                }
+                if (this.widgets.script) {
+                    this.widgets.script.update(script);
+                }
+            }
+        } catch (error) {
+            this.handleError(error);
         }
     }
 
@@ -30,276 +156,159 @@ export class ScriptPalUI {
         this.elements.loginForm = document.querySelector(UI_ELEMENTS.LOGIN_FORM);
         this.elements.registerForm = document.querySelector(UI_ELEMENTS.REGISTER_FORM);
         this.elements.logoutButton = document.querySelector(UI_ELEMENTS.LOGOUT_BUTTON);
-
-        // Initialize optional elements
         this.elements.toggleView = document.querySelector(UI_ELEMENTS.TOGGLE_VIEW);
         this.elements.chatButtons = document.querySelector(UI_ELEMENTS.CHAT_BUTTONS);
+        this.elements.loadingIndicator = document.querySelector(UI_ELEMENTS.LOADING_INDICATOR);
+        this.elements.siteControls = document.querySelector(UI_ELEMENTS.SITE_CONTROLS);
+        this.elements.scriptContainer = document.querySelector(UI_ELEMENTS.SCRIPT_CONTAINER);
+        this.elements.settingsContainer = document.querySelector(UI_ELEMENTS.SETTINGS_CONTAINER);
+        this.elements.scriptsContainer = document.querySelector(UI_ELEMENTS.SCRIPTS_CONTAINER);
 
-        // Validate required elements
-        if (!this.elements.messagesContainer || !this.elements.input || !this.elements.sendButton) {
-            throw new Error(ERROR_MESSAGES.REQUIRED_ELEMENTS_MISSING);
-        }
-
-        // Initialize renderer only if chat is available
-        if (this.chat) {
-            this.messageRenderer = new MessageRenderer(this.elements.messagesContainer);
-        }
-        this.userRenderer = new UserRenderer(this.elements.userInfo, this.user);
-
-        // Setup initial view
-        this.setupCurrentView();
+        this.validateRequiredElements();
     }
 
-    async initialize(user = null) {
-        if (this.messageRenderer) {
-            this.messageRenderer.clear();
-        }
-        if (this.chat) {
-            this.chat.clearMessages();
-        }
+    initializeWidgets() {
+        try {
+            // Create widgets with complete dependencies
+            this.widgets.auth = new AuthWidget(this.stateManager, this.dependencies.user, this.eventBus);
+            this.widgets.chat = new ChatWidget(this.stateManager, this.dependencies.chat, this.eventBus);
+            this.widgets.script = new ScriptWidget(this.stateManager, this.dependencies.script, this.eventBus);
 
-        // Update UI based on provided user status
-        if (user) {
-            this.updateUIForAuthenticatedUser(user);
-        } else {
-            this.updateUIForUnauthenticatedUser();
+            // Initialize widgets
+            this.widgets.auth.initialize(this.elements);
+            this.widgets.chat.initialize(this.elements);
+            this.widgets.script.initialize(this.elements);
+        } catch (error) {
+            this.handleError(error);
         }
-
-        // Display all scripts
-        this.script.loadCurrentScript();
-
-        this.setupEventListeners();
     }
 
-    updateUIForAuthenticatedUser(user) {
-        // Hide auth forms
-        if (this.elements.loginForm) {
-            this.elements.loginForm.style.display = 'none';
-        }
-        if (this.elements.registerForm) {
-            this.elements.registerForm.style.display = 'none';
-        }
+    setupStateSubscriptions() {
+        this.stateManager.subscribe('loading', (loading) => {
+            if (this.elements.loadingIndicator) {
+                this.elements.loadingIndicator.style.display = loading ? 'block' : 'none';
+            }
+        });
 
-        // Show user info and logout
-        if (this.elements.userInfo) {
-            this.elements.userInfo.innerHTML = `Logged in as: ${user.email} <a class="logout-button" href="#">logout</a>`;
-        }
-        if (this.elements.logoutButton) {
-            this.elements.logoutButton.style.display = 'block';
-        }
+        this.stateManager.subscribe('authenticated', (authenticated) => {
+            this.updateUIForAuthState(authenticated);
+        });
 
-        // Enable chat functionality
-        this.elements.input.disabled = false;
-        this.elements.sendButton.disabled = false;
+        this.stateManager.subscribe('error', (error) => {
+            if (error) {
+                this.handleError(error);
+            }
+        });
     }
 
-    updateUIForUnauthenticatedUser() {
-        // Show auth forms
-        if (this.elements.loginForm) {
-            this.elements.loginForm.style.display = 'block';
-        }
-        if (this.elements.registerForm) {
-            this.elements.registerForm.style.display = 'block';
-        }
+    updateUIForAuthState(authenticated) {
+        try {
+            // Update UI elements based on auth state
+            const elementsToToggle = [
+                this.elements.loginForm,
+                this.elements.registerForm,
+                this.elements.logoutButton,
+                this.elements.chatButtons,
+                this.elements.scriptContainer
+            ];
 
-        // Hide user info and logout
-        if (this.elements.userInfo) {
-            this.elements.userInfo.textContent = 'Please log in or register';
-        }
-        if (this.elements.logoutButton) {
-            this.elements.logoutButton.style.display = 'none';
-        }
-
-        // Disable chat functionality
-        this.elements.input.disabled = true;
-        this.elements.sendButton.disabled = true;
-    }
-
-    setupEventListeners() {
-        // Setup logout click handler
-        this.elements.logoutButton = document.querySelector(UI_ELEMENTS.LOGOUT_BUTTON);
-
-        // Setup send button click handler
-        if (this.elements.sendButton) {
-            this.elements.sendButton.addEventListener('click', () => this.handleSend());
-        }
-
-        // Setup input enter key handler
-        if (this.elements.input) {
-            this.elements.input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    this.handleSend();
+            elementsToToggle.forEach(element => {
+                if (element) {
+                    // Hide login/register forms when authenticated, show logout button
+                    if (element === this.elements.loginForm || element === this.elements.registerForm) {
+                        element.style.display = authenticated ? 'none' : 'block';
+                    }
+                    // Show logout button and other elements when authenticated
+                    else {
+                        element.style.display = authenticated ? 'block' : 'none';
+                    }
                 }
             });
+        } catch (error) {
+            this.handleError(error);
+        }
+    }
+
+    validateRequiredElements() {
+        const requiredElements = [
+            { element: this.elements.messagesContainer, name: 'messages container' },
+            { element: this.elements.input, name: 'input field' },
+            { element: this.elements.sendButton, name: 'send button' }
+        ];
+
+        const missingElements = requiredElements.filter(({ element }) => !element);
+        if (missingElements.length > 0) {
+            const missingNames = missingElements.map(({ name }) => name).join(', ');
+            throw new Error(`Required UI elements are missing: ${missingNames}`);
         }
 
-        // Setup view toggle handler
-        if (this.elements.toggleView) {
-            this.elements.toggleView.addEventListener('click', () => {
-                document.body.classList.toggle(LAYOUTS.HORIZONTAL);
-                document.body.classList.toggle(LAYOUTS.VERTICAL);
-                this.saveCurrentView();
+        // Log warning for optional elements
+        const optionalElements = [
+            { element: this.elements.scriptsContainer, name: 'scripts container' },
+            { element: this.elements.scriptContainer, name: 'script container' },
+            { element: this.elements.settingsContainer, name: 'settings container' }
+        ];
+
+        const missingOptional = optionalElements.filter(({ element }) => !element);
+        if (missingOptional.length > 0) {
+            console.warn('Optional UI elements are missing:',
+                missingOptional.map(({ name }) => name).join(', '));
+        }
+    }
+
+    handleViewChange(event) {
+        try {
+            // Get the view ID from the clicked button
+            const button = event.target.closest('.view-button');
+            if (!button) return;
+
+            const viewId = button.id;
+            if (!viewId) return;
+
+            // Update active button
+            const buttons = this.elements.siteControls.querySelectorAll('.view-button');
+            buttons.forEach(btn => btn.classList.toggle('active', btn.id === viewId));
+
+            // Map views to containers
+            const viewMap = {
+                'chat-view': this.elements.messagesContainer,
+                'scripts-view': this.elements.scriptContainer,
+                'editor-view': this.elements.scriptContainer,
+                'settings-view': this.elements.settingsContainer
+            };
+
+            // Update view visibility
+            Object.entries(viewMap).forEach(([id, element]) => {
+                if (element) {
+                    element.style.display = id === viewId ? 'block' : 'none';
+                }
             });
-        }
 
-        // Auth events
-        if (this.elements.loginForm) {
-            this.elements.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
-        }
-        if (this.elements.logoutButton) {
-            this.elements.logoutButton.addEventListener('click', (e) => this.handleLogout(e));
-        }
-        if (this.elements.registerForm) {
-            this.elements.registerForm.addEventListener('submit', (e) => this.handleRegister(e));
+            // Update state and notify
+            this.stateManager.setState(StateManager.KEYS.CURRENT_VIEW, viewId);
+            this.eventBus.publish(EventBus.EVENTS.VIEW.CHANGED, { viewId });
+        } catch (error) {
+            ErrorManager.handleError(error, 'ui');
+            this.handleError(error);
         }
     }
 
-    saveCurrentView() {
-        const currentView = document.body.classList.contains(LAYOUTS.HORIZONTAL) ? LAYOUTS.HORIZONTAL : LAYOUTS.VERTICAL;
-        localStorage.setItem('scriptpal-view', currentView);
-    }
-
-    setupCurrentView() {
-        const currentView = localStorage.getItem('scriptpal-view');
-        if (currentView) {
-            document.body.classList.add(currentView);
-        }
-    }
-
-    async handleRegister(e) {
-        e.preventDefault();
-        const emailInput = this.elements.registerForm.querySelector('input[type="email"]');
-        const email = emailInput.value.trim();
-
-        if (!email) {
-            this.showError(ERROR_MESSAGES.INVALID_EMAIL);
+    handleError(error) {
+        // Prevent infinite loops by checking if we're already handling an error
+        if (this._handlingError) {
+            console.error('Error while handling error:', error);
             return;
         }
 
         try {
-            this.setLoading(true);
-            // Create user with just email
-            await this.user.createUser({ email });
-            this.showSuccess(SUCCESS_MESSAGES.REGISTER_SUCCESS);
-            // After successful registration, log the user in
-            await this.user.login(email);
-            const user = this.user.getCurrentUser();
-            this.updateUIForAuthenticatedUser(user);
-        } catch (error) {
-            console.error('Registration error:', error);
-            this.showError(ERROR_MESSAGES.USER_CREATION_FAILED);
+            this._handlingError = true;
+            console.error('UI Error:', error);
+            this.stateManager.setState('error', error);
+
+            // Show error notification
+            NotificationManager.showError(error.message);
         } finally {
-            this.setLoading(false);
+            this._handlingError = false;
         }
-    }
-
-    async handleLogin(e) {
-        e.preventDefault();
-        const emailInput = this.elements.loginForm.querySelector('input[type="email"]');
-        const email = emailInput.value.trim();
-
-        if (!email) {
-            this.showError(ERROR_MESSAGES.INVALID_EMAIL);
-            return;
-        }
-
-        try {
-            this.setLoading(true);
-            await this.user.login(email);
-            const user = this.user.getCurrentUser();
-            this.updateUIForAuthenticatedUser(user);
-            this.showSuccess(SUCCESS_MESSAGES.LOGIN_SUCCESS);
-        } catch (error) {
-            this.showError(ERROR_MESSAGES.LOGIN_FAILED);
-        } finally {
-            this.setLoading(false);
-        }
-    }
-
-    async handleLogout(e) {
-        e.preventDefault();
-        try {
-            this.setLoading(true);
-            await this.user.logout();
-            this.updateUIForUnauthenticatedUser();
-            this.showSuccess(SUCCESS_MESSAGES.LOGOUT_SUCCESS);
-        } catch (error) {
-            this.showError(ERROR_MESSAGES.LOGOUT_FAILED);
-        } finally {
-            this.setLoading(false);
-        }
-    }
-
-    async handleSend() {
-        if (!this.user.isAuthenticated()) {
-            this.showError(ERROR_MESSAGES.NOT_AUTHENTICATED);
-            return;
-        }
-
-        const message = this.elements.input.value.trim();
-        if (!message) return;
-
-        try {
-            this.setLoading(true);
-            this.elements.input.value = '';
-            this.elements.sendButton.disabled = true;
-
-            // Render user message
-            this.messageRenderer.render(message, MESSAGE_TYPES.USER);
-
-            // Get and render assistant response
-            const response = await this.chat.processMessage(message);
-            console.log('response:', response);
-
-            // Render assistant message
-            if (response.html) {
-                this.messageRenderer.render(response.html, MESSAGE_TYPES.ASSISTANT);
-            }
-
-            // Render buttons if present
-            if (response.buttons) {
-                this.messageRenderer.renderButtons(response.buttons);
-            }
-        } catch (error) {
-            console.error('Error processing message:', error);
-            this.messageRenderer.render(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
-            this.showError(ERROR_MESSAGES.MESSAGE_SEND_FAILED);
-        } finally {
-            this.setLoading(false);
-            this.elements.sendButton.disabled = false;
-        }
-    }
-
-    setLoading(isLoading) {
-        if (this.elements.sendButton) {
-            this.elements.sendButton.disabled = isLoading;
-            this.elements.sendButton.textContent = isLoading ? 'Sending...' : 'Send';
-        }
-        if (this.elements.input) {
-            this.elements.input.disabled = isLoading;
-        }
-    }
-
-    showError(message) {
-        const errorElement = document.createElement('div');
-        errorElement.className = 'error-message';
-        errorElement.textContent = message;
-        document.body.appendChild(errorElement);
-
-        setTimeout(() => {
-            errorElement.remove();
-        }, 5000);
-    }
-
-    showSuccess(message) {
-        const successElement = document.createElement('div');
-        successElement.className = 'success-message';
-        successElement.textContent = message;
-        document.body.appendChild(successElement);
-
-        setTimeout(() => {
-            successElement.remove();
-        }, 3000);
     }
 }

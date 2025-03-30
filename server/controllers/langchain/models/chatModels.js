@@ -22,3 +22,8 @@ export const regularModel = new ChatOpenAI({
     temperature: 0.7,
     modelName: "gpt-4"
 });
+
+export const cheapModel = new ChatOpenAI({
+    temperature: 0.7,
+    modelName: "gpt-3.5-turbo"
+});

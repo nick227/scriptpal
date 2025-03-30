@@ -20,18 +20,20 @@ const chatController = {
                 return res.status(400).json({ error: "Missing prompt" });
             }
 
-            const listOfFunctionsToRun = await isFunctionRequest(prompt);
+            //const listOfFunctionsToRun = await isFunctionRequest(prompt);
 
-            console.log('!!! listOfFunctionsToRun: ', listOfFunctionsToRun);
+            //console.log('!!! listOfFunctionsToRun: ', listOfFunctionsToRun);
 
             // Step 1: Classify
-            const intent = await classifyIntent(prompt);
+            const intent = null;
+            //intent = await classifyIntent(prompt);
 
             // Step 2: Generate main response
             const html = await generateResponse(prompt, intent, script);
 
             // Step 3: Generate buttons (always)
-            const buttons = await generateButtons(prompt, html);
+            let buttons = [];
+            //buttons = await generateButtons(prompt, html);
 
             console.log('!!! intent: ', intent);
 
@@ -50,6 +52,12 @@ const chatController = {
             res.status(500).json({ error: "Internal server error" });
         }
     },
+    getWelcomeButtons: async(req, res) => {
+        const prompt = "Write array of 6 short unique prompts to start an ai writing session.";
+        const html = "Return comma separated list of prompts.";
+        const buttons = await generateButtons(prompt, html);
+        res.status(200).json({ buttons });
+    }
 };
 
 export default chatController;

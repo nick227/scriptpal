@@ -7,6 +7,7 @@ import { validateSession, validateUserAccess } from './middleware/auth.js';
 import chatController from './controllers/chatController.js';
 
 const routes = [
+
     // Public routes (no auth required)
     {
         path: '/login',
@@ -22,6 +23,11 @@ const routes = [
         path: '/user',
         method: 'post',
         handler: userController.createUser
+    },
+    {
+        path: '/welcome/buttons',
+        method: 'get',
+        handler: chatController.getWelcomeButtons
     },
 
     // Protected routes (require auth)
@@ -77,6 +83,12 @@ const routes = [
         path: '/script/:id/profile',
         method: 'get',
         handler: scriptController.getScriptProfile,
+        middleware: [validateSession]
+    },
+    {
+        path: '/script/:id/stats',
+        method: 'get',
+        handler: scriptController.getScriptStats,
         middleware: [validateSession]
     },
     {

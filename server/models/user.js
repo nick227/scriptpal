@@ -27,6 +27,13 @@ const userModel = {
                 }
             }
 
+            // Check for existing session
+            const existingSession = await db.getUserSession(user.id);
+            if (existingSession) {
+                // Delete existing session
+                await db.deleteSession(existingSession.token);
+            }
+
             // Create a session token
             const sessionToken = crypto.randomBytes(32).toString('hex');
 
@@ -42,6 +49,9 @@ const userModel = {
             };
         } catch (error) {
             console.error('Login error:', error);
+            if (error.code === 'ER_DUP_ENTRY') {
+                throw new Error('Email already exists');
+            }
             throw error;
         }
     },

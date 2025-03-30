@@ -104,11 +104,17 @@ const userController = {
 
     getCurrentUser: async(req, res) => {
         try {
-            // This will always fail because req.user is never set
-            if (!req.user) {
+            const sessionToken = req.cookies.sessionToken;
+            if (!sessionToken) {
+                console.log('No session token found');
                 return res.status(401).json({ error: 'Not authenticated' });
             }
-            res.json(req.user);
+            const user = await userModel.validateSession(sessionToken);
+            if (!user) {
+                console.log('Invalid session');
+                return res.status(401).json({ error: 'Invalid session' });
+            }
+            res.json(user);
         } catch (error) {
             console.error('Error getting current user:', error);
             res.status(500).json({ error: 'Internal server error' });

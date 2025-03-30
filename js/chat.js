@@ -5,6 +5,11 @@ export class ScriptPalChat {
         this.api = api;
         this.user = user;
         this.messages = null;
+        this.ui = null;
+    }
+
+    setUI(ui) {
+        this.ui = ui;
     }
 
     async initialize() {

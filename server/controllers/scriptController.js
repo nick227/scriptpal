@@ -60,9 +60,30 @@ const scriptController = {
             console.error('Error getting all scripts:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
+    },
+
+    getScriptProfile: async(req, res) => {
+        try {
+            console.log('getScriptProfile');
+            const script = await scriptModel.getScriptProfile(req.params.id);
+            res.json(script);
+        } catch (error) {
+            console.error('Error getting script profile:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    },
+
+    getScriptStats: async(req, res) => {
+        try {
+            const stats = await scriptModel.getScriptStats(req.params.id);
+            res.json(stats);
+
+
+        } catch (error) {
+            console.error('Error getting script stats:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
     }
-
 };
-
 
 export default scriptController;

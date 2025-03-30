@@ -151,6 +151,15 @@ db.getScriptProfile = (scriptId) => new Promise((resolve, reject) => {
     });
 });
 
+// Script stats
+db.getScriptStats = (scriptId) => new Promise((resolve, reject) => {
+    db.query('SELECT type, subtype, content, COUNT(*) as count FROM story_elements WHERE script_id = ? GROUP BY type, content', [scriptId], (err, result) => {
+        if (err) reject(err);
+        resolve(result);
+    });
+});
+
+
 // Session methods
 db.createSession = (userId, sessionToken) => new Promise((resolve, reject) => {
     db.query('INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 14 DAY))', [userId, sessionToken],
@@ -193,7 +202,7 @@ db.deleteSession = (sessionToken) => new Promise((resolve, reject) => {
 
 // Persona methods
 db.getScriptPersonas = (scriptId) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM personas WHERE script_id = ? ORDER BY created_at DESC', [scriptId],
+    db.query('SELECT * FROM personas WHERE script_id = ?', [scriptId],
         (err, result) => {
             if (err) reject(err);
             resolve(result);
@@ -228,6 +237,15 @@ db.deletePersona = (id) => new Promise((resolve, reject) => {
         if (err) reject(err);
         resolve(result.affectedRows > 0);
     });
+});
+
+// Conversation methods
+db.getScriptConversations = (scriptId) => new Promise((resolve, reject) => {
+    db.query('SELECT * FROM conversations WHERE script_id = ? ORDER BY created_at DESC', [scriptId],
+        (err, result) => {
+            if (err) reject(err);
+            resolve(result);
+        });
 });
 
 export default db;

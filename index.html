@@ -2,54 +2,99 @@
 <html lang="en">
 
 <head>
+    <!-- Meta Tags -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScriptPal</title>
-    <link rel="stylesheet" href="css/style.css">
     <meta name="description" content="ScriptPal is a collaborative film script writing platform.">
     <meta name="author" content="ScriptPal">
     <meta name="keywords" content="ScriptPal, film, script, writing, collaborative">
     <meta name="robots" content="index, follow">
     <meta name="googlebot" content="index, follow">
     <meta name="google" content="notranslate">
+
+    <!-- Title -->
+    <title>ScriptPal</title>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 
 <body>
+    <!-- Main Navigation Bar -->
     <div class="navbar">
+        <!-- Brand -->
         <h1 class="title">ScriptPal</h1>
+
+        <!-- User Section -->
         <div class="user-info"></div>
+        <button class="logout-button" style="display: none;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+
+        <!-- Authentication Forms -->
         <div class="user-forms">
+            <!-- Login Form -->
             <form id="login-form" class="login-form">
                 <input type="email" id="email" placeholder="Enter email">
                 <button type="submit">Login</button>
             </form>
+
+            <!-- Registration Form -->
             <form id="register-form" class="register-form">
                 <input type="email" id="register-email" placeholder="Register with email">
                 <button type="submit">Register</button>
             </form>
         </div>
-        <div class="button-set">
-            <button id="settings-view" class="active view-button">response</button>
-            <button id="history-view" class="view-button">history</button>
-            <button id="settings-view" class="view-button">settings</button>
+
+        <!-- Site Navigation Controls -->
+        <div class="button-set site-controls">
+            <!-- View Toggle Buttons -->
+            <button id="chat-view" class="view-button active" data-view="chat">chat</button>
+            <button id="scripts-view" class="view-button" data-view="scripts">scripts</button>
+            <button id="editor-view" class="view-button" data-view="editor">editor</button>
+            <button id="settings-view" class="view-button" data-view="settings">settings</button>
+
+            <!-- Layout Toggle Button -->
             <button id="toggle-view">toggle view</button>
         </div>
     </div>
 
-    <div class="chat-container">
-        <div class="chat-messages"></div>
-        <div class="chat-inputs">
+    <!-- Main Content Area -->
+    <div class="chat-container output-container">
+        <!-- Output Panels -->
+        <!-- Chat Messages Panel -->
+        <div class="chat-messages output-panel" data-name="chat">
+            <div class="loading-indicator"></div>
+        </div>
+
+        <!-- User Scripts Panel -->
+        <div class="user-scripts output-panel hidden" data-name="scripts">
+            <!-- Scripts content will be loaded here -->
+        </div>
+
+        <!-- Script Editor Panel -->
+        <div class="script-editor output-panel hidden" data-name="editor">
+            <!-- Editor content will be loaded here -->
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings output-panel hidden" data-name="settings">
+            <!-- Settings content will be loaded here -->
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-inputs container-input">
+            <!-- Message Input -->
             <textarea id="message" placeholder="Type your message here..."></textarea>
+
+            <!-- Chat Controls -->
             <div class="chat-controls">
-                <button id="send"><i
-                            class="fas fa-paper-plane"></i></button>
-                <button id="record"><i
-                            class="fas fa-microphone"></i></button>
+                <button id="send"><i class="fas fa-paper-plane"></i></button>
+                <button id="record"><i class="fas fa-microphone"></i></button>
             </div>
         </div>
     </div>
 
+    <!-- Scripts -->
     <script type="module" src="js/init.js"></script>
 </body>
 

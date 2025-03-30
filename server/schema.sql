@@ -137,6 +137,41 @@ CREATE TABLE IF NOT EXISTS `personas` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 COMMIT;
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `chat_messages`
+--
+
+DROP TABLE IF EXISTS `chat_messages`;
+CREATE TABLE IF NOT EXISTS `chat_messages` (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    script_id INT DEFAULT NULL,
+    session_id INT DEFAULT NULL,
+
+    role ENUM('user', 'assistant') NOT NULL,
+    user_prompt TEXT NOT NULL,
+    system_prompt TEXT DEFAULT NULL,
+    assistant_response TEXT DEFAULT NULL,
+
+    model VARCHAR(50) DEFAULT NULL,
+    intent VARCHAR(50) DEFAULT NULL,
+    function_call JSON DEFAULT NULL,
+    raw_openai_response JSON DEFAULT NULL,
+
+    prompt_tokens INT DEFAULT 0,
+    completion_tokens INT DEFAULT 0,
+    total_tokens INT DEFAULT 0,
+    cost_usd DECIMAL(10, 6) DEFAULT 0.0,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX (user_id),
+    INDEX (script_id),
+    INDEX (session_id),
+    INDEX (created_at)
+);
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
