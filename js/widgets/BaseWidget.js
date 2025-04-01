@@ -3,29 +3,36 @@ import { StateManager } from '../core/StateManager.js';
 import { BaseRenderer } from '../core/BaseRenderer.js';
 
 export class BaseWidget {
-    constructor(elements) {
-        if (!elements) {
-            throw new Error('Cannot initialize widget without UI elements');
-        }
+    constructor(elements = {}) {
         this.elements = elements;
         this.stateManager = null;
         this.eventManager = null;
         this.renderer = null;
+        this.requiredElements = []; // Default to no required elements
     }
 
     async initialize() {
-        this.validateElements();
+        // Only validate elements if there are required ones
+        if (this.requiredElements.length > 0) {
+            this.validateElements();
+        }
+
+        // Only set up renderer if messages container exists
         if (this.elements.messagesContainer) {
             this.renderer = new BaseRenderer(this.elements.messagesContainer);
         }
-        this.setupEventListeners();
-        this.setupStateSubscriptions();
+
+        await this.setupEventListeners();
+        await this.setupStateSubscriptions();
     }
 
     validateElements() {
-        if (!this.elements.messagesContainer) {
-            throw new Error('Messages container element is required');
-        }
+        // Check for all required elements
+        this.requiredElements.forEach(elementName => {
+            if (!this.elements[elementName]) {
+                throw new Error(`${elementName} element is required`);
+            }
+        });
     }
 
     setupEventListeners() {

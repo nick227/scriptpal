@@ -86,4 +86,33 @@ export class ScriptPalScript {
         this.stateManager = stateManager;
         this.eventManager = eventManager;
     }
+
+    async saveContent(content) {
+        try {
+            const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+            if (!currentScript || !currentScript.id) {
+                throw new Error('No current script selected');
+            }
+
+            // Update script with new content
+            const scriptData = {
+                ...currentScript,
+                content: content
+            };
+
+            // Save to server
+            await this.api.updateScript(currentScript.id, scriptData);
+
+            // Update state
+            this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT, scriptData);
+
+            // Publish event
+            this.eventManager.publish(EventManager.EVENTS.SCRIPT.UPDATED, { script: scriptData });
+
+            return true;
+        } catch (error) {
+            console.error('Failed to save script content:', error);
+            throw error;
+        }
+    }
 }

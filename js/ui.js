@@ -7,6 +7,7 @@ import { ChatWidget } from './widgets/chat/ChatWidget.js';
 import { AuthWidget } from './widgets/auth/AuthWidget.js';
 import { ScriptWidget } from './widgets/script/ScriptWidget.js';
 import { ViewManager } from './ui/ViewManager.js';
+import { NavigationManager } from './ui/NavigationManager.js';
 
 /**
  * Main UI class that coordinates all UI components
@@ -30,7 +31,8 @@ export class ScriptPalUI {
             // Initialize UI elements
             this.initializeElements();
 
-            // Initialize view manager
+            // Initialize managers
+            this.navigationManager = new NavigationManager(this.elements);
             this.viewManager = new ViewManager(this.elements);
             this.viewManager.setupCurrentView();
 
@@ -157,12 +159,14 @@ export class ScriptPalUI {
         this.elements.registerForm = document.querySelector(UI_ELEMENTS.REGISTER_FORM);
         this.elements.logoutButton = document.querySelector(UI_ELEMENTS.LOGOUT_BUTTON);
         this.elements.toggleView = document.querySelector(UI_ELEMENTS.TOGGLE_VIEW);
-        this.elements.chatButtons = document.querySelector(UI_ELEMENTS.CHAT_BUTTONS);
         this.elements.loadingIndicator = document.querySelector(UI_ELEMENTS.LOADING_INDICATOR);
         this.elements.siteControls = document.querySelector(UI_ELEMENTS.SITE_CONTROLS);
-        this.elements.scriptContainer = document.querySelector(UI_ELEMENTS.SCRIPT_CONTAINER);
-        this.elements.settingsContainer = document.querySelector(UI_ELEMENTS.SETTINGS_CONTAINER);
-        this.elements.scriptsContainer = document.querySelector(UI_ELEMENTS.SCRIPTS_CONTAINER);
+
+        // Initialize output panels
+        this.elements.scriptsPanel = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
+        this.elements.editorPanel = document.querySelector(UI_ELEMENTS.SCRIPT_EDITOR_PANEL);
+        this.elements.settingsPanel = document.querySelector(UI_ELEMENTS.SETTINGS_PANEL);
+        this.elements.chatPanel = document.querySelector(UI_ELEMENTS.CHAT_PANEL);
 
         this.validateRequiredElements();
     }
@@ -208,19 +212,18 @@ export class ScriptPalUI {
                 this.elements.loginForm,
                 this.elements.registerForm,
                 this.elements.logoutButton,
-                this.elements.chatButtons,
-                this.elements.scriptContainer
+                this.elements.chatPanel
             ];
 
             elementsToToggle.forEach(element => {
                 if (element) {
                     // Hide login/register forms when authenticated, show logout button
                     if (element === this.elements.loginForm || element === this.elements.registerForm) {
-                        element.style.display = authenticated ? 'none' : 'block';
+                        element.classList.toggle('hidden', authenticated);
                     }
                     // Show logout button and other elements when authenticated
                     else {
-                        element.style.display = authenticated ? 'block' : 'none';
+                        element.classList.toggle('hidden', !authenticated);
                     }
                 }
             });
@@ -244,9 +247,9 @@ export class ScriptPalUI {
 
         // Log warning for optional elements
         const optionalElements = [
-            { element: this.elements.scriptsContainer, name: 'scripts container' },
-            { element: this.elements.scriptContainer, name: 'script container' },
-            { element: this.elements.settingsContainer, name: 'settings container' }
+            { element: this.elements.scriptsPanel, name: 'scripts panel' },
+            { element: this.elements.editorPanel, name: 'editor panel' },
+            { element: this.elements.settingsPanel, name: 'settings panel' }
         ];
 
         const missingOptional = optionalElements.filter(({ element }) => !element);
@@ -265,24 +268,8 @@ export class ScriptPalUI {
             const viewId = button.id;
             if (!viewId) return;
 
-            // Update active button
-            const buttons = this.elements.siteControls.querySelectorAll('.view-button');
-            buttons.forEach(btn => btn.classList.toggle('active', btn.id === viewId));
-
-            // Map views to containers
-            const viewMap = {
-                'chat-view': this.elements.messagesContainer,
-                'scripts-view': this.elements.scriptContainer,
-                'editor-view': this.elements.scriptContainer,
-                'settings-view': this.elements.settingsContainer
-            };
-
-            // Update view visibility
-            Object.entries(viewMap).forEach(([id, element]) => {
-                if (element) {
-                    element.style.display = id === viewId ? 'block' : 'none';
-                }
-            });
+            // Use NavigationManager to handle panel visibility
+            this.navigationManager.setActiveButton(viewId);
 
             // Update state and notify
             this.stateManager.setState(StateManager.KEYS.CURRENT_VIEW, viewId);

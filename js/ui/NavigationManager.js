@@ -3,6 +3,17 @@ import { UI_ELEMENTS } from '../constants.js';
 export class NavigationManager {
     constructor(elements) {
         this.elements = elements;
+        this.initialize();
+    }
+
+    initialize() {
+        // Get the active button and show its panel on initialization
+        if (this.elements.siteControls) {
+            const activeButton = this.elements.siteControls.querySelector('.view-button.active');
+            if (activeButton) {
+                this.setActiveButton(activeButton.id);
+            }
+        }
     }
 
     setActiveButton(buttonId) {
@@ -12,7 +23,7 @@ export class NavigationManager {
         }
 
         // Get all view buttons within site-controls
-        const viewButtons = this.elements.siteControls.querySelectorAll(UI_ELEMENTS.CONTROL_BUTTON);
+        const viewButtons = this.elements.siteControls.querySelectorAll('.view-button');
 
         // Remove active class from all view buttons
         viewButtons.forEach(button => {
@@ -31,21 +42,26 @@ export class NavigationManager {
     }
 
     toggleOutputPanels(activeView) {
-        const outputContainer = document.querySelector(UI_ELEMENTS.OUTPUT_CONTAINER);
-        if (!outputContainer) return;
+        // '.chat-container.output-container'
+        const outputContainer = document.querySelector(UI_ELEMENTS.CHAT_CONTAINER);
+        if (!outputContainer) {
+            console.warn('Output container not found');
+            return;
+        }
 
         // Get all output panels
-        const panels = outputContainer.querySelectorAll(UI_ELEMENTS.OUTPUT_PANEL);
+        const panels = outputContainer.querySelectorAll('.output-panel');
 
         // Hide all panels first
         panels.forEach(panel => {
             panel.classList.add('hidden');
         });
 
-        // Show the active panel using data-name attribute
-        const activePanel = outputContainer.querySelector(`[data-name="${activeView}"]`);
+        // Show the active panel
+        const activePanel = outputContainer.querySelector(`.output-panel[data-name="${activeView}"]`);
         if (activePanel) {
             activePanel.classList.remove('hidden');
+            console.log(`Showing panel for view: ${activeView}`);
         } else {
             console.warn(`Output panel for view '${activeView}' not found`);
         }

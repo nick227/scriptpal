@@ -16,6 +16,7 @@
     <title>ScriptPal</title>
 
     <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/script-editor.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
@@ -48,9 +49,9 @@
         <!-- Site Navigation Controls -->
         <div class="button-set site-controls">
             <!-- View Toggle Buttons -->
-            <button id="chat-view" class="view-button active" data-view="chat">chat</button>
+            <button id="chat-view" class="view-button" data-view="chat">chat</button>
             <button id="scripts-view" class="view-button" data-view="scripts">scripts</button>
-            <button id="editor-view" class="view-button" data-view="editor">editor</button>
+            <button id="editor-view" class="view-button active" data-view="editor">editor</button>
             <button id="settings-view" class="view-button" data-view="settings">settings</button>
 
             <!-- Layout Toggle Button -->
@@ -62,23 +63,23 @@
     <div class="chat-container output-container">
         <!-- Output Panels -->
         <!-- Chat Messages Panel -->
-        <div class="chat-messages output-panel" data-name="chat">
+        <div class="chat-messages output-panel hidden" data-name="chat">
             <div class="loading-indicator"></div>
         </div>
 
         <!-- User Scripts Panel -->
         <div class="user-scripts output-panel hidden" data-name="scripts">
-            <!-- Scripts content will be loaded here -->
+            <!-- Scripts content will be loaded here -->SCRIPTS 123
         </div>
 
         <!-- Script Editor Panel -->
         <div class="script-editor output-panel hidden" data-name="editor">
-            <!-- Editor content will be loaded here -->
+            <div id="editor-container"></div>
         </div>
 
         <!-- Settings Panel -->
         <div class="settings output-panel hidden" data-name="settings">
-            <!-- Settings content will be loaded here -->
+            <!-- Settings content will be loaded here -->SETTINGS 123
         </div>
 
         <!-- Input Area -->
