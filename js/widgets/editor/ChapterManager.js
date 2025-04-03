@@ -25,7 +25,6 @@ export class ChapterManager extends BaseWidget {
             id: `chapter-${Date.now()}`,
             title,
             pageNumber,
-            subChapters: [],
             timestamp: Date.now(),
             order: this.chapters.size // Maintain chapter order
         };
@@ -34,27 +33,6 @@ export class ChapterManager extends BaseWidget {
         this._pageIndex.set(pageNumber, chapter);
         this.notifyChapterChange();
         return chapter;
-    }
-
-    createSubChapter(chapterId, title, pageNumber) {
-        const chapter = this.chapters.get(chapterId);
-        if (!chapter) return null;
-
-        // Validate page number
-        if (pageNumber < 0) return null;
-
-        const subChapter = {
-            id: `subchapter-${Date.now()}`,
-            title,
-            pageNumber,
-            timestamp: Date.now(),
-            order: chapter.subChapters.length
-        };
-
-        chapter.subChapters.push(subChapter);
-        this._pageIndex.set(pageNumber, {...subChapter, parentChapter: chapter });
-        this.notifyChapterChange();
-        return subChapter;
     }
 
     getChapterAtPage(pageNumber) {
@@ -78,9 +56,6 @@ export class ChapterManager extends BaseWidget {
         this._pageIndex.clear();
         sortedChapters.forEach(chapter => {
             this._pageIndex.set(chapter.pageNumber, chapter);
-            chapter.subChapters.forEach(subChapter => {
-                this._pageIndex.set(subChapter.pageNumber, {...subChapter, parentChapter: chapter });
-            });
         });
 
         this.notifyChapterChange();
@@ -120,6 +95,32 @@ export class ChapterManager extends BaseWidget {
         if (this._handlers.chapterReorder) {
             this._handlers.chapterReorder(chapters);
         }
+    }
+
+    loadChapters(chapters) {
+        if (!Array.isArray(chapters)) {
+            console.warn('Invalid chapters data:', chapters);
+            return;
+        }
+
+        // Clear existing chapters
+        this.chapters.clear();
+        this._pageIndex.clear();
+
+        // Load new chapters
+        chapters.forEach((chapter, index) => {
+            if (!chapter.id) {
+                chapter.id = `chapter-${Date.now()}-${index}`;
+            }
+            if (typeof chapter.order === 'undefined') {
+                chapter.order = index;
+            }
+            this.chapters.set(chapter.id, chapter);
+            this._pageIndex.set(chapter.pageNumber, chapter);
+        });
+
+        // Notify listeners
+        this.notifyChapterChange();
     }
 
     destroy() {

@@ -40,6 +40,7 @@ export class EventManager {
     }
 
     publish(event, data) {
+        console.log('EventManager: publish', event, data);
         const listeners = this.listeners.get(event);
         if (listeners) {
             listeners.forEach(callback => callback(data));

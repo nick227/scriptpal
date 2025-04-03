@@ -1,25 +1,11 @@
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from "@langchain/core/prompts";
 
+// Function prompt
 export const isFunctionPrompt = ChatPromptTemplate.fromMessages([
-    ["system", `
-        Analyze the user prompt and determine if it is requesting one or more executions such as saving a new script or saving a story element. Or changing previously saved values. 
-
-        You can execute the following 4 functions:
-        - save_script
-        - save_story_element
-        - change_script_title
-        - share_script
-        
-        Return the function name and the arguments in a JSON object.
-
-        Example:
-        {{
-            "function": "save_script",
-            "arguments": {{
-                "title": "My new script",
-                "content": "This is the content of my new script"
-            }}
-        }}
-        `.trim()],
-    ["user", "{input}\n\nReturn the function name and the arguments in a JSON object."]
+    SystemMessagePromptTemplate.fromTemplate(
+        "You are a function detector. Analyze the input text and determine if it is a function request. A function request is a request to perform a specific action like 'save', 'load', 'delete', etc. Return true if it is a function request, false if it is not.\n\nExample function requests:\n- Save my script\n- Load my last script\n- Delete this script\n- Start a new script\n- Clear the editor\n\nExample non-function requests:\n- Help me write a story about dragons\n- What should happen next in my story?\n- Give me ideas for character names\n- How can I improve this scene?"
+    ),
+    HumanMessagePromptTemplate.fromTemplate(
+        "{input}\n\nReturn true or false only."
+    )
 ]);

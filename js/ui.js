@@ -22,12 +22,14 @@ export class ScriptPalUI {
         this.eventBus = new EventBus();
         this.elements = {};
         this.widgets = {};
-        this.boundHandleViewChange = this.handleViewChange.bind(this);
-        this.boundHandleToggleView = this.handleToggleView.bind(this);
+        this.currentUser = null;
+        this._handleViewChange = this.handleViewChange.bind(this);
+        this._handleToggleView = this.handleToggleView.bind(this);
     }
 
     async initialize(currentUser) {
         try {
+            this.currentUser = currentUser;
             // Initialize UI elements
             this.initializeElements();
 
@@ -71,10 +73,10 @@ export class ScriptPalUI {
 
     setupViewNavigation() {
         if (this.elements.siteControls) {
-            this.elements.siteControls.addEventListener('click', this.boundHandleViewChange);
+            this.elements.siteControls.addEventListener('click', this._handleViewChange);
         }
         if (this.elements.toggleView) {
-            this.elements.toggleView.addEventListener('click', this.boundHandleToggleView);
+            this.elements.toggleView.addEventListener('click', this._handleToggleView);
         }
     }
 
@@ -100,10 +102,10 @@ export class ScriptPalUI {
 
             // Clean up event listeners
             if (this.elements.siteControls) {
-                this.elements.siteControls.removeEventListener('click', this.boundHandleViewChange);
+                this.elements.siteControls.removeEventListener('click', this._handleViewChange);
             }
             if (this.elements.toggleView) {
-                this.elements.toggleView.removeEventListener('click', this.boundHandleToggleView);
+                this.elements.toggleView.removeEventListener('click', this._handleToggleView);
             }
 
             // Reset state
@@ -116,8 +118,8 @@ export class ScriptPalUI {
             this.dependencies = {};
 
             // Clear bound methods
-            this.boundHandleViewChange = null;
-            this.boundHandleToggleView = null;
+            this._handleViewChange = null;
+            this._handleToggleView = null;
 
             // Clear view manager
             this.viewManager = null;
@@ -131,8 +133,10 @@ export class ScriptPalUI {
             // Update dependencies
             this.dependencies.chat = chat;
             this.dependencies.script = script;
-
             // Initialize widgets if not already done
+            console.log('updateComponents');
+            console.log(this.widgets.chat);
+            console.log(this.widgets.script);
             if (!this.widgets.chat || !this.widgets.script) {
                 this.initializeWidgets();
             } else {
@@ -173,6 +177,7 @@ export class ScriptPalUI {
 
     initializeWidgets() {
         try {
+            alert('initializeWidgets');
             // Create widgets with complete dependencies
             this.widgets.auth = new AuthWidget(this.stateManager, this.dependencies.user, this.eventBus);
             this.widgets.chat = new ChatWidget(this.stateManager, this.dependencies.chat, this.eventBus);

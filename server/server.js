@@ -72,11 +72,14 @@ function registerRoutes(app, routes) {
 }
 
 // Route handler
-app.use((req, res, next) => {
+app.use('/api', (req, res, next) => {
+    // Remove /api prefix from path for matching
+    const pathWithoutPrefix = req.path.replace(/^\/api/, '');
+
     // Convert route path pattern to regex
     const route = routes.find(r => {
         const routePattern = new RegExp('^' + r.path.replace(/:(\w+)/g, '([^/]+)') + '$');
-        return routePattern.test(req.path) && r.method === req.method.toLowerCase();
+        return routePattern.test(pathWithoutPrefix) && r.method === req.method.toLowerCase();
     });
 
     if (!route) {
@@ -89,13 +92,22 @@ app.use((req, res, next) => {
 
     // Extract parameters from URL
     const routePattern = new RegExp('^' + route.path.replace(/:(\w+)/g, '([^/]+)') + '$');
-    const matches = req.path.match(routePattern);
+    const matches = pathWithoutPrefix.match(routePattern);
     if (matches) {
         const paramNames = (route.path.match(/:(\w+)/g) || []).map(name => name.slice(1));
         paramNames.forEach((name, index) => {
             req.params[name] = matches[index + 1];
         });
     }
+
+    // Add request logging
+    console.log('API Request:', {
+        originalPath: req.path,
+        matchedPath: pathWithoutPrefix,
+        method: req.method,
+        route: route.path,
+        params: req.params
+    });
 
     // If there is middleware
     if (route.middleware && route.middleware.length > 0) {

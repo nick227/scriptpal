@@ -2,7 +2,7 @@ import {
     classifyIntent,
     generateResponse,
     generateButtons,
-    isFunctionRequest
+    checkFunctionRequest
 } from "./langchain/index.js";
 import scriptModel from '../models/script.js';
 
@@ -20,9 +20,8 @@ const chatController = {
                 return res.status(400).json({ error: "Missing prompt" });
             }
 
-            //const listOfFunctionsToRun = await isFunctionRequest(prompt);
-
-            //console.log('!!! listOfFunctionsToRun: ', listOfFunctionsToRun);
+            //const isFunctionRequest = await checkFunctionRequest(prompt);
+            //console.log('!!! isFunctionRequest: ', isFunctionRequest);
 
             // Step 1: Classify
             const intent = null;
@@ -36,9 +35,7 @@ const chatController = {
             //buttons = await generateButtons(prompt, html);
 
             console.log('!!! intent: ', intent);
-
             console.log('!!! html: ', html);
-
             console.log('!!! buttons: ', buttons);
 
             res.status(200).json({

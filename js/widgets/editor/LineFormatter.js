@@ -5,6 +5,7 @@ export class LineFormatter {
         }
 
         this.stateManager = stateManager;
+        this.keydownHandler = null; // Store keydown handler reference
 
         this.formats = Object.freeze({
             HEADER: 'header',
@@ -14,106 +15,156 @@ export class LineFormatter {
             DIRECTIONS: 'directions'
         });
 
-        // Format flow: HEADER -> ACTION -> SPEAKER -> DIALOG -> SPEAKER -> DIALOG (cycles)
-        // Special formats (ACTION, DIRECTIONS) require explicit selection
-        this.stateManager.setFormatFlow(Object.freeze({
-            // Natural flow
+        // Format flow defines the exact pattern:
+        // HEADER -> ACTION -> SPEAKER -> DIALOG <-> SPEAKER
+        this.formatFlow = {
             [this.formats.HEADER]: this.formats.ACTION,
             [this.formats.ACTION]: this.formats.SPEAKER,
             [this.formats.SPEAKER]: this.formats.DIALOG,
-            [this.formats.DIALOG]: this.formats.SPEAKER,
-            [this.formats.DIRECTIONS]: this.formats.ACTION,
-        }));
+            [this.formats.DIALOG]: this.formats.SPEAKER
+        };
 
         // Format cycling (for shift+arrow keys)
-        this.stateManager.setFormatCycle(Object.freeze([
+        this.formatCycle = [
             this.formats.ACTION,
             this.formats.SPEAKER,
             this.formats.DIALOG,
             this.formats.HEADER,
             this.formats.DIRECTIONS
-        ]));
+        ];
 
         this._resizeObserver = null;
         this._mutationObserver = null;
         this._fullPageCheckTimeout = null;
     }
 
+    setKeydownHandler(handler) {
+        this.keydownHandler = handler;
+    }
+
+    handleShiftArrowKeys(event) {
+        const currentFormat = this.getFormatForLine(this.stateManager.getCurrentLine());
+        const nextFormat = this.cycleFormat(currentFormat, event.key === 'ArrowDown' ? 'next' : 'prev');
+        this.setLineFormat(this.stateManager.getCurrentLine(), nextFormat);
+    }
+
     // Get next format in natural flow (for Enter key)
     getNextFlowFormat(currentFormat) {
-        const formatFlow = this.stateManager.getFormatFlow();
-        return formatFlow[currentFormat] || this.formats.ACTION;
+        if (!currentFormat) {
+            return this.formats.HEADER;
+        }
+
+        // Get the next format from the flow map
+        const nextFormat = this.formatFlow[currentFormat];
+
+        // If no next format defined, stay in current format (for DIRECTIONS)
+        if (!nextFormat) {
+            return this.formats.ACTION;
+        }
+
+        return nextFormat;
     }
 
     // Get next/previous format in cycle (for shift+arrow keys)
     cycleFormat(currentFormat, direction = 'next') {
-        const formatCycle = this.stateManager.getFormatCycle();
-        const currentIndex = formatCycle.indexOf(currentFormat);
+        const currentIndex = this.formatCycle.indexOf(currentFormat);
         if (currentIndex === -1) return this.formats.ACTION;
 
-        const cycleLength = formatCycle.length;
+        const cycleLength = this.formatCycle.length;
         if (direction === 'next') {
-            return formatCycle[(currentIndex + 1) % cycleLength];
+            return this.formatCycle[(currentIndex + 1) % cycleLength];
         } else {
-            return formatCycle[(currentIndex - 1 + cycleLength) % cycleLength];
+            return this.formatCycle[(currentIndex - 1 + cycleLength) % cycleLength];
         }
     }
 
     // Line Management
-    createFormattedLine(format) {
-        // If no format is provided, check if this is the first line
+    createFormattedLine(format = null) {
         if (!format) {
-            const pages = this.stateManager.getPages();
-            const isFirstLine = !pages.length || (pages.length === 1 && !pages[0].querySelector('.script-line'));
-            format = isFirstLine ? this.formats.HEADER : this.formats.ACTION;
+            const currentLine = this.stateManager.getCurrentLine();
+            if (currentLine) {
+                const currentFormat = this.getFormatForLine(currentLine);
+                format = this.getNextFlowFormat(currentFormat);
+                console.log('LineFormatter: Determined format from current line:', {
+                    currentLine,
+                    currentFormat,
+                    nextFormat: format
+                });
+            } else {
+                format = this.formats.HEADER;
+            }
         }
 
+        // Create new line element
         const line = document.createElement('div');
         line.className = 'script-line';
         line.contentEditable = 'true';
-        line.setAttribute('role', 'textbox');
-        line.setAttribute('aria-multiline', 'false');
         line.setAttribute('data-format', format);
+        line.classList.add(`format-${format}`);
 
-        // Ensure line has a text node
-        line.appendChild(document.createTextNode(''));
+        // Attach keydown handler if available
+        if (this.keydownHandler) {
+            line.addEventListener('keydown', this.keydownHandler);
+        }
 
-        // Set format class
-        this.setLineFormat(line, format);
+        // Ensure line has initial text node for cursor positioning
+        const textNode = document.createTextNode('');
+        line.appendChild(textNode);
 
         return line;
     }
 
     getFormatForLine(line) {
-        if (!line || !line.classList) return null;
-        return Object.values(this.formats).find(format =>
-            line.classList.contains(`format-${format}`)) || null;
+        if (!line || !line.classList) {
+            console.warn('LineFormatter: Invalid line for format check:', line);
+            return null;
+        }
+        const format = line.getAttribute('data-format') || null;
+
+        return format;
     }
 
     setLineFormat(line, format) {
-        if (!line || !line.classList || !this.isValidFormat(format)) return line;
+        console.log('LineFormatter: Setting format:', {
+            line,
+            currentFormat: line.getAttribute('data-format'),
+            newFormat: format
+        });
+
+        if (!line || !line.classList || !this.isValidFormat(format)) {
+            console.warn('LineFormatter: Invalid line or format:', { line, format });
+            return line;
+        }
 
         // Remove existing format classes
         Object.values(this.formats).forEach(fmt =>
             line.classList.remove(`format-${fmt}`));
 
-        // Add new format class and ensure script-line class exists
-        line.classList.add('script-line');
+        // Add new format class
         line.classList.add(`format-${format}`);
         line.setAttribute('data-format', format);
 
-        // Ensure contentEditable is set
-        line.contentEditable = 'true';
+        // Update state manager
+        const currentLine = this.stateManager.getCurrentLine();
+        const isCurrentLine = line === currentLine;
+        console.log('LineFormatter: Format update:', {
+            isCurrentLine,
+            oldFormat: currentLine && currentLine.getAttribute('data-format'),
+            newFormat: format
+        });
 
-        // Update state
-        this.stateManager.setCurrentFormat(format);
+        if (isCurrentLine) {
+            this.stateManager.setCurrentFormat(format);
+        }
 
         return line;
     }
 
     // Utility Methods
     isValidFormat(format) {
-        return Object.values(this.formats).includes(format);
+        const isValid = Object.values(this.formats).includes(format);
+
+        return isValid;
     }
 
     getAllFormats() {
@@ -191,90 +242,79 @@ export class LineFormatter {
         }
     }
 
-    handleEnterKey(e) {
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
-            e.preventDefault();
+    handleEnterKey(event) {
+        event.preventDefault();
 
-            // Get current line and validate
-            const currentLine = this.stateManager.getCurrentLine();
-            if (!currentLine || !currentLine.parentElement) return true;
+        const currentLine = this.stateManager.getCurrentLine();
+        if (!currentLine) return false;
 
-            try {
-                // Get current selection and range safely
-                let cursorOffset = 0;
-                let selectionInCurrentLine = false;
+        // Get current format and next format in flow
+        const currentFormat = this.getFormatForLine(currentLine);
+        const nextFormat = this.getNextFlowFormat(currentFormat);
 
-                const selection = window.getSelection();
-                if (selection && typeof selection.getRangeCount === 'function' && selection.getRangeCount() > 0) {
-                    const range = selection.getRangeAt(0);
-                    if (range && currentLine.contains(range.startContainer)) {
-                        cursorOffset = range.startOffset;
-                        selectionInCurrentLine = true;
-                    }
-                }
+        // Create new line with next format
+        const newLine = this.createFormattedLine(nextFormat);
+        console.log('LineFormatter: Created new line with format:', nextFormat);
 
-                // Get text content
-                const lineContent = currentLine.textContent || '';
-                const beforeCursor = selectionInCurrentLine ? lineContent.substring(0, cursorOffset) : lineContent;
-                const afterCursor = selectionInCurrentLine ? lineContent.substring(cursorOffset) : '';
+        // Handle text split at cursor position
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
 
-                // Update current line with text before cursor
-                if (currentLine.firstChild) {
-                    currentLine.firstChild.textContent = beforeCursor;
-                } else {
-                    currentLine.appendChild(document.createTextNode(beforeCursor));
-                }
+            // Ensure we're working with the correct text node
+            let container = range.commonAncestorContainer;
+            if (container.nodeType !== Node.TEXT_NODE) {
+                container = Array.from(currentLine.childNodes)
+                    .find(node => node.nodeType === Node.TEXT_NODE && node.textContent.length > 0) || currentLine.firstChild;
+            }
 
-                // Get format for new line
-                const currentFormat = this.getFormatForLine(currentLine);
-                const nextFormat = this.getNextFlowFormat(currentFormat);
+            if (currentLine.contains(container)) {
+                // Get text content before and after cursor
+                const fullText = container.textContent;
+                const cursorPosition = range.startOffset;
+                const textBefore = fullText.substring(0, cursorPosition);
+                const textAfter = fullText.substring(cursorPosition);
 
-                // Create new line with text after cursor
-                const newLine = this.createFormattedLine(nextFormat);
-                if (afterCursor) {
-                    newLine.firstChild.textContent = afterCursor;
-                }
+                // Update text content
+                container.textContent = textBefore;
+                newLine.textContent = textAfter;
 
-                // Insert new line after current
-                currentLine.parentElement.insertBefore(newLine, currentLine.nextSibling);
-
-                // Set focus and cursor position
-                requestAnimationFrame(() => {
-                    try {
-                        // Create and apply new range
-                        const newRange = document.createRange();
-                        newRange.setStart(newLine.firstChild, 0);
-                        newRange.setEnd(newLine.firstChild, 0);
-
-                        // Update selection
-                        const newSelection = window.getSelection();
-                        if (newSelection) {
-                            newSelection.removeAllRanges();
-                            newSelection.addRange(newRange);
-                        }
-
-                        // Set focus
-                        newLine.focus();
-
-                        // Update state
-                        this.stateManager.setCurrentLine(newLine);
-
-                        // Check for overflow after DOM update
-                        this.checkCurrentLineOverflow(newLine);
-                    } catch (focusError) {
-                        console.warn('Error setting focus:', focusError);
-                        // Even if focus fails, ensure line is in state
-                        this.stateManager.setCurrentLine(newLine);
-                    }
+                console.log('LineFormatter: Split text at cursor:', {
+                    before: textBefore,
+                    after: textAfter,
+                    position: cursorPosition
                 });
-
-                return true;
-            } catch (error) {
-                console.error('Error handling Enter key:', error);
-                return true; // Prevent default even if we fail
             }
         }
-        return false;
+
+        // Get the parent page
+        const currentPage = currentLine.parentElement;
+        if (!currentPage) return false;
+
+        // Insert new line after current line
+        currentPage.insertBefore(newLine, currentLine.nextSibling);
+        console.log('LineFormatter: Inserted new line after current line');
+
+        // Set focus to new line
+        requestAnimationFrame(() => {
+            newLine.focus();
+
+            // Place cursor at start of new line
+            const selection = window.getSelection();
+            if (selection) {
+                const range = document.createRange();
+                const textNode = newLine.firstChild || newLine;
+                range.setStart(textNode, 0);
+                range.setEnd(textNode, 0);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+
+            // Check for page overflow
+            this.checkCurrentLineOverflow(newLine);
+        });
+
+        return true;
     }
 
     // Add efficient page monitoring

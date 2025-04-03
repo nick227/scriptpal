@@ -3,9 +3,9 @@ import { utils } from './utils.js';
 
 export class ScriptPalAPI {
     constructor() {
-        // Only add port 3000 for localhost
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        this.baseUrl = window.location.protocol + '//' + window.location.hostname + (isLocalhost ? ':3000' : '');
+        // Use Node.js server URL for API requests
+        this.baseUrl = 'http://localhost:3000/api';
+
         this.isLoading = false;
         this.requestQueue = new Set();
 
@@ -60,19 +60,38 @@ export class ScriptPalAPI {
     async _handleResponse(response) {
         try {
             const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('Invalid response format');
+
+
+            // Handle empty responses
+            if (response.status === 204) {
+                return null;
             }
 
-            const data = await response.json();
+            // Try to parse as JSON even if content-type is not set
+            try {
+                const data = await response.json();
 
-            if (!response.ok) {
-                if (response.status === 401) {
-                    return null;
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        console.warn('Authentication required');
+                        return null;
+                    }
+                    throw new Error(data.error || ERROR_MESSAGES.API_ERROR);
                 }
-                throw new Error(data.error || ERROR_MESSAGES.API_ERROR);
+                return data;
+            } catch (jsonError) {
+                console.warn('Failed to parse JSON response:', jsonError);
+
+                // If content type was application/json, this is a real error
+                if (contentType && contentType.includes('application/json')) {
+                    throw new Error('Invalid JSON response');
+                }
+
+                // For non-JSON responses, try to get text
+                const textContent = await response.text();
+                return { text: textContent };
             }
-            return data;
         } catch (error) {
             console.error('Response handling error:', error);
             throw error;
@@ -81,6 +100,7 @@ export class ScriptPalAPI {
 
     async _makeRequest(endpoint, options = {}) {
         const requestId = `${options.method || 'GET'}-${endpoint}`;
+        const url = `${this.baseUrl}${endpoint}`;
 
         if (this.requestQueue.has(requestId)) {
             console.warn(`Ignoring duplicate request: ${requestId}`);
@@ -95,9 +115,7 @@ export class ScriptPalAPI {
         try {
             this.isLoading = true;
             this.requestQueue.add(requestId);
-            console.log('Making API request to:', `${this.baseUrl}${endpoint}`);
-
-            const response = await fetch(`${this.baseUrl}${endpoint}`, {
+            const response = await fetch(url, {
                 ...options,
                 headers: {
                     ...API_HEADERS,
@@ -112,12 +130,33 @@ export class ScriptPalAPI {
             });
 
             if (!response) {
+                console.error('No response received from server');
                 throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+            }
+
+            // Log response details before processing
+            const responseDetails = {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries()),
+                url: response.url
+            };
+
+
+            // Special handling for 404s
+            if (response.status === 404) {
+                console.warn('Resource not found:', url);
+                return null;
             }
 
             return await this._handleResponse(response);
         } catch (error) {
-            console.error(`API request error for ${endpoint}:`, error);
+            console.error('API request failed:', {
+                url,
+                method: options.method,
+                error: error.message,
+                stack: error.stack
+            });
             if (error.message === 'Failed to fetch') {
                 throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
             }
@@ -191,9 +230,12 @@ export class ScriptPalAPI {
 
     // Script methods
     async getScript(id) {
-        return this._makeRequest(`/script/${id}`, {
+
+        const result = await this._makeRequest(`/script/${id}`, {
             method: 'GET'
         });
+
+        return result;
     }
 
     async createScript(scriptData) {
@@ -204,10 +246,13 @@ export class ScriptPalAPI {
     }
 
     async updateScript(id, scriptData) {
-        return this._makeRequest(`/script/${id}`, {
+
+        const result = await this._makeRequest(`/script/${id}`, {
             method: 'PUT',
             body: JSON.stringify(scriptData)
         });
+
+        return result;
     }
 
     async deleteScript(id) {
@@ -217,9 +262,12 @@ export class ScriptPalAPI {
     }
 
     async getAllScriptsByUser(userId) {
-        return this._makeRequest(`/script?user_id=${userId}`, {
+
+        const result = await this._makeRequest(`/script?user_id=${userId}`, {
             method: 'GET'
         });
+
+        return result;
     }
 
     // Cleanup method

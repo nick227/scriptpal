@@ -74,11 +74,44 @@ db.createScript = (script) => new Promise((resolve, reject) => {
 });
 
 db.updateScript = (id, script) => new Promise((resolve, reject) => {
-    db.query('UPDATE scripts SET title = ?, status = ?, version_number = ? WHERE id = ?', [script.title, script.status, script.version_number, id],
+    // Validate required fields
+    if (!id) {
+        reject(new Error('Script ID is required'));
+        return;
+    }
+    if (!script.title) {
+        reject(new Error('Script title is required'));
+        return;
+    }
+
+    // Ensure content is a string
+    const content = typeof script.content === 'string' ?
+        script.content :
+        JSON.stringify(script.content);
+
+    db.query(
+        'UPDATE scripts SET title = ?, status = ?, version_number = ?, content = ? WHERE id = ?', [script.title, script.status, script.version_number, content, id],
         (err, result) => {
-            if (err) reject(err);
-            resolve({ id, ...script });
-        });
+            if (err) {
+                console.error('Database error updating script:', err);
+                reject(err);
+                return;
+            }
+
+            // Check if update was successful
+            if (result.affectedRows === 0) {
+                reject(new Error('Script not found or no changes made'));
+                return;
+            }
+
+            // Return updated script data
+            resolve({
+                id,
+                ...script,
+                content: content // Return the stringified content
+            });
+        }
+    );
 });
 
 db.getAllScriptsByUser = (user_id) => {

@@ -29,6 +29,9 @@ export class ChatWidget extends BaseWidget {
         this.events = new ChatEvents({
             handleSend: (message) => {
                 if (this.manager) {
+                    console.log('************************************************');
+                    console.log('ChatWidget: handleSend', message);
+                    console.log('************************************************');
                     this.manager.handleSend(message);
                 }
             }
@@ -39,7 +42,8 @@ export class ChatWidget extends BaseWidget {
         this.setupEventListeners();
 
         // Load initial welcome buttons
-        this.manager.loadWelcomeButtons();
+        // TODO: Remove this once we have a proper welcome message
+        //this.manager.loadWelcomeButtons();
     }
 
     setupEventListeners() {

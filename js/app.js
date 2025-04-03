@@ -134,6 +134,7 @@ export class ScriptPal {
         if (this.script && this.script.getCurrentContent()) {
             const content = this.script.getCurrentContent();
             this.content.setContent(content);
+            console.log('Content set:', content);
             this.autosave.setLastSavedContent(content);
         }
     }

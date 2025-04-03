@@ -1,449 +1,261 @@
+import { VirtualScrollManager } from './page/VirtualScrollManager.js';
+import { PageMeasurement } from './page/PageMeasurement.js';
+import { PageOperations } from './page/PageOperations.js';
+
 export class PageManager {
-    constructor(stateManager) {
-        if (!stateManager) {
-            throw new Error('StateManager is required for PageManager');
-        }
+    constructor(container) {
+        this.container = container;
+        this.editorArea = null;
+        this.pages = [];
+        this.maxHeight = 1100; // 11 inches * 100px per inch
 
-        // Store state manager reference
-        this.stateManager = stateManager;
+        // Initialize components
+        this.measurement = new PageMeasurement();
+        this.operations = new PageOperations(this.measurement);
+        this.virtualScroll = new VirtualScrollManager({
+            buffer: 2
+        });
 
-        // Initialize container reference
-        this.container = null;
-
-        // Initialize handlers for legacy support
-        this._handlers = {
+        // Event handling system
+        this._eventHandlers = {
             pageChange: null,
             overflow: null,
             pageSelect: null
         };
-
-        // Initialize observer
-        this._observer = null;
     }
 
-    async initialize() {
-        try {
-            // Reset state
-            this.clear();
+    // Event handling methods
+    onPageChange(callback) {
+        this._eventHandlers.pageChange = callback;
+    }
 
-            // Initialize observer
-            await this.setupPageObserver();
-
-            return true;
-        } catch (error) {
-            console.error('Failed to initialize PageManager:', error);
-            throw error;
+    _notifyPageChange() {
+        if (this._eventHandlers.pageChange) {
+            this._eventHandlers.pageChange(this.pages.length);
         }
     }
 
-    setContainer(container) {
-        if (!container || !(container instanceof HTMLElement)) {
-            throw new Error('Invalid container element provided to PageManager');
+    setEditorArea(editorArea) {
+        if (!editorArea || !(editorArea instanceof HTMLElement)) {
+            throw new Error('Invalid editor area element');
         }
-        this.container = container;
-        this.setupPageObserver();
+        this.editorArea = editorArea;
+        this.container = editorArea.parentElement;
+
+        // Re-initialize if needed
+        if (this.pages.length === 0) {
+            this._createInitialPage();
+        }
     }
 
-    async setupPageObserver() {
+    initialize() {
+        if (!this.container) {
+            throw new Error('Container element is required for PageManager');
+        }
+        this._createInitialPage();
+    }
+
+    _createInitialPage() {
+        console.log('PageManager: Creating initial page');
+        const page = document.createElement('div');
+        page.className = 'editor-page';
+        page.setAttribute('role', 'document');
+        page.setAttribute('aria-label', 'Script Page');
+
+        // Ensure we have an editor area
+        if (!this.editorArea) {
+            console.error('PageManager: No editor area available for initial page');
+            return null;
+        }
+
+        // Add to pages array and DOM
+        this.pages.push(page);
+        this.editorArea.appendChild(page);
+        console.log('PageManager: Initial page created and added to DOM');
+
+        this._notifyPageChange();
+        return page;
+    }
+
+    async addLine(line) {
+        console.log('PageManager: Adding line:', line);
+
+        if (!this.editorArea) {
+            console.error('PageManager: No editor area available');
+            return false;
+        }
+
         try {
-            // Cleanup existing observer
-            await this.cleanupObserver();
-
-            // Create new observer with error handling
-            this._observer = new IntersectionObserver(
-                this.handleIntersection.bind(this), { threshold: 0.5 }
-            );
-
-            // Observe existing pages with validation
-            const pages = this.stateManager.getPages();
-            if (pages.length > 0) {
-                await this.observeExistingPages();
+            // Get or create first page if none exists
+            let currentPage = this.getCurrentPage();
+            if (!currentPage) {
+                console.log('PageManager: No current page, creating initial page');
+                currentPage = this._createInitialPage();
+                if (!currentPage) {
+                    console.error('PageManager: Failed to create initial page');
+                    return false;
+                }
             }
 
-            return true;
-        } catch (error) {
-            console.error('Failed to setup page observer:', error);
-            this._observer = null;
-            throw error;
-        }
-    }
-
-    async cleanupObserver() {
-        if (this._observer) {
-            try {
-                this._observer.disconnect();
-            } catch (error) {
-                console.warn('Error disconnecting observer:', error);
-            } finally {
-                this._observer = null;
+            // Double check page is in pages array
+            if (!this.pages.includes(currentPage)) {
+                console.log('PageManager: Current page not in pages array, adding it');
+                this.pages.push(currentPage);
             }
-        }
-    }
 
-    handleIntersection(entries) {
-        try {
-            entries.forEach(entry => {
-                if (!(entry.target instanceof HTMLElement)) {
-                    console.warn('Invalid intersection target:', entry.target);
-                    return;
-                }
+            // Ensure page is in DOM
+            if (!currentPage.isConnected) {
+                console.log('PageManager: Page not in DOM, attaching to editor area');
+                this.editorArea.appendChild(currentPage);
+            }
 
-                const pageNumber = this.getPageNumber(entry.target);
-                if (entry.isIntersecting && pageNumber !== -1) {
-                    this.notifyPageSelect(pageNumber);
-                    this.stateManager.setCurrentPage(pageNumber + 1);
-                }
+            console.log('PageManager: Adding line to page:', currentPage);
+
+            // Add line to page
+            currentPage.appendChild(line);
+
+            // Ensure line is in DOM before proceeding
+            await new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    if (line.isConnected) {
+                        console.log('PageManager: Line added and confirmed in DOM');
+                        resolve();
+                    } else {
+                        console.warn('PageManager: Line not in DOM, retrying');
+                        // Double check page is in DOM
+                        if (!currentPage.isConnected) {
+                            this.editorArea.appendChild(currentPage);
+                        }
+                        currentPage.appendChild(line);
+                        requestAnimationFrame(resolve);
+                    }
+                });
             });
+
+            // Verify line was added successfully
+            if (!this.editorArea.querySelector('.script-line')) {
+                console.warn('PageManager: No script lines found after addition, verifying structure');
+                console.log('PageManager: Current DOM structure:', this.editorArea.innerHTML);
+            }
+
+            console.log('PageManager: Line added successfully');
+            this._notifyPageChange();
+            return true;
+
         } catch (error) {
-            console.error('Error handling intersection:', error);
+            console.error('PageManager: Failed to add line:', error);
+            return false;
         }
     }
 
-    async observeExistingPages() {
-        if (!this._observer) {
-            throw new Error('Observer not initialized');
-        }
+    createPage() {
+        console.log('PageManager: Creating new page');
+        const page = document.createElement('div');
+        page.className = 'editor-page';
+        page.setAttribute('role', 'document');
+        page.setAttribute('aria-label', 'Script Page');
+        // Don't add to DOM here - let addLine handle that
+        console.log('PageManager: New page created:', page);
+        return page;
+    }
 
-        const pages = this.stateManager.getPages();
-        const validPages = pages.filter(page => {
-            if (!(page instanceof HTMLElement)) {
-                console.warn('Invalid page element:', page);
+    removeLine(line) {
+        if (!line || !line.parentElement) return false;
+        line.remove();
+        this.rebalancePages();
+        return true;
+    }
+
+    rebalancePages() {
+        if (this.pages.length === 0) return;
+
+        const firstPage = this.pages[0];
+        let currentPage = firstPage;
+        let nextPage;
+
+        // Process all lines in sequence
+        const allLines = Array.from(this.container.querySelectorAll('.script-line'));
+        allLines.forEach(line => {
+            const pageHeight = this.measurement.getPageHeight(currentPage);
+            const lineHeight = this.measurement.getLineHeight(line);
+
+            if (pageHeight + lineHeight > this.maxHeight) {
+                // Create new page if needed
+                nextPage = document.createElement('div');
+                nextPage.className = 'editor-page';
+                currentPage.after(nextPage);
+                this.pages.push(nextPage);
+                currentPage = nextPage;
+            }
+
+            currentPage.appendChild(line);
+        });
+
+        // Remove empty pages
+        this.pages = this.pages.filter(page => {
+            if (page.children.length === 0 && page !== firstPage) {
+                page.remove();
                 return false;
             }
             return true;
         });
 
-        validPages.forEach(page => {
-            try {
-                this._observer.observe(page);
-            } catch (error) {
-                console.warn(`Failed to observe page:`, error);
-            }
-        });
-    }
-
-    async addLine(line) {
-        if (!line) return null;
-
-        try {
-            // Get current page or create new one
-            let currentPage = this.getCurrentPage();
-            if (!currentPage) {
-                currentPage = this.createPage();
-            }
-
-            // Add line to page
-            currentPage.appendChild(line);
-
-            // Update state
-            this.stateManager.setCurrentLine(line);
-
-            // Check for overflow
-            await new Promise(resolve => {
-                requestAnimationFrame(() => {
-                    if (currentPage.scrollHeight > currentPage.clientHeight) {
-                        this.moveContentToNextPage(line);
-                    }
-                    resolve();
-                });
-            });
-
-            return line;
-        } catch (error) {
-            console.error('Failed to add line:', error);
-            throw error;
-        }
-    }
-
-    moveContentToNextPage(line) {
-        // Remove the line from current page
-        line.parentNode.removeChild(line);
-
-        // Create new page
-        const newPage = this.createPage();
-
-        // Add line to new page
-        newPage.appendChild(line);
-
-        // Update current page in state
-        this.stateManager.setCurrentPage(this.getPageCount());
-
-        // Notify page change
-        this.notifyPageChange();
-    }
-
-    async _processLine(line) {
-        try {
-            const currentPage = this.getCurrentPage();
-            if (!currentPage) {
-                await this.createNewPage();
-            }
-
-            const updatedCurrentPage = this.getCurrentPage();
-            if (!updatedCurrentPage) {
-                throw new Error('Failed to create new page');
-            }
-
-            // Add line to current page
-            updatedCurrentPage.appendChild(line);
-
-            // Check and handle overflow
-            const hasOverflow = await this.checkPageOverflow();
-            if (hasOverflow) {
-                await this.handlePageOverflow(line);
-            }
-
-            return line;
-        } catch (error) {
-            console.error('Error processing line:', error);
-            throw error;
-        }
-    }
-
-    async checkPageOverflow() {
-        const currentPage = this.getCurrentPage();
-        if (!currentPage) return false;
-
-        // Get page metrics
-        const metrics = this.stateManager.getPageMetrics();
-        const pageMetrics = metrics.get(currentPage) || {
-            height: currentPage.clientHeight,
-            scrollHeight: currentPage.scrollHeight
-        };
-
-        // Update metrics in state
-        metrics.set(currentPage, pageMetrics);
-        this.stateManager.setPageMetrics(metrics);
-
-        // Check if content exceeds page height
-        return pageMetrics.scrollHeight > pageMetrics.height;
-    }
-
-    async handlePageOverflow(line) {
-        // Create new page
-        const newPage = await this.createNewPage();
-
-        // Move the overflowing line to new page
-        newPage.appendChild(line);
-
-        // Update current page in state
-        this.stateManager.setCurrentPage(this.getPageCount());
-
-        // Notify changes
-        this.notifyPageChange();
-        return newPage;
-    }
-
-    createPage() {
-        try {
-            const page = document.createElement('div');
-            page.className = 'editor-page';
-            page.setAttribute('role', 'region');
-            page.setAttribute('aria-label', `Page ${this.getPageCount() + 1}`);
-
-            if (this.editorArea) {
-                this.editorArea.appendChild(page);
-
-                // Update state
-                const pages = this.getPages();
-                pages.push(page);
-                this.stateManager.setPages(pages);
-                this.stateManager.setPageCount(this.getPageCount() + 1);
-
-                // Setup observer if available
-                if (this._observer) {
-                    try {
-                        this._observer.observe(page);
-                    } catch (error) {
-                        console.warn('Failed to observe new page:', error);
-                    }
-                }
-
-                // Notify change
-                this.notifyPageChange();
-            }
-
-            return page;
-        } catch (error) {
-            console.error('Failed to create page:', error);
-            throw error;
-        }
-    }
-
-    async createNewPage() {
-        try {
-            // Create the page element
-            const page = this.createPage();
-            if (!page || !(page instanceof HTMLElement)) {
-                throw new Error('Invalid page element created');
-            }
-
-            // Validate container
-            if (!this.container || !(this.container instanceof HTMLElement)) {
-                throw new Error('Container not initialized or invalid');
-            }
-
-            // Add to DOM
-            this.container.appendChild(page);
-
-            // Update state
-            const pages = this.stateManager.getPages();
-            pages.push(page);
-            this.stateManager.setPages(pages);
-            this.stateManager.setCurrentLine(null);
-
-            // Setup observer if available
-            if (this._observer) {
-                try {
-                    this._observer.observe(page);
-                } catch (error) {
-                    console.warn('Failed to observe new page:', error);
-                }
-            }
-
-            // Notify change
-            this.notifyPageChange();
-
-            return page;
-        } catch (error) {
-            console.error('Failed to create new page:', error);
-            throw error;
-        }
-    }
-
-    clear() {
-        // Cleanup observer first
-        if (this._observer) {
-            this._observer.disconnect();
-            this._observer = null;
-        }
-
-        // Clear container
-        if (this.editorArea) {
-            this.editorArea.innerHTML = '';
-        }
-
-        // Reset state
-        this.stateManager.setPages([]);
-        this.stateManager.setCurrentLine(null);
-        this.stateManager.setPageMetrics(new Map());
-        this.stateManager.setPageCount(0);
-
-        // Notify changes
-        this.notifyPageChange();
-    }
-
-    async destroy() {
-        try {
-            // Cleanup observer
-            await this.cleanupObserver();
-
-            // Clear content and state
-            this.clear();
-
-            // Clear handlers
-            this._handlers = {};
-            this.container = null;
-
-        } catch (error) {
-            console.error('Error during PageManager destruction:', error);
-            throw error;
-        }
-    }
-
-    // Notification methods (for legacy support)
-    notifyPageChange() {
-        const pageCount = this.getPageCount();
-        this.stateManager.setPageCount(pageCount);
-        if (this._handlers.pageChange) {
-            this._handlers.pageChange(pageCount);
-        }
-    }
-
-    notifyOverflow() {
-        const currentPage = this.getCurrentPage();
-        if (this._handlers.overflow && currentPage) {
-            this._handlers.overflow(currentPage);
-        }
-    }
-
-    // Event handlers (for legacy support)
-    onPageChange(callback) {
-        this._handlers.pageChange = callback;
-    }
-
-    onOverflow(callback) {
-        this._handlers.overflow = callback;
-    }
-
-    onPageSelect(callback) {
-        this._handlers.pageSelect = callback;
-    }
-
-    // Getters that use state manager
-    getPageCount() {
-        return this.stateManager.getPages().length;
-    }
-
-    getCurrentPage() {
-        try {
-            const pages = Array.from(this.editorArea.children || [])
-                .filter(child => child.classList.contains('editor-page'));
-            return pages[pages.length - 1] || null;
-        } catch (error) {
-            console.error('Error getting current page:', error);
-            return null;
-        }
-    }
-
-    getPages() {
-        return this.stateManager.getPages() || [];
-    }
-
-    getFirstPage() {
-        try {
-            const pages = this.stateManager.getPages();
-            const firstPage = pages[0];
-            if (firstPage && !(firstPage instanceof HTMLElement)) {
-                throw new Error('First page is not a valid HTML element');
-            }
-            return firstPage || null;
-        } catch (error) {
-            console.error('Error getting first page:', error);
-            return null;
-        }
-    }
-
-    getCurrentPageNumber() {
-        return this.stateManager.getCurrentPage() - 1;
-    }
-
-    getPageNumber(page) {
-        return this.stateManager.getPages().indexOf(page);
-    }
-
-    notifyPageSelect(pageNumber) {
-        if (this._handlers.pageSelect) {
-            this._handlers.pageSelect(pageNumber);
-        }
+        this._notifyPageChange();
     }
 
     hasPages() {
-        return this.getPageCount() > 0;
+        // Check both array and DOM
+        return this.pages.length > 0 && this.editorArea.querySelector('.editor-page') !== null;
     }
 
-    setEditorArea(editorArea) {
-        this.editorArea = editorArea;
-        if (this.editorArea) {
-            // Create initial page if none exists
-            if (!this.hasPages()) {
-                this.createPage();
+    getPageCount() {
+        return this.pages.length;
+    }
+
+    getCurrentPage() {
+        // First check if we have any pages in the array
+        if (this.pages.length > 0) {
+            const lastPage = this.pages[this.pages.length - 1];
+            // Verify the page is still valid and in DOM
+            if (lastPage && lastPage.isConnected) {
+                return lastPage;
+            } else {
+                // Try to find any valid page in the array
+                for (const page of this.pages) {
+                    if (page && page.isConnected) {
+                        return page;
+                    }
+                }
             }
         }
+
+        // If no valid pages in array, check DOM directly
+        if (this.editorArea) {
+            const firstPage = this.editorArea.querySelector('.editor-page');
+            if (firstPage) {
+                // Sync our array with DOM
+                this.pages = [firstPage];
+                return firstPage;
+            }
+        }
+
+        return null;
+    }
+
+    destroy() {
+        this.pages.forEach(page => page.remove());
+        this.pages = [];
+        this._eventHandlers = {
+            pageChange: null,
+            overflow: null,
+            pageSelect: null
+        };
+        this.container = null;
+        this.editorArea = null;
     }
 }
 
-// Could improve performance by batching:
+// Helper function for batching DOM updates
 const batchUpdate = (operations) => {
     requestAnimationFrame(() => {
         operations.forEach(op => op());

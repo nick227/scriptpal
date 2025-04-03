@@ -2,24 +2,49 @@ import { BaseWidget } from '../BaseWidget.js';
 import { StateManager } from '../../core/StateManager.js';
 import { EventManager } from '../../core/EventManager.js';
 import { ButtonElementRenderer } from '../../renderers.js';
-
+import { UI_ELEMENTS } from '../../constants.js';
 export class ScriptWidget extends BaseWidget {
     constructor(elements) {
         super(elements);
         this.scriptManager = null;
         this.buttonRenderer = null;
+        this.scriptsListContainer = null;
     }
 
     async initialize(scriptManager) {
+        alert('initialize ScriptWidget');
+        if (!scriptManager) {
+            throw new Error('ScriptManager is required for ScriptWidget initialization');
+        }
+
         this.scriptManager = scriptManager;
         await super.initialize();
         this.buttonRenderer = new ButtonElementRenderer(this.renderer.container);
+
+        // Get the user-scripts panel
+        const userScriptsPanel = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
+        if (!userScriptsPanel) {
+            throw new Error('User scripts panel not found');
+        }
+        alert('userScriptsPanel found');
+
+        // Create scripts list as UL
+        this.scriptsListContainer = document.createElement('ul');
+        this.scriptsListContainer.className = 'scripts-list';
+        userScriptsPanel.appendChild(this.scriptsListContainer);
+
+        // Load initial scripts if we have a user
+        const currentUser = this.stateManager.getState(StateManager.KEYS.USER);
+        if (currentUser) {
+            await this.loadUserScripts(currentUser.id);
+        }
     }
 
     setupEventListeners() {
         this.subscribe(EventManager.EVENTS.SCRIPT.UPDATED, this.handleScriptUpdate.bind(this));
-        this.subscribe(EventManager.EVENTS.SCRIPT.ACTIONS, this.handleScriptActions.bind(this));
-        this.subscribe(EventManager.EVENTS.SCRIPT.BUTTONS, this.handleScriptButtons.bind(this));
+        this.subscribe(EventManager.EVENTS.SCRIPT.CREATED, this.handleScriptCreated.bind(this));
+        this.subscribe(EventManager.EVENTS.SCRIPT.DELETED, this.handleScriptDeleted.bind(this));
+        this.subscribe(EventManager.EVENTS.AUTH.LOGIN_SUCCESS, this.handleUserLogin.bind(this));
     }
 
     setupStateSubscriptions() {
@@ -27,81 +52,118 @@ export class ScriptWidget extends BaseWidget {
         this.subscribeToState(StateManager.KEYS.CURRENT_SCRIPT, this.handleCurrentScriptUpdate.bind(this));
     }
 
-    handleScriptUpdate(data) {
-        this.renderer.createElement('div', `message ${data.type}`, data.message);
-    }
-
-    handleScriptActions(data) {
-        const actionsContainer = this.renderer.createContainer('script-actions');
-        data.actions.forEach(action => {
-            const button = this.buttonRenderer.render(action, () => this.handleAction(action));
-            if (button) {
-                actionsContainer.appendChild(button);
-            }
-        });
-        this.renderer.appendElement(actionsContainer);
-    }
-
-    handleScriptButtons(data) {
-        const buttonsContainer = this.renderer.createContainer('script-buttons');
-        data.buttons.forEach(button => {
-            const btn = this.buttonRenderer.render(button, () => this.handleButtonClick(button));
-            if (btn) {
-                buttonsContainer.appendChild(btn);
-            }
-        });
-        this.renderer.appendElement(buttonsContainer);
+    async loadUserScripts(userId) {
+        try {
+            await this.scriptManager.loadScripts(userId);
+        } catch (error) {
+            console.error('Error loading user scripts:', error);
+        }
     }
 
     handleScriptsUpdate(scripts) {
-        const scriptsList = this.renderer.createContainer('scripts-list');
+        if (!scripts || !this.scriptsListContainer) return;
+
+        // Clear existing scripts
+        this.scriptsListContainer.innerHTML = '';
+
+        // Add each script
         scripts.forEach(script => {
-            const scriptElement = this.renderer.createElement('div', 'script-item', script.title);
-            this.renderer.addEventListener(scriptElement, 'click', () => this.handleScriptSelect(script));
-            scriptsList.appendChild(scriptElement);
+            const scriptElement = this.createScriptElement(script);
+            this.scriptsListContainer.appendChild(scriptElement);
         });
 
-        this.renderer.clear();
-        this.renderer.appendElement(scriptsList);
+        // Update active state
+        const currentScriptId = this.scriptManager.getCurrentScriptId();
+        if (currentScriptId) {
+            this.updateActiveScript(currentScriptId);
+        }
+    }
+
+    createScriptElement(script) {
+        // Create li element
+        const li = document.createElement('li');
+        li.className = 'script-item-container';
+
+        // Create link element
+        const link = document.createElement('a');
+        link.href = '#';
+        link.className = 'script-item';
+        link.textContent = script.title;
+        link.dataset.scriptId = script.id;
+
+        // Add click handler
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleScriptSelect(script);
+        });
+
+        // Add link to li
+        li.appendChild(link);
+        return li;
     }
 
     handleCurrentScriptUpdate(script) {
         if (script) {
-            const currentScriptElement = this.renderer.createElement('div', 'current-script', `Current Script: ${script.title}`);
-            this.renderer.clear();
-            this.renderer.appendElement(currentScriptElement);
+            this.updateActiveScript(script.id);
         }
     }
 
-    handleAction(action) {
-        switch (action.actionType) {
-            case 'edit':
-                this.publish(EventManager.EVENTS.SCRIPT.EDIT, { scriptId: action.scriptId });
-                break;
-            case 'delete':
-                this.publish(EventManager.EVENTS.SCRIPT.DELETE, { scriptId: action.scriptId });
-                break;
-        }
-    }
+    updateActiveScript(scriptId) {
+        if (!this.scriptsListContainer) return;
 
-    handleButtonClick(button) {
-        switch (button.actionType) {
-            case 'select':
-                this.handleScriptSelect({ id: button.scriptId });
-                break;
+        // Remove active class from all scripts
+        const allScripts = this.scriptsListContainer.querySelectorAll('.script-item');
+        allScripts.forEach(script => script.classList.remove('active'));
+
+        // Add active class to current script
+        const activeScript = this.scriptsListContainer.querySelector(`[data-script-id="${scriptId}"]`);
+        if (activeScript) {
+            activeScript.classList.add('active');
         }
     }
 
     handleScriptSelect(script) {
-        this.scriptManager.setCurrentScript(script.id);
+        if (script && script.id) {
+            this.scriptManager.loadScript(script.id);
+        }
+    }
+
+    handleScriptCreated(script) {
+        if (script && this.scriptsListContainer) {
+            const scriptElement = this.createScriptElement(script);
+            this.scriptsListContainer.appendChild(scriptElement);
+        }
+    }
+
+    handleScriptDeleted(scriptId) {
+        if (!scriptId || !this.scriptsListContainer) return;
+
+        const scriptElement = this.scriptsListContainer.querySelector(`li:has([data-script-id="${scriptId}"])`);
+        if (scriptElement) {
+            scriptElement.remove();
+        }
+    }
+
+    handleUserLogin(user) {
+        if (user) {
+            this.loadUserScripts(user.id);
+        }
     }
 
     update(scriptManager) {
-        this.scriptManager = scriptManager;
+        if (scriptManager) {
+            this.scriptManager = scriptManager;
+        }
     }
 
     destroy() {
+        // Remove the scripts list container if it exists
+        if (this.scriptsListContainer && this.scriptsListContainer.parentNode) {
+            this.scriptsListContainer.parentNode.removeChild(this.scriptsListContainer);
+        }
+
         super.destroy();
         this.buttonRenderer = null;
+        this.scriptsListContainer = null;
     }
 }

@@ -7,6 +7,7 @@ import { Minimap } from './Minimap.js';
 import { ChapterManager } from './ChapterManager.js';
 import { AICommandManager } from './AICommandManager.js';
 import { EditorStateManager } from './EditorStateManager.js';
+import { StateManager } from '../../core/StateManager.js';
 
 export class EditorWidget extends BaseWidget {
     constructor(elements) {
@@ -75,10 +76,13 @@ export class EditorWidget extends BaseWidget {
             // 5. Set up relationships after all components are initialized
             await this.setupComponentRelationships();
 
-            // 6. Load content last
+            // 6. Subscribe to script changes
+            this.subscribeToScriptChanges();
+
+            // 7. Load content last
             await this.loadInitialContent();
 
-            // 7. Mark as ready
+            // 8. Mark as ready
             this.state.setReady(true);
             return true;
 
@@ -202,12 +206,33 @@ export class EditorWidget extends BaseWidget {
     async initializeDataComponents() {
         if (this.script) {
             try {
-                this.autosave = new EditorAutosave(this.script);
+
+
+
+                // Get the actual script data from the script manager's state
+                const currentScript = this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+
+
+                if (!currentScript) {
+                    console.warn('No current script data available for autosave');
+                    return;
+                }
+
+                // Validate script manager has required methods
+                if (typeof this.script.saveContent !== 'function') {
+                    console.error('Script manager missing saveContent method');
+                    return;
+                }
+
+                this.autosave = new EditorAutosave(this.script, currentScript);
                 await this.autosave.initialize();
+
             } catch (error) {
-                console.warn('Failed to initialize autosave:', error);
+                console.error('Failed to initialize autosave:', error);
                 this.autosave = null;
             }
+        } else {
+            console.warn('No script provided for autosave initialization');
         }
     }
 
@@ -293,26 +318,31 @@ export class EditorWidget extends BaseWidget {
     }
 
     setupContentHandling() {
-        let saveTimeout = null;
-        const SAVE_DELAY = 1000;
+        if (!this.content) {
+            throw new Error('Content component not initialized');
+        }
 
         // Handle content changes
         this.content.onChange((content) => {
-            if (saveTimeout) clearTimeout(saveTimeout);
-
+            console.log('EditorWidget: Content changed:');
+            console.log(content);
+            console.log('--------------------------------');
             // Update state
             this.state.setContent(content);
             this.state.setPageCount(this.content.pageManager.getPageCount());
 
-            // Save state immediately
+            // Save state immediately for history
             const currentState = this.state.getCurrentState();
             this.history.saveState(currentState);
 
-            // Debounce autosave
+            // Trigger autosave with debounce
             if (this.autosave) {
-                saveTimeout = setTimeout(() => {
-                    this.autosave.triggerAutosave(content);
-                }, SAVE_DELAY);
+                const editorState = {
+                    getCurrentFormat: () => this.state.getCurrentFormat(),
+                    getPageCount: () => this.state.getPageCount(),
+                    getChapters: () => this.chapterManager ? this.chapterManager.getChapters() : []
+                };
+                this.autosave.triggerAutosave(content, editorState);
             }
         });
 
@@ -330,6 +360,21 @@ export class EditorWidget extends BaseWidget {
                 this.minimap.updateViewport(this.content.getCurrentPage(), pageCount);
             }
         });
+
+        // Handle undo/redo using EditorContent event types
+        this.content.on(EditorContent.EVENTS.UNDO, () => {
+            const state = this.history.undo();
+            if (state && this.validateState(state)) {
+                this.applyState(state);
+            }
+        });
+
+        this.content.on(EditorContent.EVENTS.REDO, () => {
+            const state = this.history.redo();
+            if (state && this.validateState(state)) {
+                this.applyState(state);
+            }
+        });
     }
 
     setupToolbarHandling() {
@@ -337,33 +382,59 @@ export class EditorWidget extends BaseWidget {
             throw new Error('Toolbar and Content components must be initialized');
         }
 
-        // Format selection with validation
+        // Format selection
         this.toolbar.onFormatSelected((format) => {
-            if (!this.content) return;
+            const currentLine = this.state.getCurrentLine();
+            if (!currentLine) return;
+
             this.content.setLineFormat(format);
+            this.state.setCurrentFormat(format);
         });
 
-        // History operations with state validation
-        const historyOperations = {
-            undo: () => {
-                const state = this.history.undo();
-                if (state && this.validateState(state)) {
-                    this.applyState(state);
-                }
-            },
-            redo: () => {
-                const state = this.history.redo();
-                if (state && this.validateState(state)) {
-                    this.applyState(state);
-                }
+        // History operations
+        this.toolbar.onUndo(() => {
+            const state = this.history.undo();
+            if (state && this.validateState(state)) {
+                this.applyState(state);
             }
-        };
-
-        // Set up history operations
-        Object.entries(historyOperations).forEach(([operation, handler]) => {
-            this.toolbar[`on${operation.charAt(0).toUpperCase() + operation.slice(1)}`](handler);
-            this.content[`on${operation.charAt(0).toUpperCase() + operation.slice(1)}`](handler);
         });
+
+        this.toolbar.onRedo(() => {
+            const state = this.history.redo();
+            if (state && this.validateState(state)) {
+                this.applyState(state);
+            }
+        });
+
+        // Save operation
+        this.toolbar.onSave(async() => {
+            if (!this.autosave) {
+                console.warn('Autosave not initialized');
+                return;
+            }
+
+            try {
+                const content = this.content.getContent();
+                const editorState = {
+                    getCurrentFormat: () => this.state.getCurrentFormat(),
+                    getPageCount: () => this.state.getPageCount(),
+                    getChapters: () => this.chapterManager ? this.chapterManager.getChapters() : []
+                };
+
+                // Force immediate save
+                const currentState = this.autosave.serializeEditorState(content, editorState);
+                await this.autosave.saveContent(currentState);
+                return true;
+            } catch (error) {
+                console.error('Manual save failed:', error);
+                return false;
+            }
+        });
+
+        // Connect toolbar to autosave for status updates
+        if (this.autosave) {
+            this.autosave.setToolbar(this.toolbar);
+        }
     }
 
     validateState(state) {
@@ -393,16 +464,27 @@ export class EditorWidget extends BaseWidget {
         try {
             // Batch DOM updates
             requestAnimationFrame(() => {
-                this.content.setContent(state.content);
+                // Update content first
+                this.content.setContent(state.content, true);
+
+                // Update format
+                this.state.setCurrentFormat(state.currentFormat);
+                this.toolbar.updateActiveFormat(state.currentFormat);
+
+                // Update page state
                 this.toolbar.updatePageCount(state.pageCount);
                 this.state.setHistoryState(
                     this.history.canUndo(),
                     this.history.canRedo()
                 );
 
+                // Update minimap if available
                 if (this.hasMinimapSupport && this.minimap) {
-                    this.minimap.updateViewport(this.content.getCurrentPage(), state.pageCount);
+                    this.minimap.updateViewport(state.currentPage, state.pageCount);
                 }
+
+                // Mark content as clean after state application
+                this.state.markDirty(false);
             });
         } catch (error) {
             console.error('Failed to apply editor state:', error);
@@ -457,49 +539,32 @@ export class EditorWidget extends BaseWidget {
             const currentPage = this.content.getCurrentPage();
             this.chapterManager.createChapter(title, currentPage);
         });
-
-        // Handle sub-chapter creation from toolbar
-        this.toolbar.onSubChapterCreate((title) => {
-            const currentPage = this.content.getCurrentPage();
-            const currentChapter = this.chapterManager.getChapterAtPage(currentPage);
-            if (currentChapter) {
-                this.chapterManager.createSubChapter(currentChapter.id, title, currentPage);
-            }
-        });
     }
 
-    loadInitialContent() {
-        if (!this.script || typeof this.script.getContent !== 'function') {
-            console.warn('Script or getContent method not available');
-            return;
-        }
+    async loadInitialContent() {
+        try {
+            // Get the current script from state
+            const currentScript = this.script && this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+            console.log('EditorWidget: Loading initial content from script:', currentScript);
 
-        const content = this.script.getContent();
-        if (!content) {
-            console.debug('No initial content to load');
-            return;
-        }
-
-        // Use requestAnimationFrame for DOM updates
-        requestAnimationFrame(() => {
-            try {
-                if (!this.content) {
-                    throw new Error('Editor content component not initialized');
-                }
-
-                this.content.setContent(content);
-
-                if (this.autosave) {
-                    this.autosave.setLastSavedContent(content);
-                }
-
-                this.state.setContent(content);
-                this.state.markDirty(false);
-            } catch (error) {
-                console.error('Failed to load initial content:', error);
-                this.state.setState('error', error);
+            if (!currentScript) {
+                console.log('EditorWidget: No current script found');
+                return false;
             }
-        });
+
+            // Parse the content if it exists
+            if (currentScript.content) {
+                console.log('EditorWidget: Setting content from script:', currentScript.content);
+                await this.content.setContent(currentScript.content);
+                return true;
+            }
+
+            console.log('EditorWidget: No content in current script');
+            return false;
+        } catch (error) {
+            console.error('Error loading initial content:', error);
+            return false;
+        }
     }
 
     // Add AI command execution method
@@ -539,5 +604,16 @@ export class EditorWidget extends BaseWidget {
         this.script = null;
 
         super.destroy();
+    }
+
+    subscribeToScriptChanges() {
+        if (this.script && this.script.stateManager) {
+            this.script.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, async(script) => {
+                if (script && script.content !== undefined) {
+                    console.log('EditorWidget: Current script changed, loading new content:', script);
+                    await this.loadInitialContent();
+                }
+            });
+        }
     }
 }

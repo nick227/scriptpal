@@ -54,6 +54,7 @@ export class Autocomplete {
     }
 
     handleKeydown(event) {
+        alert('Autocomplete.handleKeydown');
         const currentLine = this.stateManager.getCurrentLine();
         if (!currentLine) return null;
 

@@ -99,18 +99,6 @@ export class Minimap extends BaseWidget {
         element.textContent = chapter.title;
         element.style.top = `${(chapter.pageNumber / this.totalPages) * 100}%`;
 
-        // Add sub-chapters if any
-        if (chapter.subChapters.length > 0) {
-            const subChaptersContainer = this.createElement('div', 'minimap-subchapters');
-            chapter.subChapters.forEach(subChapter => {
-                const subElement = this.createElement('div', 'minimap-subchapter');
-                subElement.textContent = subChapter.title;
-                subElement.style.top = `${(subChapter.pageNumber / this.totalPages) * 100}%`;
-                subChaptersContainer.appendChild(subElement);
-            });
-            element.appendChild(subChaptersContainer);
-        }
-
         return element;
     }
 

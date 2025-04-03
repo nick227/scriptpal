@@ -24,6 +24,7 @@ export class EditorToolbar extends BaseWidget {
         this.pageCounter = null;
         this.undoButton = null;
         this.redoButton = null;
+        this.saveButton = null;
 
         // Initialize handlers
         this._handlers = {
@@ -31,13 +32,14 @@ export class EditorToolbar extends BaseWidget {
             undo: null,
             redo: null,
             chapterCreate: null,
-            subChapterCreate: null
+            save: null
         };
 
         // Bind event handlers
         this._handleFormatClick = this.handleFormatClick.bind(this);
         this._handleUndoClick = this.handleUndoClick.bind(this);
         this._handleRedoClick = this.handleRedoClick.bind(this);
+        this._handleSaveClick = this.handleSaveClick.bind(this);
 
         this.formats = formatTypes;
     }
@@ -69,8 +71,14 @@ export class EditorToolbar extends BaseWidget {
         const redoButton = this.createElement('button', 'format-button redo-button', '↷');
         redoButton.title = 'Redo (Ctrl+Y)';
 
+        const saveButton = this.createElement('button', 'format-button save-button');
+        saveButton.innerHTML = '<i class="fas fa-save"></i>';
+        saveButton.title = 'Save Script (Ctrl+S)';
+        this.saveButton = saveButton;
+
         this.toolbar.appendChild(undoButton);
         this.toolbar.appendChild(redoButton);
+        this.toolbar.appendChild(saveButton);
     }
 
     createFormatButtons() {
@@ -94,18 +102,6 @@ export class EditorToolbar extends BaseWidget {
             }
         };
         this.toolbar.appendChild(chapterButton);
-
-        const subChapterButton = this.createElement('button', 'format-button');
-        subChapterButton.innerHTML = 'Add Sub-Chapter';
-        subChapterButton.title = 'Add a new sub-chapter at current position';
-        subChapterButton.onclick = () => {
-            const title = prompt('Enter sub-chapter title:');
-            if (title) {
-                this.notifySubChapterCreate(title);
-            }
-        };
-        this.toolbar.appendChild(subChapterButton);
-
         // Add page count display
         const pageCountElement = this.createElement('span', 'page-count');
         pageCountElement.textContent = 'Page 1'; // Default to page 1
@@ -142,6 +138,16 @@ export class EditorToolbar extends BaseWidget {
         }
     }
 
+    handleSaveClick() {
+        if (this._handlers.save) {
+            this.setSaveState('saving');
+            this._handlers.save().finally(() => {
+                this.setSaveState('saved');
+                setTimeout(() => this.setSaveState('idle'), 2000);
+            });
+        }
+    }
+
     handleToolbarClick(e) {
         const button = e.target.closest('button');
         if (!button) return;
@@ -150,6 +156,8 @@ export class EditorToolbar extends BaseWidget {
             this._handleUndoClick();
         } else if (button.classList.contains('redo-button')) {
             this._handleRedoClick();
+        } else if (button.classList.contains('save-button')) {
+            this._handleSaveClick();
         } else if (button.dataset.format) {
             this._handleFormatClick(button.dataset.format);
         }
@@ -165,6 +173,10 @@ export class EditorToolbar extends BaseWidget {
 
     onRedo(callback) {
         this._handlers.redo = callback;
+    }
+
+    onSave(callback) {
+        this._handlers.save = callback;
     }
 
     updateActiveFormat(format) {
@@ -205,19 +217,28 @@ export class EditorToolbar extends BaseWidget {
         this._handlers.chapterCreate = callback;
     }
 
-    onSubChapterCreate(callback) {
-        this._handlers.subChapterCreate = callback;
-    }
-
     notifyChapterCreate(title) {
         if (this._handlers.chapterCreate) {
             this._handlers.chapterCreate(title);
         }
     }
 
-    notifySubChapterCreate(title) {
-        if (this._handlers.subChapterCreate) {
-            this._handlers.subChapterCreate(title);
+    setSaveState(state) {
+        if (!this.saveButton) return;
+
+        // Remove all state classes first
+        this.saveButton.classList.remove('saving', 'saved', 'autosaving');
+
+        switch (state) {
+            case 'saving':
+                this.saveButton.classList.add('saving');
+                break;
+            case 'saved':
+                this.saveButton.classList.add('saved');
+                break;
+            case 'autosaving':
+                this.saveButton.classList.add('autosaving');
+                break;
         }
     }
 
