@@ -77,7 +77,8 @@ export class EditorWidget extends BaseWidget {
             await this.setupComponentRelationships();
 
             // 6. Subscribe to script changes
-            this.subscribeToScriptChanges();
+            // TODO: Uncomment this when we have a script manager
+            //this.subscribeToScriptChanges();
 
             // 7. Load content last
             await this.loadInitialContent();
@@ -164,24 +165,23 @@ export class EditorWidget extends BaseWidget {
 
     async initializeUIComponents() {
         try {
-            // Initialize core UI components with state manager
-            this.toolbar = new EditorToolbar({
-                editorContainer: this.elements.editorContainer,
-                stateManager: this.state
-            });
+            // Creates EditorContent first
             this.content = new EditorContent({
                 editorContainer: this.elements.editorContainer,
                 stateManager: this.state
             });
 
-            // Initialize in parallel
+            // Creates EditorToolbar and passes EditorContent
+            this.toolbar = new EditorToolbar({
+                editorContainer: this.elements.editorContainer,
+                stateManager: this.state,
+                editorContent: this.content // Passes the EditorContent instance
+            });
+
+            // Initializes both in parallel
             await Promise.all([
-                this.toolbar.initialize().catch(error => {
-                    throw new Error(`Failed to initialize toolbar: ${error.message}`);
-                }),
-                this.content.initialize().catch(error => {
-                    throw new Error(`Failed to initialize content: ${error.message}`);
-                })
+                this.toolbar.initialize(),
+                this.content.initialize()
             ]);
         } catch (error) {
             throw new Error(`Failed to initialize UI components: ${error.message}`);
@@ -206,12 +206,8 @@ export class EditorWidget extends BaseWidget {
     async initializeDataComponents() {
         if (this.script) {
             try {
-
-
-
                 // Get the actual script data from the script manager's state
                 const currentScript = this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-
 
                 if (!currentScript) {
                     console.warn('No current script data available for autosave');
@@ -224,8 +220,9 @@ export class EditorWidget extends BaseWidget {
                     return;
                 }
 
-                this.autosave = new EditorAutosave(this.script, currentScript);
-                await this.autosave.initialize();
+                // Create autosave with content manager and toolbar
+                this.autosave = new EditorAutosave(this.content.contentManager, this.toolbar);
+                await this.autosave.initialize(this.script);
 
             } catch (error) {
                 console.error('Failed to initialize autosave:', error);
@@ -324,9 +321,6 @@ export class EditorWidget extends BaseWidget {
 
         // Handle content changes
         this.content.onChange((content) => {
-            console.log('EditorWidget: Content changed:');
-            console.log(content);
-            console.log('--------------------------------');
             // Update state
             this.state.setContent(content);
             this.state.setPageCount(this.content.pageManager.getPageCount());
@@ -334,16 +328,6 @@ export class EditorWidget extends BaseWidget {
             // Save state immediately for history
             const currentState = this.state.getCurrentState();
             this.history.saveState(currentState);
-
-            // Trigger autosave with debounce
-            if (this.autosave) {
-                const editorState = {
-                    getCurrentFormat: () => this.state.getCurrentFormat(),
-                    getPageCount: () => this.state.getPageCount(),
-                    getChapters: () => this.chapterManager ? this.chapterManager.getChapters() : []
-                };
-                this.autosave.triggerAutosave(content, editorState);
-            }
         });
 
         // Handle format changes
@@ -379,62 +363,41 @@ export class EditorWidget extends BaseWidget {
 
     setupToolbarHandling() {
         if (!this.toolbar || !this.content) {
-            throw new Error('Toolbar and Content components must be initialized');
+            console.warn('Cannot setup toolbar handling - missing toolbar or content');
+            return;
         }
 
-        // Format selection
+        // Handle format selection
         this.toolbar.onFormatSelected((format) => {
-            const currentLine = this.state.getCurrentLine();
-            if (!currentLine) return;
-
             this.content.setLineFormat(format);
-            this.state.setCurrentFormat(format);
         });
 
-        // History operations
+        // Handle undo/redo
         this.toolbar.onUndo(() => {
-            const state = this.history.undo();
-            if (state && this.validateState(state)) {
-                this.applyState(state);
-            }
+            this.content.emit(EditorContent.EVENTS.UNDO);
         });
 
         this.toolbar.onRedo(() => {
-            const state = this.history.redo();
-            if (state && this.validateState(state)) {
-                this.applyState(state);
-            }
+            this.content.emit(EditorContent.EVENTS.REDO);
         });
 
-        // Save operation
+        // Handle save
         this.toolbar.onSave(async() => {
             if (!this.autosave) {
                 console.warn('Autosave not initialized');
                 return;
             }
-
             try {
-                const content = this.content.getContent();
-                const editorState = {
-                    getCurrentFormat: () => this.state.getCurrentFormat(),
-                    getPageCount: () => this.state.getPageCount(),
-                    getChapters: () => this.chapterManager ? this.chapterManager.getChapters() : []
-                };
-
-                // Force immediate save
-                const currentState = this.autosave.serializeEditorState(content, editorState);
-                await this.autosave.saveContent(currentState);
-                return true;
+                await this.autosave.saveContent();
             } catch (error) {
                 console.error('Manual save failed:', error);
-                return false;
             }
         });
 
-        // Connect toolbar to autosave for status updates
-        if (this.autosave) {
-            this.autosave.setToolbar(this.toolbar);
-        }
+        // Subscribe to format changes from content
+        this.content.on(EditorContent.EVENTS.FORMAT_CHANGE, (format) => {
+            this.toolbar.updateActiveFormat(format);
+        });
     }
 
     validateState(state) {
@@ -545,21 +508,19 @@ export class EditorWidget extends BaseWidget {
         try {
             // Get the current script from state
             const currentScript = this.script && this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-            console.log('EditorWidget: Loading initial content from script:', currentScript);
 
             if (!currentScript) {
-                console.log('EditorWidget: No current script found');
+                console.warn('EditorWidget: No current script found');
                 return false;
             }
 
             // Parse the content if it exists
             if (currentScript.content) {
-                console.log('EditorWidget: Setting content from script:', currentScript.content);
                 await this.content.setContent(currentScript.content);
                 return true;
             }
 
-            console.log('EditorWidget: No content in current script');
+            console.warn('EditorWidget: No content in current script');
             return false;
         } catch (error) {
             console.error('Error loading initial content:', error);
@@ -610,7 +571,7 @@ export class EditorWidget extends BaseWidget {
         if (this.script && this.script.stateManager) {
             this.script.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, async(script) => {
                 if (script && script.content !== undefined) {
-                    console.log('EditorWidget: Current script changed, loading new content:', script);
+                    console.info('EditorWidget: Current script changed, loading new content:', script);
                     await this.loadInitialContent();
                 }
             });

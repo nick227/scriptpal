@@ -4,7 +4,6 @@ import { ScriptPalUI } from './ui.js';
 import { ScriptPalUser } from './user.js';
 import { ScriptPalScript } from './script.js';
 import { EditorWidget } from './widgets/editor/EditorWidget.js';
-import { RendererFactory } from './renderers.js';
 
 export class ScriptPal {
     constructor() {
@@ -80,6 +79,8 @@ export class ScriptPal {
             }
 
             // Get welcome buttons regardless of auth state
+            // TODO: Add welcome buttons back in
+            /*
             const randomButtons = await this.api.getRandomButtons();
             const buttonContainerRenderer = RendererFactory.createButtonContainerRenderer(this.ui.elements.messagesContainer);
             buttonContainerRenderer.render(randomButtons.buttons, (text) => {
@@ -87,6 +88,7 @@ export class ScriptPal {
                     this.ui.widgets.chat.manager.handleSend(text);
                 }
             });
+            */
 
         } catch (error) {
             console.error('Initialization failed:', error);

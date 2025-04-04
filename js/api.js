@@ -5,6 +5,10 @@ export class ScriptPalAPI {
     constructor() {
         // Use Node.js server URL for API requests
         this.baseUrl = 'http://localhost:3000/api';
+        this.endpoints = {
+            scripts: '/scripts',
+            script: '/script'
+        };
 
         this.isLoading = false;
         this.requestQueue = new Set();
@@ -61,37 +65,40 @@ export class ScriptPalAPI {
         try {
             const contentType = response.headers.get('content-type');
 
-
             // Handle empty responses
             if (response.status === 204) {
                 return null;
             }
 
-            // Try to parse as JSON even if content-type is not set
-            try {
-                const data = await response.json();
+            // Always try to get the response text first
+            const responseText = await response.text();
 
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        console.warn('Authentication required');
-                        return null;
+            // Try to parse as JSON if it looks like JSON
+            let data = null;
+            if (responseText && responseText.trim()) {
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    // If content type was application/json, this is a real error
+                    if (contentType && contentType.includes('application/json')) {
+                        console.error('Failed to parse JSON response:', responseText);
+                        throw new Error('Invalid JSON response from server');
                     }
-                    throw new Error(data.error || ERROR_MESSAGES.API_ERROR);
+                    // For non-JSON responses, return the text
+                    return { text: responseText };
                 }
-                return data;
-            } catch (jsonError) {
-                console.warn('Failed to parse JSON response:', jsonError);
-
-                // If content type was application/json, this is a real error
-                if (contentType && contentType.includes('application/json')) {
-                    throw new Error('Invalid JSON response');
-                }
-
-                // For non-JSON responses, try to get text
-                const textContent = await response.text();
-                return { text: textContent };
             }
+
+            // Handle error responses
+            if (!response.ok) {
+                const errorMessage = data && data.error ? data.error : response.statusText || 'API Error';
+                const error = new Error(errorMessage);
+                error.status = response.status;
+                error.data = data;
+                throw error;
+            }
+
+            return data;
         } catch (error) {
             console.error('Response handling error:', error);
             throw error;
@@ -102,14 +109,33 @@ export class ScriptPalAPI {
         const requestId = `${options.method || 'GET'}-${endpoint}`;
         const url = `${this.baseUrl}${endpoint}`;
 
+        // Wait for any existing request to complete
         if (this.requestQueue.has(requestId)) {
-            console.warn(`Ignoring duplicate request: ${requestId}`);
-            return null;
+            console.warn(`Request in progress: ${requestId}, waiting...`);
+            await new Promise(resolve => {
+                const checkQueue = () => {
+                    if (!this.requestQueue.has(requestId)) {
+                        resolve();
+                    } else {
+                        setTimeout(checkQueue, 100);
+                    }
+                };
+                checkQueue();
+            });
         }
 
         if (this.isLoading) {
-            console.warn('Ignoring API request while loading');
-            return null;
+            console.warn('API is busy, waiting...');
+            await new Promise(resolve => {
+                const checkLoading = () => {
+                    if (!this.isLoading) {
+                        resolve();
+                    } else {
+                        setTimeout(checkLoading, 100);
+                    }
+                };
+                checkLoading();
+            });
         }
 
         try {
@@ -245,14 +271,43 @@ export class ScriptPalAPI {
         });
     }
 
-    async updateScript(id, scriptData) {
+    async updateScript(scriptId, data) {
+        try {
+            // Validate required fields
+            if (!scriptId) {
+                throw new Error('Script ID is required');
+            }
+            if (!data.content) {
+                throw new Error('Content is required');
+            }
+            if (typeof data.content !== 'string') {
+                throw new Error('Content must be a string');
+            }
+            if (!data.title) {
+                throw new Error('Title is required');
+            }
 
-        const result = await this._makeRequest(`/script/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(scriptData)
-        });
+            // Format version number as major.minor
+            const version = data.version || '1';
+            const formattedVersion = version.toString().includes('.') ?
+                version.toString() :
+                `${version.toString()}.0`;
 
-        return result;
+            // Make API request
+            const response = await this._makeRequest(`${this.endpoints.script}/${scriptId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    title: data.title,
+                    content: data.content,
+                    version_number: formattedVersion
+                })
+            });
+
+            return response;
+        } catch (error) {
+            console.error('Failed to update script:', error);
+            throw error;
+        }
     }
 
     async deleteScript(id) {

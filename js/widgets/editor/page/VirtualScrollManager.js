@@ -10,17 +10,29 @@ export class VirtualScrollManager {
         this.pageHeight = 0;
         this._scrollTimeout = null;
         this._resizeTimeout = null;
+        this._batchTimeout = null;
+        this._pendingOperations = new Map();
+        this._initializing = false;
 
         // Bind methods
         this._handleScroll = this._handleScroll.bind(this);
         this._handleResize = this._handleResize.bind(this);
+        this._processBatch = this._processBatch.bind(this);
     }
 
     initialize(container) {
+        this._initializing = true;
         this.container = container;
         this.setupIntersectionObserver();
         this.addEventListeners();
         this._handleResize();
+
+        // Wait for initial operations to complete
+        if (this._batchTimeout) {
+            clearTimeout(this._batchTimeout);
+            this._processBatch();
+        }
+        this._initializing = false;
     }
 
     setupIntersectionObserver() {
@@ -32,10 +44,10 @@ export class VirtualScrollManager {
 
                     if (entry.isIntersecting) {
                         this.visiblePages.add(pageNumber);
-                        this.loadPage(pageNumber);
+                        this._queueOperation(pageNumber, 'load');
                     } else {
                         this.visiblePages.delete(pageNumber);
-                        this.unloadPage(pageNumber);
+                        this._queueOperation(pageNumber, 'unload');
                     }
                 });
             }, { rootMargin: '200% 0px' }
@@ -74,6 +86,45 @@ export class VirtualScrollManager {
         return page ? page.offsetHeight : 1100;
     }
 
+    _queueOperation(pageNumber, operation) {
+        // During initialization, process operations immediately
+        if (this._initializing) {
+            if (operation === 'load') {
+                this.loadPage(pageNumber);
+            } else {
+                this.unloadPage(pageNumber);
+            }
+            return;
+        }
+
+        this._pendingOperations.set(pageNumber, operation);
+
+        if (!this._batchTimeout) {
+            this._batchTimeout = setTimeout(this._processBatch, 50);
+        }
+    }
+
+    _processBatch() {
+        if (this._pendingOperations.size === 0) return;
+
+        // Process all loads first
+        for (const [pageNumber, operation] of this._pendingOperations.entries()) {
+            if (operation === 'load') {
+                this.loadPage(pageNumber);
+            }
+        }
+
+        // Then process unloads
+        for (const [pageNumber, operation] of this._pendingOperations.entries()) {
+            if (operation === 'unload') {
+                this.unloadPage(pageNumber);
+            }
+        }
+
+        this._pendingOperations.clear();
+        this._batchTimeout = null;
+    }
+
     updateVisiblePages() {
         if (!this.container) return;
 
@@ -84,16 +135,17 @@ export class VirtualScrollManager {
         const startPage = Math.max(0, Math.floor(scrollTop / this.pageHeight) - this.buffer);
         const endPage = Math.min(totalPages - 1, Math.ceil((scrollTop + viewportHeight) / this.pageHeight) + this.buffer);
 
+        // Batch all operations
         for (let i = 0; i < totalPages; i++) {
             const page = this.getPageElement(i);
             if (!page) continue;
 
             if (i >= startPage && i <= endPage) {
                 page.style.display = '';
-                this.loadPage(i);
+                this._queueOperation(i, 'load');
             } else {
                 page.style.display = 'none';
-                this.unloadPage(i);
+                this._queueOperation(i, 'unload');
             }
         }
     }
@@ -134,6 +186,12 @@ export class VirtualScrollManager {
         }
     }
 
+    unobservePage(page) {
+        if (this.observer && page) {
+            this.observer.unobserve(page);
+        }
+    }
+
     destroy() {
         if (this.container) {
             this.container.removeEventListener('scroll', this._handleScroll);
@@ -149,6 +207,10 @@ export class VirtualScrollManager {
         }
         if (this._resizeTimeout) {
             clearTimeout(this._resizeTimeout);
+        }
+        if (this._batchTimeout) {
+            clearTimeout(this._batchTimeout);
+            this._pendingOperations.clear();
         }
 
         this.pageCache.clear();

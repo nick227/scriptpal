@@ -134,9 +134,6 @@ export class ScriptPalUI {
             this.dependencies.chat = chat;
             this.dependencies.script = script;
             // Initialize widgets if not already done
-            console.log('updateComponents');
-            console.log(this.widgets.chat);
-            console.log(this.widgets.script);
             if (!this.widgets.chat || !this.widgets.script) {
                 this.initializeWidgets();
             } else {

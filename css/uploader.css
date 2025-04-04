@@ -1,0 +1,94 @@
+.uploader-widget {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 300px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    z-index: 1000;
+    animation: slide-up 0.3s ease;
+}
+
+.uploader-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.uploader-filename {
+    font-size: 14px;
+    font-weight: 500;
+    color: #2c3e50;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 230px;
+}
+
+.uploader-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.uploader-close:hover {
+    color: #64748b;
+    background: #f1f5f9;
+}
+
+.uploader-progress-section {
+    margin-bottom: 12px;
+}
+
+.uploader-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.uploader-progress-inner {
+    height: 100%;
+    width: 0%;
+    background: #3b82f6;
+    transition: width 0.3s ease;
+    animation: progress-bar-animation 2s linear infinite;
+}
+
+@keyframes progress-bar-animation {
+    0% {
+        width: 0%;
+    }
+    100% {
+        width: 100%;
+    }
+}
+
+.uploader-message {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 8px;
+    min-height: 20px;
+}
+
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

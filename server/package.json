@@ -22,7 +22,7 @@
         "express": "^4.21.2",
         "@langchain/core": "^0.1.x",
         "@langchain/openai": "^0.1.x",
-        "mysql": "^2.18.1",
+        "mysql2": "^3.9.2",
         "openai": "^4.90.0"
     }
 }

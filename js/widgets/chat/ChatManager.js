@@ -23,7 +23,8 @@ export class ChatManager extends BaseManager {
 
         this.setRenderer(RendererFactory.createMessageRenderer(elements.messagesContainer, this));
         this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this.handleScriptChange.bind(this));
-        this.loadWelcomeButtons();
+        // TODO: Add welcome buttons back in
+        //this.loadWelcomeButtons();
     }
 
     async loadWelcomeButtons() {

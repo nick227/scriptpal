@@ -1,284 +1,262 @@
-import mysql from 'mysql';
+import mysql from 'mysql2/promise';
 
-const db = mysql.createConnection({
+// Create a connection pool
+const pool = mysql.createPool({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'scriptpal'
+    database: 'scriptpal',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
-db.connect((err) => {
-    if (err) throw err;
-});
-
-// User methods
-db.getUser = (id) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM users WHERE id = ?', [id], (err, result) => {
-        if (err) reject(err);
-        resolve(result[0]);
-    });
-});
-
-db.getUserByEmail = (email) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM users WHERE email = ?', [email], (err, result) => {
-        if (err) reject(err);
-        resolve(result[0]);
-    });
-});
-
-db.createUser = (user) => new Promise((resolve, reject) => {
-    // First check if user exists
-    db.getUserByEmail(user.email)
-        .then(existingUser => {
-            if (existingUser) {
-                // User exists, return the existing user
-                resolve(existingUser);
-                return;
-            }
-
-            // User doesn't exist, create new user
-            db.query('INSERT INTO users (email) VALUES (?)', [user.email],
-                (err, result) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-                    resolve({ id: result.insertId, email: user.email });
-                });
-        })
-        .catch(err => reject(err));
-});
-
-db.updateUser = (id, user) => new Promise((resolve, reject) => {
-    db.query('UPDATE users SET email = ? WHERE id = ?', [user.email, id],
-        (err, result) => {
-            if (err) reject(err);
-            resolve({ id, email: user.email });
-        });
-});
-
-// Script methods
-db.getScript = (id) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM scripts WHERE id = ?', [id], (err, result) => {
-        if (err) reject(err);
-        resolve(result[0]);
-    });
-});
-
-db.createScript = (script) => new Promise((resolve, reject) => {
-    db.query('INSERT INTO scripts (user_id, title, status, version_number, content) VALUES (?, ?, ?, ?, ?)', [script.user_id, script.title, script.status || 'draft', script.version_number || 1, script.content || ''],
-        (err, result) => {
-            if (err) reject(err);
-            resolve({ id: result.insertId, ...script });
-        });
-});
-
-db.updateScript = (id, script) => new Promise((resolve, reject) => {
-    // Validate required fields
-    if (!id) {
-        reject(new Error('Script ID is required'));
-        return;
-    }
-    if (!script.title) {
-        reject(new Error('Script title is required'));
-        return;
+// Simple query queue implementation
+class QueryQueue {
+    constructor() {
+        this.queue = [];
+        this.isProcessing = false;
     }
 
-    // Ensure content is a string
-    const content = typeof script.content === 'string' ?
-        script.content :
-        JSON.stringify(script.content);
+    async enqueue(queryFn) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ queryFn, resolve, reject });
+            this.processQueue();
+        });
+    }
 
-    db.query(
-        'UPDATE scripts SET title = ?, status = ?, version_number = ?, content = ? WHERE id = ?', [script.title, script.status, script.version_number, content, id],
-        (err, result) => {
-            if (err) {
-                console.error('Database error updating script:', err);
-                reject(err);
-                return;
-            }
+    async processQueue() {
+        if (this.isProcessing || this.queue.length === 0) return;
 
-            // Check if update was successful
-            if (result.affectedRows === 0) {
-                reject(new Error('Script not found or no changes made'));
-                return;
-            }
+        this.isProcessing = true;
+        const { queryFn, resolve, reject } = this.queue.shift();
 
-            // Return updated script data
-            resolve({
-                id,
-                ...script,
-                content: content // Return the stringified content
-            });
-        }
-    );
-});
-
-db.getAllScriptsByUser = (user_id) => {
-    return new Promise((resolve, reject) => {
-        db.query('SELECT * FROM scripts WHERE user_id = ?', [user_id], (err, result) => {
-            if (err) reject(err);
+        try {
+            const result = await queryFn();
             resolve(result);
+        } catch (error) {
+            reject(error);
+        } finally {
+            this.isProcessing = false;
+            this.processQueue();
+        }
+    }
+}
+
+const queryQueue = new QueryQueue();
+
+// Database wrapper
+const db = {
+    // Helper function to execute queries through the queue
+    query: async(sql, params = []) => {
+        return queryQueue.enqueue(async() => {
+            const connection = await pool.getConnection();
+            try {
+                const [rows] = await connection.execute(sql, params);
+                return rows;
+            } finally {
+                connection.release();
+            }
         });
-    });
+    },
+
+    // User methods
+    getUser: async(id) => {
+        const rows = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+        return rows[0];
+    },
+
+    getUserByEmail: async(email) => {
+        const rows = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        return rows[0];
+    },
+
+    createUser: async(user) => {
+        // First check if user exists
+        const existingUser = await db.getUserByEmail(user.email);
+        if (existingUser) {
+            return existingUser;
+        }
+
+        // User doesn't exist, create new user
+        const result = await db.query('INSERT INTO users (email) VALUES (?)', [user.email]);
+        return { id: result.insertId, email: user.email };
+    },
+
+    updateUser: async(id, user) => {
+        await db.query('UPDATE users SET email = ? WHERE id = ?', [user.email, id]);
+        return { id, email: user.email };
+    },
+
+    // Script methods
+    getScript: async(id) => {
+        const rows = await db.query('SELECT * FROM scripts WHERE id = ?', [id]);
+        return rows[0];
+    },
+
+    createScript: async(script) => {
+        const result = await db.query(
+            'INSERT INTO scripts (user_id, title, status, version_number, content) VALUES (?, ?, ?, ?, ?)', [script.user_id, script.title, script.status || 'draft', script.version_number || 1, script.content || '']
+        );
+        return { id: result.insertId, ...script };
+    },
+
+    updateScript: async(id, script) => {
+        if (!id) throw new Error('Script ID is required');
+        if (!script.title) throw new Error('Script title is required');
+
+        // Build update fields and values dynamically
+        const updateFields = [];
+        const values = [];
+
+        if (script.title !== undefined) {
+            updateFields.push('title = ?');
+            values.push(script.title);
+        }
+
+        if (script.status !== undefined) {
+            updateFields.push('status = ?');
+            values.push(script.status);
+        }
+
+        if (script.version_number !== undefined) {
+            updateFields.push('version_number = ?');
+            values.push(script.version_number);
+        }
+
+        if (script.content !== undefined) {
+            updateFields.push('content = ?');
+            values.push(typeof script.content === 'string' ? script.content : JSON.stringify(script.content));
+        }
+
+        // Add id to values array for WHERE clause
+        values.push(id);
+
+        const result = await db.query(
+            `UPDATE scripts SET ${updateFields.join(', ')} WHERE id = ?`,
+            values
+        );
+
+        if (result.affectedRows === 0) {
+            throw new Error('Script not found or no changes made');
+        }
+
+        // Return updated script data
+        const updatedScript = await db.getScript(id);
+        return updatedScript;
+    },
+
+    getAllScriptsByUser: async(user_id) => {
+        return await db.query('SELECT * FROM scripts WHERE user_id = ?', [user_id]);
+    },
+
+    // Story Elements methods
+    getScriptElements: async(scriptId) => {
+        return await db.query(
+            'SELECT * FROM story_elements WHERE script_id = ? ORDER BY type, subtype', [scriptId]
+        );
+    },
+
+    getElement: async(id) => {
+        const rows = await db.query('SELECT * FROM story_elements WHERE id = ?', [id]);
+        return rows[0];
+    },
+
+    createElement: async(element) => {
+        const result = await db.query(
+            'INSERT INTO story_elements (script_id, type, subtype, content) VALUES (?, ?, ?, ?)', [element.script_id, element.type, element.subtype, element.content]
+        );
+        return { id: result.insertId, ...element };
+    },
+
+    updateElement: async(id, element) => {
+        await db.query(
+            'UPDATE story_elements SET type = ?, subtype = ?, content = ? WHERE id = ?', [element.type, element.subtype, element.content, id]
+        );
+        return { id, ...element };
+    },
+
+    deleteElement: async(id) => {
+        const result = await db.query('DELETE FROM story_elements WHERE id = ?', [id]);
+        return result.affectedRows > 0;
+    },
+
+    // Script Profile methods
+    getScriptProfile: async(scriptId) => {
+        const script = await db.getScript(scriptId);
+        if (!script) return null;
+
+        const elements = await db.getScriptElements(scriptId);
+        return {...script, elements };
+    },
+
+    // Script stats
+    getScriptStats: async(scriptId) => {
+        return await db.query(
+            'SELECT type, subtype, content, COUNT(*) as count FROM story_elements WHERE script_id = ? GROUP BY type, content', [scriptId]
+        );
+    },
+
+    // Session methods
+    createSession: async(userId, sessionToken) => {
+        const result = await db.query(
+            'INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 14 DAY))', [userId, sessionToken]
+        );
+
+        if (!result || !result.insertId) {
+            throw new Error('Failed to create session');
+        }
+
+        return { id: result.insertId, user_id: userId, token: sessionToken };
+    },
+
+    getSession: async(sessionToken) => {
+        const rows = await db.query(
+            'SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()', [sessionToken]
+        );
+        return rows[0];
+    },
+
+    deleteSession: async(sessionToken) => {
+        const result = await db.query('DELETE FROM sessions WHERE token = ?', [sessionToken]);
+        return result.affectedRows > 0;
+    },
+
+    // Persona methods
+    getScriptPersonas: async(scriptId) => {
+        return await db.query('SELECT * FROM personas WHERE script_id = ?', [scriptId]);
+    },
+
+    getPersona: async(id) => {
+        const rows = await db.query('SELECT * FROM personas WHERE id = ?', [id]);
+        return rows[0];
+    },
+
+    createPersona: async(persona) => {
+        const result = await db.query(
+            'INSERT INTO personas (script_id, description) VALUES (?, ?)', [persona.script_id, persona.description]
+        );
+        return { id: result.insertId, ...persona };
+    },
+
+    updatePersona: async(id, persona) => {
+        await db.query(
+            'UPDATE personas SET description = ? WHERE id = ?', [persona.description, id]
+        );
+        return { id, ...persona };
+    },
+
+    deletePersona: async(id) => {
+        const result = await db.query('DELETE FROM personas WHERE id = ?', [id]);
+        return result.affectedRows > 0;
+    },
+
+    // Conversation methods
+    getScriptConversations: async(scriptId) => {
+        return await db.query(
+            'SELECT * FROM conversations WHERE script_id = ? ORDER BY created_at DESC', [scriptId]
+        );
+    }
 };
-
-// Story Elements methods
-db.getScriptElements = (scriptId) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM story_elements WHERE script_id = ? ORDER BY type, subtype', [scriptId],
-        (err, result) => {
-            if (err) reject(err);
-            resolve(result);
-        });
-});
-
-db.getElement = (id) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM story_elements WHERE id = ?', [id], (err, result) => {
-        if (err) reject(err);
-        resolve(result[0]);
-    });
-});
-
-db.createElement = (element) => new Promise((resolve, reject) => {
-    db.query('INSERT INTO story_elements (script_id, type, subtype, content) VALUES (?, ?, ?, ?)', [element.script_id, element.type, element.subtype, element.content],
-        (err, result) => {
-            if (err) reject(err);
-            resolve({ id: result.insertId, ...element });
-        });
-});
-
-db.updateElement = (id, element) => new Promise((resolve, reject) => {
-    db.query('UPDATE story_elements SET type = ?, subtype = ?, content = ? WHERE id = ?', [element.type, element.subtype, element.content, id],
-        (err, result) => {
-            if (err) reject(err);
-            resolve({ id, ...element });
-        });
-});
-
-db.deleteElement = (id) => new Promise((resolve, reject) => {
-    db.query('DELETE FROM story_elements WHERE id = ?', [id], (err, result) => {
-        if (err) reject(err);
-        resolve(result.affectedRows > 0);
-    });
-});
-
-// Script Profile methods
-db.getScriptProfile = (scriptId) => new Promise((resolve, reject) => {
-    // Get script details
-    db.query('SELECT * FROM scripts WHERE id = ?', [scriptId], (err, scriptResult) => {
-        if (err) reject(err);
-        if (!scriptResult[0]) {
-            resolve(null);
-            return;
-        }
-
-        // Get all story elements
-        db.query('SELECT * FROM story_elements WHERE script_id = ? ORDER BY type, subtype', [scriptId],
-            (err, elementsResult) => {
-                if (err) reject(err);
-                resolve({
-                    ...scriptResult[0],
-                    elements: elementsResult
-                });
-            });
-    });
-});
-
-// Script stats
-db.getScriptStats = (scriptId) => new Promise((resolve, reject) => {
-    db.query('SELECT type, subtype, content, COUNT(*) as count FROM story_elements WHERE script_id = ? GROUP BY type, content', [scriptId], (err, result) => {
-        if (err) reject(err);
-        resolve(result);
-    });
-});
-
-
-// Session methods
-db.createSession = (userId, sessionToken) => new Promise((resolve, reject) => {
-    db.query('INSERT INTO sessions (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 14 DAY))', [userId, sessionToken],
-        (err, result) => {
-            if (err) {
-                reject(err);
-                return;
-            }
-            if (!result || !result.insertId) {
-                reject(new Error('Failed to create session'));
-                return;
-            }
-            resolve({ id: result.insertId, user_id: userId, token: sessionToken });
-        });
-});
-
-db.getSession = (sessionToken) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()', [sessionToken],
-        (err, result) => {
-            if (err) {
-                console.error('Database error getting session:', err);
-                reject(err);
-                return;
-            }
-            resolve(result[0]);
-        });
-});
-
-db.deleteSession = (sessionToken) => new Promise((resolve, reject) => {
-    db.query('DELETE FROM sessions WHERE token = ?', [sessionToken],
-        (err, result) => {
-            if (err) {
-                console.error('Database error deleting session:', err);
-                reject(err);
-                return;
-            }
-            resolve(result.affectedRows > 0);
-        });
-});
-
-// Persona methods
-db.getScriptPersonas = (scriptId) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM personas WHERE script_id = ?', [scriptId],
-        (err, result) => {
-            if (err) reject(err);
-            resolve(result);
-        });
-});
-
-db.getPersona = (id) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM personas WHERE id = ?', [id], (err, result) => {
-        if (err) reject(err);
-        resolve(result[0]);
-    });
-});
-
-db.createPersona = (persona) => new Promise((resolve, reject) => {
-    db.query('INSERT INTO personas (script_id, description) VALUES (?, ?)', [persona.script_id, persona.description],
-        (err, result) => {
-            if (err) reject(err);
-            resolve({ id: result.insertId, ...persona });
-        });
-});
-
-db.updatePersona = (id, persona) => new Promise((resolve, reject) => {
-    db.query('UPDATE personas SET description = ? WHERE id = ?', [persona.description, id],
-        (err, result) => {
-            if (err) reject(err);
-            resolve({ id, ...persona });
-        });
-});
-
-db.deletePersona = (id) => new Promise((resolve, reject) => {
-    db.query('DELETE FROM personas WHERE id = ?', [id], (err, result) => {
-        if (err) reject(err);
-        resolve(result.affectedRows > 0);
-    });
-});
-
-// Conversation methods
-db.getScriptConversations = (scriptId) => new Promise((resolve, reject) => {
-    db.query('SELECT * FROM conversations WHERE script_id = ? ORDER BY created_at DESC', [scriptId],
-        (err, result) => {
-            if (err) reject(err);
-            resolve(result);
-        });
-});
 
 export default db;

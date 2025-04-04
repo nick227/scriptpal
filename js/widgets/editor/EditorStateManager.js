@@ -34,13 +34,7 @@ export class EditorStateManager extends WidgetStateManager {
 
             // Additional state
             ready: false,
-            error: null,
-
-            // Autocomplete terms
-            autocompleteTerms: {
-                locations: new Set(),
-                characters: new Set()
-            }
+            error: null
         });
 
         // Add editor-specific validators
@@ -76,14 +70,6 @@ export class EditorStateManager extends WidgetStateManager {
 
             // Additional validators
             ready: (value) => typeof value === 'boolean',
-
-            // Autocomplete terms validators
-            autocompleteTerms: (value) => {
-                return value &&
-                    typeof value === 'object' &&
-                    value.locations instanceof Set &&
-                    value.characters instanceof Set;
-            }
         };
     }
 
@@ -227,39 +213,6 @@ export class EditorStateManager extends WidgetStateManager {
         this.setState('error', error);
     }
 
-    // Autocomplete terms methods
-    getAutocompleteTerms() {
-        return this.getState('autocompleteTerms');
-    }
-
-    addAutocompleteTerm(format, term) {
-        const terms = this.getAutocompleteTerms();
-        if (!terms) return false;
-
-        const targetSet = format === 'header' ? terms.locations :
-            format === 'speaker' ? terms.characters :
-            null;
-
-        if (!targetSet) return false;
-
-        targetSet.add(term.toUpperCase());
-        this.setState('autocompleteTerms', terms);
-        return true;
-    }
-
-    hasAutocompleteTerm(format, term) {
-        const terms = this.getAutocompleteTerms();
-        if (!terms) return false;
-
-        const targetSet = format === 'header' ? terms.locations :
-            format === 'speaker' ? terms.characters :
-            null;
-
-        if (!targetSet) return false;
-
-        return targetSet.has(term.toUpperCase());
-    }
-
     // Editor-specific state keys
     static KEYS = {
         ...WidgetStateManager.KEYS,
@@ -293,10 +246,7 @@ export class EditorStateManager extends WidgetStateManager {
 
         // Additional keys
         READY: 'ready',
-        ERROR: 'error',
-
-        // Autocomplete terms keys
-        AUTOCOMPLETE_TERMS: 'autocompleteTerms'
+        ERROR: 'error'
     };
 
     // Additional state methods

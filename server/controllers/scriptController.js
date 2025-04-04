@@ -66,59 +66,74 @@ const scriptController = {
                 return res.status(400).json({ error: 'Content is required' });
             }
 
-            // Validate content is proper JSON
-            try {
-                if (typeof content === 'string') {
-                    const parsed = JSON.parse(content);
-                    console.log('Content validation passed:', {
-                        hasContent: !!parsed.content,
-                        hasFormat: !!parsed.format,
-                        hasMetadata: !!parsed.metadata
-                    });
+            // Validate content format - either XML-like or legacy JSON
+            if (typeof content === 'string') {
+                if (content.includes('</')) {
+                    // XML format - validate basic structure
+                    const validTags = ['header', 'action', 'speaker', 'dialog', 'parenthetical', 'transition'];
+                    const tagPattern = /<(\w+)>.*?<\/\1>/g;
+                    const matches = content.match(tagPattern);
+
+                    if (!matches) {
+                        console.warn('Update rejected: invalid XML format');
+                        return res.status(400).json({ error: 'Content must contain valid script elements' });
+                    }
+
+                    // Validate that all tags are allowed
+                    const invalidTags = matches
+                        .map(match => match.match(/<(\w+)>/)[1])
+                        .filter(tag => !validTags.includes(tag));
+
+                    if (invalidTags.length > 0) {
+                        console.warn('Update rejected: invalid tags:', invalidTags);
+                        return res.status(400).json({
+                            error: `Invalid script elements: ${invalidTags.join(', ')}. Allowed elements are: ${validTags.join(', ')}`
+                        });
+                    }
+                } else {
+                    // Try parsing as legacy JSON for backward compatibility
+                    try {
+                        JSON.parse(content);
+                    } catch (e) {
+                        console.warn('Update rejected: content is neither XML format nor valid JSON');
+                        return res.status(400).json({
+                            error: 'Content must be in script format with valid elements (e.g. <header>, <action>, etc.)'
+                        });
+                    }
                 }
-            } catch (e) {
-                console.warn('Update rejected: invalid JSON content:', e.message);
-                return res.status(400).json({ error: 'Content must be valid JSON' });
+            } else {
+                console.warn('Update rejected: content must be a string');
+                return res.status(400).json({ error: 'Content must be a string' });
             }
 
             // Validate version number format
-            if (version_number && !version_number.match(/^\d+\.\d+$/)) {
-                console.warn('Update rejected: invalid version number format:', version_number);
-                return res.status(400).json({ error: 'Version number must be in format "major.minor"' });
+            if (version_number !== undefined && version_number !== null) {
+                if (typeof version_number !== 'string' || !version_number.match(/^\d+\.\d+$/)) {
+                    console.warn('Update rejected: invalid version number format:', version_number);
+                    return res.status(400).json({ error: 'Version number must be in format "major.minor"' });
+                }
             }
 
             console.log('Validation passed, updating script...');
+
+            // Update script in database
             const script = await scriptModel.updateScript(req.params.id, {
                 title,
-                status: status || 'draft',
                 content,
-                version_number
+                status,
+                version_number: version_number || '1.0', // Default to 1.0 if not provided
+                updated_at: new Date().toISOString()
             });
 
             if (!script) {
-                console.warn('Update failed: script not found:', req.params.id);
+                console.warn('Update failed: script not found');
                 return res.status(404).json({ error: 'Script not found' });
             }
 
-            // Log successful update
-            console.log('Script updated successfully:', {
-                id: req.params.id,
-                title: script.title,
-                version: script.version_number,
-                contentLength: script.content.length
-            });
-
             res.json(script);
         } catch (error) {
-            console.error('Error updating script:', {
-                error: error.message,
-                stack: error.stack,
-                scriptId: req.params.id
-            });
-            res.status(500).json({
-                error: 'Internal server error',
-                details: error.message
-            });
+            console.error('Error updating script:', error);
+            res.status(500).json({ error: 'Internal server error' });
         }
     },
 

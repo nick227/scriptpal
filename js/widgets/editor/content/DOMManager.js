@@ -15,7 +15,9 @@ export class DOMManager extends BaseWidget {
             if (!this.editorArea) {
                 this.editorArea = document.createElement('div');
                 this.editorArea.className = 'editor-area';
-                this.editorArea.contentEditable = 'false';
+                this.editorArea.contentEditable = 'true';
+                this.editorArea.setAttribute('data-enable-grammarly', 'false');
+                this.editorArea.setAttribute('data-enable-content-editables', 'true');
                 this.editorArea.spellcheck = false;
                 this.container.appendChild(this.editorArea);
             }
@@ -41,15 +43,13 @@ export class DOMManager extends BaseWidget {
     focusLine(line) {
         if (!line) return;
 
-        requestAnimationFrame(() => {
-            line.focus();
-            const range = document.createRange();
-            range.setStart(line, 0);
-            range.collapse(true);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-        });
+        line.focus();
+        const range = document.createRange();
+        range.setStart(line, 0);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
     }
 
     destroy() {

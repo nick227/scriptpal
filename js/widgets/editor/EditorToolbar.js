@@ -1,5 +1,6 @@
 import { BaseWidget } from '../BaseWidget.js';
 import { formatTypes } from './constants.js';
+import { ScriptImportWidget } from '../uploader/ScriptImportWidget.js';
 
 export class EditorToolbar extends BaseWidget {
     constructor(options) {
@@ -9,14 +10,20 @@ export class EditorToolbar extends BaseWidget {
         if (!options.stateManager) {
             throw new Error('StateManager is required for EditorToolbar');
         }
+        if (!options.editorContent) {
+            throw new Error('EditorContent instance is required for EditorToolbar');
+        }
 
         // Call super with required elements
         super({
             editorContainer: options.editorContainer
         });
 
-        // Store state manager reference
+        // Store references
         this.stateManager = options.stateManager;
+        this.editorContent = options.editorContent;
+        this.eventManager = options.eventManager;
+        this.editorContainer = options.editorContainer;
 
         // Initialize toolbar elements
         this.toolbar = null;
@@ -25,6 +32,8 @@ export class EditorToolbar extends BaseWidget {
         this.undoButton = null;
         this.redoButton = null;
         this.saveButton = null;
+        this.importButton = null;
+        this.fileInput = null;
 
         // Initialize handlers
         this._handlers = {
@@ -32,7 +41,8 @@ export class EditorToolbar extends BaseWidget {
             undo: null,
             redo: null,
             chapterCreate: null,
-            save: null
+            save: null,
+            import: null
         };
 
         // Bind event handlers
@@ -40,6 +50,8 @@ export class EditorToolbar extends BaseWidget {
         this._handleUndoClick = this.handleUndoClick.bind(this);
         this._handleRedoClick = this.handleRedoClick.bind(this);
         this._handleSaveClick = this.handleSaveClick.bind(this);
+        this._handleImportClick = this.handleImportClick.bind(this);
+        this._handleFileSelect = this.handleFileSelect.bind(this);
 
         this.formats = formatTypes;
     }
@@ -76,9 +88,24 @@ export class EditorToolbar extends BaseWidget {
         saveButton.title = 'Save Script (Ctrl+S)';
         this.saveButton = saveButton;
 
+        // Create import button
+        const importButton = this.createElement('button', 'format-button import-button');
+        importButton.innerHTML = '<i class="fas fa-file-import"></i>';
+        importButton.title = 'Import Script';
+        this.importButton = importButton;
+
+        // Create hidden file input
+        const fileInput = this.createElement('input', 'hidden-file-input');
+        fileInput.type = 'file';
+        fileInput.accept = '.txt,.pdf,.fdx';
+        fileInput.style.display = 'none';
+        this.fileInput = fileInput;
+
         this.toolbar.appendChild(undoButton);
         this.toolbar.appendChild(redoButton);
         this.toolbar.appendChild(saveButton);
+        this.toolbar.appendChild(importButton);
+        this.toolbar.appendChild(fileInput);
     }
 
     createFormatButtons() {
@@ -91,6 +118,18 @@ export class EditorToolbar extends BaseWidget {
     }
 
     createToolbar() {
+        //this.addPageCount();
+        //this.addChapterButton();
+    }
+
+    addPageCount() {
+        // Add page count display
+        const pageCountElement = this.createElement('span', 'page-count');
+        pageCountElement.textContent = 'Page 1'; // Default to page 1
+        this.toolbar.appendChild(pageCountElement);
+    }
+
+    addChapterButton() {
         // Add chapter management buttons
         const chapterButton = this.createElement('button', 'format-button');
         chapterButton.innerHTML = 'Add Chapter';
@@ -102,20 +141,15 @@ export class EditorToolbar extends BaseWidget {
             }
         };
         this.toolbar.appendChild(chapterButton);
-        // Add page count display
-        const pageCountElement = this.createElement('span', 'page-count');
-        pageCountElement.textContent = 'Page 1'; // Default to page 1
-        this.toolbar.appendChild(pageCountElement);
     }
 
     setupEventListeners() {
         this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
+        this.fileInput.addEventListener('change', this._handleFileSelect);
     }
 
     handleFormatClick(format) {
-        if (this._handlers.formatSelected) {
-            this._handlers.formatSelected(format);
-        }
+        this._handlers.formatSelected(format);
     }
 
     handleUndoClick() {
@@ -143,9 +177,27 @@ export class EditorToolbar extends BaseWidget {
             this.setSaveState('saving');
             this._handlers.save().finally(() => {
                 this.setSaveState('saved');
-                setTimeout(() => this.setSaveState('idle'), 2000);
+                setTimeout(() => this.setSaveState('idle'), 200);
             });
         }
+    }
+
+    handleImportClick() {
+        this.fileInput.click();
+    }
+
+    handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Create uploader widget with EditorContent reference
+        const uploader = new ScriptImportWidget({
+            container: this.editorContainer,
+            pageManager: this.editorContent.pageManager,
+            editorContent: this.editorContent
+        });
+
+        uploader.handleFile(file);
     }
 
     handleToolbarClick(e) {
@@ -158,6 +210,8 @@ export class EditorToolbar extends BaseWidget {
             this._handleRedoClick();
         } else if (button.classList.contains('save-button')) {
             this._handleSaveClick();
+        } else if (button.classList.contains('import-button')) {
+            this._handleImportClick();
         } else if (button.dataset.format) {
             this._handleFormatClick(button.dataset.format);
         }
@@ -177,6 +231,10 @@ export class EditorToolbar extends BaseWidget {
 
     onSave(callback) {
         this._handlers.save = callback;
+    }
+
+    onImport(callback) {
+        this._handlers.import = callback;
     }
 
     updateActiveFormat(format) {
@@ -244,10 +302,12 @@ export class EditorToolbar extends BaseWidget {
 
     destroy() {
         this.toolbar.removeEventListener('click', this.handleToolbarClick);
+        this.fileInput.removeEventListener('change', this._handleFileSelect);
         this.formatHandlers.clear();
         this._handlers.undo = null;
         this._handlers.redo = null;
         this._handlers.formatSelected = null;
+        this._handlers.import = null;
         this.toolbar.remove();
         this.toolbar = null;
         super.destroy();

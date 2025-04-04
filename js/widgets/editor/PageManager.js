@@ -1,367 +1,456 @@
 import { VirtualScrollManager } from './page/VirtualScrollManager.js';
-import { PageMeasurement } from './page/PageMeasurement.js';
 import { PageOperations } from './page/PageOperations.js';
+import { MAX_LINES_PER_PAGE } from './constants.js';
+
+// State management class
+class PageManagerState {
+    constructor() {
+        this.pages = [];
+        this.currentPage = null;
+        this.currentPageLineCount = 0;
+        this.maxLinesPerPage = MAX_LINES_PER_PAGE;
+        this.totalLines = 0;
+    }
+
+    clear() {
+        this.pages = [];
+        this.currentPage = null;
+        this.currentPageLineCount = 0;
+        this.totalLines = 0;
+    }
+
+    validateState() {
+        let actualTotal = 0;
+        this.pages.forEach((page, index) => {
+            const container = page.querySelector('.editor-page-content');
+            if (container) {
+                const count = container.children.length;
+                if (index === this.pages.length - 1) {
+                    this.currentPageLineCount = count;
+                }
+                actualTotal += count;
+                page.dataset.pageNumber = index + 1;
+            }
+        });
+        this.totalLines = actualTotal;
+        this.currentPage = this.pages[this.pages.length - 1] || null;
+        return actualTotal;
+    }
+
+    fastRemovePage(page) {
+        const pageIndex = this.pages.indexOf(page);
+        if (pageIndex > 0) { // Don't remove first page
+            this.pages.splice(pageIndex, 1);
+            if (page === this.currentPage) {
+                this.currentPage = this.pages[this.pages.length - 1];
+                this.currentPageLineCount = this._getPageLineCount(this.currentPage);
+            }
+            // Update page numbers for remaining pages
+            for (let i = pageIndex; i < this.pages.length; i++) {
+                this.pages[i].dataset.pageNumber = i + 1;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    _getPageLineCount(page) {
+        if (!page) return 0;
+        const container = page.querySelector('.editor-page-content');
+        return container ? container.children.length : 0;
+    }
+}
 
 export class PageManager {
     constructor(container) {
         this.container = container;
         this.editorArea = null;
-        this.pages = [];
-        this.maxHeight = 1100; // 11 inches * 100px per inch
+        this.loadingBar = null;
+        this.state = new PageManagerState();
+        this.virtualScroll = new VirtualScrollManager({ buffer: 2 });
+
+        // Cache static values
+        this.PAGE_HEIGHT = 1056;
+        this.PAGE_MARGIN = 30;
+        this.CONTENT_HEIGHT = this.PAGE_HEIGHT - (this.PAGE_MARGIN * 2);
+        this.PAGE_STYLES = {
+            width: '8.5in',
+            height: '11in',
+            minHeight: `${this.PAGE_HEIGHT}px`,
+            padding: `${this.PAGE_MARGIN}px`
+        };
 
         // Initialize components
-        this.measurement = new PageMeasurement();
-        this.operations = new PageOperations(this.measurement);
-        this.virtualScroll = new VirtualScrollManager({
-            buffer: 2
-        });
+        this.operations = new PageOperations();
 
-        // Event handling system
+        // Event handling
         this._eventHandlers = {
             pageChange: null,
             overflow: null,
-            pageSelect: null
+            pageSelect: null,
+            cursorUpdate: null
         };
     }
 
-    // Event handling methods
+    addLine(line, beforeLine = null) {
+        if (!line) return false;
+
+        try {
+            // Ensure we have a current page
+            if (!this.state.currentPage) {
+                const page = this._createAndSetupPage();
+                if (!page) return false;
+            }
+
+            // Determine target page and position
+            let targetPage = this.state.currentPage;
+            let targetContainer = targetPage.querySelector('.editor-page-content');
+
+            // If beforeLine is provided, find its page
+            if (beforeLine) {
+                const beforePage = beforeLine.closest('.editor-page');
+                if (beforePage) {
+                    targetPage = beforePage;
+                    targetContainer = targetPage.querySelector('.editor-page-content');
+                }
+            }
+
+            // Check if current page is full
+            if (this.state.currentPageLineCount >= this.state.maxLinesPerPage) {
+                // If adding to current page and it's full, create new page
+                if (targetPage === this.state.currentPage && !beforeLine) {
+                    const newPage = this._createAndSetupPage();
+                    if (!newPage) return false;
+
+                    // Add to new page
+                    const newContainer = newPage.querySelector('.editor-page-content');
+                    if (!newContainer) return false;
+
+                    newContainer.appendChild(line);
+                    this.state.currentPageLineCount = 1;
+                    this.state.totalLines++;
+                    return true;
+                }
+            }
+
+            // Add to target page
+            if (!targetContainer) return false;
+
+            if (beforeLine) {
+                targetContainer.insertBefore(line, beforeLine);
+            } else {
+                targetContainer.appendChild(line);
+            }
+
+            // Update state
+            if (targetPage === this.state.currentPage) {
+                this.state.currentPageLineCount++;
+            }
+            this.state.totalLines++;
+
+            return true;
+        } catch (error) {
+            console.error('PageManager: Error adding line:', error);
+            return false;
+        }
+    }
+
+    removeLine(line) {
+        if (!line || !line.parentElement) {
+            console.warn('PageManager: Cannot remove line - line or parent is null');
+            return false;
+        }
+
+        try {
+            // Don't remove first line of first page
+            if (this._isFirstLineOfFirstPage(line)) {
+                console.warn('PageManager: Cannot remove first line of first page');
+                return false;
+            }
+
+            const page = line.closest('.editor-page');
+            if (!page) {
+                console.warn('PageManager: Cannot remove line - page not found');
+                return false;
+            }
+
+            // Cache adjacent lines before removal
+            const nextLine = line.nextElementSibling;
+            const prevLine = line.previousElementSibling;
+
+            // Remove line directly from DOM
+            line.remove();
+            this.state.totalLines--;
+
+            // Update page state
+            if (page === this.state.currentPage) {
+                this.state.currentPageLineCount--;
+            }
+
+            // Handle empty page
+            if (page !== this.state.pages[0]) {
+                const contentContainer = page.querySelector('.editor-page-content');
+                if (!contentContainer || contentContainer.children.length === 0) {
+                    this.deleteEmptyPage(page);
+                }
+            }
+
+            // Validate and fix state if needed
+            if (this.state.totalLines !== this.state.validateState()) {
+                console.warn('PageManager: State mismatch detected and fixed');
+            }
+
+            // Update cursor
+            const lineToFocus = prevLine || nextLine;
+            if (lineToFocus) {
+                this._notifyCursorUpdate(lineToFocus);
+            }
+
+            this._notifyPageChange();
+            return true;
+        } catch (error) {
+            console.error('PageManager: Error removing line:', error);
+            return false;
+        }
+    }
+
+    _createAndSetupPage() {
+        try {
+            const page = this._createPageElement();
+            this.editorArea.appendChild(page);
+            this.virtualScroll.observePage(page);
+            this.state.pages.push(page);
+            this.state.currentPage = page;
+            page.dataset.pageNumber = this.state.pages.length;
+            return page;
+        } catch (error) {
+            console.error('PageManager: Error creating page:', error);
+            return null;
+        }
+    }
+
+    _createPageElement() {
+        const page = document.createElement('div');
+        page.className = 'editor-page';
+        page.setAttribute('role', 'document');
+        page.setAttribute('aria-label', 'Script Page');
+
+        // Apply cached styles
+        Object.assign(page.style, this.PAGE_STYLES);
+
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'editor-page-content';
+        contentContainer.style.cssText = `
+            min-height: ${this.CONTENT_HEIGHT}px;
+            position: relative;
+            overflow: hidden;
+        `;
+
+        page.appendChild(contentContainer);
+        return page;
+    }
+
+    _removeEmptyPage(page) {
+        const pageIndex = this.state.pages.indexOf(page);
+        if (pageIndex <= 0) return; // Protect first page
+
+        // Fast remove from DOM and tracking
+        page.remove();
+        this.state.pages.splice(pageIndex, 1);
+        this.virtualScroll.unobservePage(page);
+
+        // Batch update page numbers
+        for (let i = pageIndex; i < this.state.pages.length; i++) {
+            this.state.pages[i].dataset.pageNumber = i + 1;
+        }
+
+        // Update current page if needed
+        if (page === this.state.currentPage) {
+            this.state.currentPage = this.state.pages[this.state.pages.length - 1];
+            this.state.currentPageLineCount = this._countLinesInPage(this.state.currentPage);
+        }
+    }
+
+    _countLinesInPage(page) {
+        const contentContainer = page.querySelector('.editor-page-content');
+        return contentContainer && contentContainer.children.length || 0;
+    }
+
+    _isFirstLineOfFirstPage(line) {
+        // Get the first page
+        const firstPage = this.state.pages[0];
+        if (!firstPage) {
+            console.warn('PageManager: No first page found');
+            return false;
+        }
+
+        // Get the content container of the first page
+        const contentContainer = firstPage.querySelector('.editor-page-content');
+        if (!contentContainer) {
+            console.warn('PageManager: No content container found in first page');
+            return false;
+        }
+
+        // Check if this line is in the first page
+        const linePage = line.closest('.editor-page');
+        if (linePage !== firstPage) {
+            return false;
+        }
+
+        return contentContainer.firstElementChild === line;
+    }
+
+    // Public API methods
+    getCurrentPage() {
+        return this.state.currentPage;
+    }
+
+    hasPages() {
+        return this.state.pages.length > 0;
+    }
+
+    getPages() {
+        return this.state.pages;
+    }
+
+    getPageCount() {
+        return this.state.pages.length;
+    }
+
+    setEditorArea(editorArea) {
+        this.editorArea = editorArea;
+        if (!this.hasPages()) {
+            this._createInitialPage();
+        }
+    }
+
+    // Event handling
     onPageChange(callback) {
         this._eventHandlers.pageChange = callback;
     }
 
     _notifyPageChange() {
         if (this._eventHandlers.pageChange) {
-            this._eventHandlers.pageChange(this.pages.length);
+            this._eventHandlers.pageChange(this.state.pages.length);
         }
     }
 
-    setEditorArea(editorArea) {
-        if (!editorArea || !(editorArea instanceof HTMLElement)) {
-            throw new Error('Invalid editor area element');
-        }
-        this.editorArea = editorArea;
-        this.container = editorArea.parentElement;
+    onCursorUpdate(callback) {
+        this._eventHandlers.cursorUpdate = callback;
+    }
 
-        // Re-initialize if needed
-        if (this.pages.length === 0) {
-            this._createInitialPage();
+    _notifyCursorUpdate(line) {
+        if (this._eventHandlers.cursorUpdate) {
+            this._eventHandlers.cursorUpdate(line);
         }
     }
 
-    initialize() {
+    // Lifecycle methods
+    async _createInitialPage() {
+        if (!this.editorArea) return null;
+        const page = this._createAndSetupPage();
+        if (page) {
+            page.dataset.pageNumber = '1';
+        }
+        return page;
+    }
+
+    async initialize() {
         if (!this.container) {
             throw new Error('Container element is required for PageManager');
         }
-        this._createInitialPage();
-    }
-
-    _createInitialPage() {
-        console.log('PageManager: Creating initial page');
-        const page = document.createElement('div');
-        page.className = 'editor-page';
-        page.setAttribute('role', 'document');
-        page.setAttribute('aria-label', 'Script Page');
-
-        // Ensure we have an editor area
-        if (!this.editorArea) {
-            console.error('PageManager: No editor area available for initial page');
-            return null;
-        }
-
-        // Add to pages array and DOM
-        this.pages.push(page);
-        this.editorArea.appendChild(page);
-        console.log('PageManager: Initial page created and added to DOM');
-
-        this._notifyPageChange();
-        return page;
-    }
-
-    async addLine(line) {
-        console.log('PageManager: Adding line:', line);
-
-        if (!this.editorArea) {
-            console.error('PageManager: No editor area available');
-            return false;
-        }
 
         try {
-            // Get or create first page if none exists
-            let currentPage = this.getCurrentPage();
-            if (!currentPage) {
-                console.log('PageManager: No current page, creating initial page');
-                currentPage = this._createInitialPage();
-                if (!currentPage) {
-                    console.error('PageManager: Failed to create initial page');
-                    return false;
-                }
+            this.virtualScroll.initialize(this.container);
+            if (!this.hasPages()) {
+                return this._createInitialPage();
             }
-
-            // Double check page is in pages array
-            if (!this.pages.includes(currentPage)) {
-                console.log('PageManager: Current page not in pages array, adding it');
-                this.pages.push(currentPage);
-            }
-
-            // Ensure page is in DOM
-            if (!currentPage.isConnected) {
-                console.log('PageManager: Page not in DOM, attaching to editor area');
-                this.editorArea.appendChild(currentPage);
-            }
-
-            console.log('PageManager: Adding line to page:', currentPage);
-
-            // Add line to page
-            currentPage.appendChild(line);
-
-            // Ensure line is in DOM before proceeding
-            await new Promise(resolve => {
-                requestAnimationFrame(() => {
-                    if (line.isConnected) {
-                        console.log('PageManager: Line added and confirmed in DOM');
-                        resolve();
-                    } else {
-                        console.warn('PageManager: Line not in DOM, retrying');
-                        // Double check page is in DOM
-                        if (!currentPage.isConnected) {
-                            this.editorArea.appendChild(currentPage);
-                        }
-                        currentPage.appendChild(line);
-                        requestAnimationFrame(resolve);
-                    }
-                });
-            });
-
-            // Verify line was added successfully
-            if (!this.editorArea.querySelector('.script-line')) {
-                console.warn('PageManager: No script lines found after addition, verifying structure');
-                console.log('PageManager: Current DOM structure:', this.editorArea.innerHTML);
-            }
-
-            console.log('PageManager: Line added successfully');
-            this._notifyPageChange();
-            return true;
-
+            return Promise.resolve();
         } catch (error) {
-            console.error('PageManager: Failed to add line:', error);
-            return false;
+            console.error('PageManager: Initialization failed:', error);
+            throw error;
         }
-    }
-
-    createPage() {
-        console.log('PageManager: Creating new page');
-        const page = document.createElement('div');
-        page.className = 'editor-page';
-        page.setAttribute('role', 'document');
-        page.setAttribute('aria-label', 'Script Page');
-        // Don't add to DOM here - let addLine handle that
-        console.log('PageManager: New page created:', page);
-        return page;
-    }
-
-    removeLine(line) {
-        if (!line || !line.parentElement) return false;
-        line.remove();
-        this.rebalancePages();
-        return true;
-    }
-
-    rebalancePages() {
-        if (this.pages.length === 0) return;
-
-        const firstPage = this.pages[0];
-        let currentPage = firstPage;
-        let nextPage;
-
-        // Process all lines in sequence
-        const allLines = Array.from(this.container.querySelectorAll('.script-line'));
-        allLines.forEach(line => {
-            const pageHeight = this.measurement.getPageHeight(currentPage);
-            const lineHeight = this.measurement.getLineHeight(line);
-
-            if (pageHeight + lineHeight > this.maxHeight) {
-                // Create new page if needed
-                nextPage = document.createElement('div');
-                nextPage.className = 'editor-page';
-                currentPage.after(nextPage);
-                this.pages.push(nextPage);
-                currentPage = nextPage;
-            }
-
-            currentPage.appendChild(line);
-        });
-
-        // Remove empty pages
-        this.pages = this.pages.filter(page => {
-            if (page.children.length === 0 && page !== firstPage) {
-                page.remove();
-                return false;
-            }
-            return true;
-        });
-
-        this._notifyPageChange();
-    }
-
-    hasPages() {
-        // Check both array and DOM
-        return this.pages.length > 0 && this.editorArea.querySelector('.editor-page') !== null;
-    }
-
-    getPageCount() {
-        return this.pages.length;
-    }
-
-    getCurrentPage() {
-        // First check if we have any pages in the array
-        if (this.pages.length > 0) {
-            const lastPage = this.pages[this.pages.length - 1];
-            // Verify the page is still valid and in DOM
-            if (lastPage && lastPage.isConnected) {
-                return lastPage;
-            } else {
-                // Try to find any valid page in the array
-                for (const page of this.pages) {
-                    if (page && page.isConnected) {
-                        return page;
-                    }
-                }
-            }
-        }
-
-        // If no valid pages in array, check DOM directly
-        if (this.editorArea) {
-            const firstPage = this.editorArea.querySelector('.editor-page');
-            if (firstPage) {
-                // Sync our array with DOM
-                this.pages = [firstPage];
-                return firstPage;
-            }
-        }
-
-        return null;
     }
 
     destroy() {
-        this.pages.forEach(page => page.remove());
-        this.pages = [];
-        this._eventHandlers = {
-            pageChange: null,
-            overflow: null,
-            pageSelect: null
-        };
-        this.container = null;
-        this.editorArea = null;
-    }
-}
-
-// Helper function for batching DOM updates
-const batchUpdate = (operations) => {
-    requestAnimationFrame(() => {
-        operations.forEach(op => op());
-    });
-};
-
-class FormatManager {
-    constructor() {
-        this.flows = {
-            natural: ['ACTION', 'SPEAKER', 'DIALOG'],
-            special: ['HEADER', 'DIRECTIONS']
-        };
-        this.activeFlow = 'natural';
+        try {
+            this.virtualScroll.destroy();
+            this.state.clear();
+            this.editorArea = null;
+            this._eventHandlers = { pageChange: null, cursorUpdate: null };
+        } catch (error) {
+            console.error('PageManager: Error during cleanup:', error);
+            throw error;
+        }
     }
 
-    getNextFormat(current, flow = this.activeFlow) {
-        const flowArray = this.flows[flow];
-        const index = flowArray.indexOf(current);
-        return flowArray[(index + 1) % flowArray.length];
-    }
-}
+    deleteEmptyPage(page, focusPreviousLine = true) {
+        if (!page || page === this.state.pages[0]) return false;
 
-class BaseStateManager {
-    constructor(initialState = {}, validators = {}) {
-        this.state = new Map(Object.entries(initialState));
-        this.validators = validators;
-        this.subscribers = new Map();
-    }
+        const container = page.querySelector('.editor-page-content');
+        if (!container || container.children.length > 0) return false;
 
-    setState(key, value, options = {}) {
-        const { validate = true, notify = true } = options;
+        const previousPage = page.previousElementSibling;
+        const previousContainer = previousPage && previousPage.querySelector('.editor-page-content');
+        const lastLine = previousContainer && previousContainer.lastElementChild;
 
-        if (validate && !this.validate(key, value)) return false;
+        // Remove the page
+        page.remove();
 
-        const oldValue = this.state.get(key);
-        this.state.set(key, value);
+        // Update state
+        const pageIndex = this.state.pages.indexOf(page);
+        if (pageIndex > 0) { // Don't remove first page
+            this.state.pages.splice(pageIndex, 1);
 
-        if (notify && oldValue !== value) {
-            this.notifySubscribers(key, value);
+            // Update current page if needed
+            if (page === this.state.currentPage) {
+                this.state.currentPage = this.state.pages[this.state.pages.length - 1];
+                this.state.currentPageLineCount = this.state._getPageLineCount(this.state.currentPage);
+            }
+
+            // Update page numbers
+            for (let i = pageIndex; i < this.state.pages.length; i++) {
+                this.state.pages[i].dataset.pageNumber = i + 1;
+            }
         }
 
+        // Update virtual scroll if the method exists
+        if (this.virtualScroll && typeof this.virtualScroll.unobservePage === 'function') {
+            this.virtualScroll.unobservePage(page);
+        }
+
+        // Focus the last line of the previous page if requested
+        if (focusPreviousLine && lastLine) {
+            this._notifyCursorUpdate(lastLine);
+        }
+
+        this._notifyPageChange();
         return true;
     }
 
-    // ... common functionality
-}
+    releasePage(page) {
+        if (!page || !this.activePages.has(page)) return;
 
-export class AppStateManager extends BaseStateManager {
-    constructor() {
-        super({
-            loading: false,
-            authenticated: false,
-            currentView: null,
-            // ... app state
-        }, {
-            loading: (value) => typeof value === 'boolean',
-            // ... app validators
-        });
+        // Clean up page
+        const content = page.querySelector('.editor-page-content');
+        if (content) {
+            content.innerHTML = '';
+        }
+        page.style.opacity = '0.5';
+        page.classList.add('rebalancing');
+
+        this.activePages.delete(page);
+
+        // Update virtual scroll if the method exists
+        if (this.virtualScroll && typeof this.virtualScroll.unobservePage === 'function') {
+            this.virtualScroll.unobservePage(page);
+        }
+
+        // Maintain pool size
+        if (this.pagePool.length < this.poolSize) {
+            this.pagePool.push(page);
+        } else {
+            page.remove(); // Remove if pool is full
+        }
     }
 }
-
-export class EditorStateManager extends BaseStateManager {
-    constructor() {
-        super({
-            currentFormat: null,
-            currentPage: 1,
-            pageCount: 1,
-            // ... editor state
-        }, {
-            currentFormat: (value) => typeof value === 'string' || value === null,
-            // ... editor validators
-        });
-    }
-}
-
-export const StateTypes = {
-    App: {
-        LOADING: 'loading',
-        AUTH: 'authenticated',
-        // ...
-    },
-    Editor: {
-        FORMAT: 'currentFormat',
-        PAGE: 'currentPage',
-        // ...
-    }
-};
-
-class CompositeStateManager {
-    constructor(managers) {
-        this.managers = new Map(managers);
-    }
-
-    getState(domain, key) {
-        const manager = this.managers.get(domain);
-        return manager ? manager.getState(key) : null;
-    }
-
-    setState(domain, key, value) {
-        const manager = this.managers.get(domain);
-        return manager ? manager.setState(key, value) : false;
-    }
-}
-
-// Usage:
-const stateManager = new CompositeStateManager([
-    ['app', new AppStateManager()],
-    ['editor', new EditorStateManager()]
-]);

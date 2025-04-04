@@ -7,6 +7,8 @@ export class Autocomplete {
     constructor(stateManager) {
         this.stateManager = stateManager;
         this.editorArea = null;
+        this.currentSuggestion = null;
+        this.lastSuggestionLine = null;
 
         // Static data for proof of concept
         this.locationTerms = {
@@ -18,137 +20,127 @@ export class Autocomplete {
             'TOM': 'TOM'
         };
 
-        // State
-        this.currentSuggestion = null;
-        this.lastText = '';
-        this.handlers = new Map();
+        // Cache for term matches
+        this._matchCache = new Map();
+        this._lastCacheClean = Date.now();
 
         // Bind methods
+        this._handleKeyup = this.handleKeyup.bind(this);
         this._handleKeydown = this.handleKeydown.bind(this);
+        this._handleFocusOut = this.handleFocusOut.bind(this);
     }
 
     setEditorArea(editorArea) {
+        if (this.editorArea) {
+            // Clean up old listeners
+            this.editorArea.removeEventListener('keyup', this._handleKeyup);
+            this.editorArea.removeEventListener('keydown', this._handleKeydown);
+            this.editorArea.removeEventListener('focusout', this._handleFocusOut);
+        }
         this.editorArea = editorArea;
-    }
-
-    on(event, handler) {
-        this.handlers.set(event, handler);
-    }
-
-    off(event) {
-        this.handlers.delete(event);
+        if (editorArea) {
+            // Set up new listeners
+            editorArea.addEventListener('keyup', this._handleKeyup);
+            editorArea.addEventListener('keydown', this._handleKeydown);
+            editorArea.addEventListener('focusout', this._handleFocusOut);
+        }
     }
 
     destroy() {
-        this.handlers.clear();
-        this.currentSuggestion = null;
-        this.lastText = '';
+        if (this.editorArea) {
+            this.editorArea.removeEventListener('keyup', this._handleKeyup);
+            this.editorArea.removeEventListener('keydown', this._handleKeydown);
+            this.editorArea.removeEventListener('focusout', this._handleFocusOut);
+        }
         this.editorArea = null;
+        this._matchCache.clear();
+        this.currentSuggestion = null;
+        this.lastSuggestionLine = null;
     }
 
-    handleEvent(event) {
-        if (event.type === 'keydown') {
-            return this.handleKeydown(event);
+    handleFocusOut(event) {
+        // Clear suggestions when focus moves to a different line
+        const scriptLine = event.target.closest('.script-line');
+        if (!scriptLine) return;
+
+        if (this.lastSuggestionLine && this.lastSuggestionLine !== scriptLine) {
+            this.clearSuggestion();
+            this.clearSuggestionDisplay();
         }
-        return null;
     }
 
     handleKeydown(event) {
-        alert('Autocomplete.handleKeydown');
-        const currentLine = this.stateManager.getCurrentLine();
-        if (!currentLine) return null;
+        const scriptLine = event.target.closest('.script-line');
+        if (!scriptLine || !this.currentSuggestion) return null;
 
-        const lineFormat = currentLine.getAttribute('data-format');
-        if (!lineFormat) return null;
+        // Only handle Tab for accepting suggestions
+        if (event.key === 'Tab') {
+            event.preventDefault(); // Prevent default tab behavior
 
-        // Get current text without any existing suggestion
-        const currentText = this.getCurrentText(currentLine).trim().toUpperCase();
+            const lineFormat = scriptLine.getAttribute('data-format');
+            const currentText = this.getCurrentText(scriptLine).trim().toUpperCase();
 
-        // Handle special keys first
-        switch (event.key) {
-            case 'Tab':
-            case 'Enter':
-                if (this.currentSuggestion) {
-                    event.preventDefault();
-                    const result = {
-                        text: this.currentSuggestion,
-                        accepted: true,
-                        format: lineFormat,
-                        currentText: currentText
-                    };
-                    this.applySuggestion(currentLine, result);
-                    this.clearSuggestion();
-                    return result;
-                }
-                return null;
-
-            case 'Escape':
-                if (this.currentSuggestion) {
-                    event.preventDefault();
-                    this.clearSuggestion();
-                    this.clearSuggestionDisplay();
-                    return { cleared: true };
-                }
-                return null;
-
-            case 'Backspace':
-            case 'Delete':
-                this.clearSuggestion();
-                this.clearSuggestionDisplay();
-                return null;
-
-            case 'ArrowLeft':
-            case 'ArrowRight':
-            case 'ArrowUp':
-            case 'ArrowDown':
-                return null;
-        }
-
-        // Don't process modifier keys
-        if (event.ctrlKey || event.altKey || event.metaKey) {
-            return null;
-        }
-
-        // Only process printable characters
-        if (event.key.length !== 1) {
-            return null;
-        }
-
-        // Get all available terms (static + dynamic)
-        const terms = this.getAllTerms(lineFormat);
-        if (!terms) return null;
-
-        // Predict what the text will be after this keypress
-        const predictedText = currentText + event.key.toUpperCase();
-
-        // Don't show suggestions for empty text
-        if (!predictedText.trim()) {
-            this.clearSuggestionDisplay();
-            return null;
-        }
-
-        const suggestion = this.findMatch(predictedText, terms);
-
-        // Update current suggestion
-        this.currentSuggestion = suggestion;
-        if (suggestion) {
-            this.lastText = predictedText;
-            this.updateSuggestionDisplay(currentLine, suggestion.slice(predictedText.length));
-        } else {
-            this.clearSuggestionDisplay();
-        }
-
-        // Return result if we have a suggestion
-        if (suggestion) {
-            return {
-                text: suggestion,
-                partial: true,
+            const result = {
+                text: this.currentSuggestion,
+                accepted: true,
                 format: lineFormat,
-                currentText: predictedText
+                currentText: currentText
             };
+
+            this.applySuggestion(scriptLine, result);
+            this.clearSuggestion();
+
+            return result;
         }
 
         return null;
+    }
+
+    handleKeyup(event) {
+        // Don't process modifier keys or navigation keys
+        if (event.altKey || event.ctrlKey || event.metaKey) return null;
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return null;
+
+        const scriptLine = event.target.closest('.script-line');
+        if (!scriptLine) return null;
+
+        const format = scriptLine.getAttribute('data-format');
+        if (!format) return null;
+
+        // Update last suggestion line
+        this.lastSuggestionLine = scriptLine;
+
+        // Get current text without any existing suggestion
+        const currentText = this.getCurrentText(scriptLine);
+
+        // Always clear current suggestion if backspacing or deleting
+        if (event.key === 'Backspace' || event.key === 'Delete') {
+            this.clearSuggestion();
+            this.clearSuggestionDisplay();
+
+            // If no text left, just return
+            if (!currentText) return null;
+        }
+
+        // Don't process if empty
+        if (!currentText) {
+            this.clearSuggestion();
+            this.clearSuggestionDisplay();
+            return null;
+        }
+
+        const upperText = currentText.toUpperCase();
+        const suggestion = this.findMatch(upperText, format, scriptLine);
+
+        if (suggestion) {
+            this.currentSuggestion = suggestion;
+            this.updateSuggestionDisplay(scriptLine, suggestion.slice(upperText.length));
+            return { text: suggestion, partial: true, format };
+        } else {
+            this.clearSuggestion();
+            this.clearSuggestionDisplay();
+            return null;
+        }
     }
 
     getCurrentText(line) {
@@ -158,34 +150,36 @@ export class Autocomplete {
         const text = line.textContent || '';
         const suggestionSpan = line.querySelector('.suggestion');
         if (suggestionSpan) {
-            return text.slice(0, text.length - suggestionSpan.textContent.length);
+            // Make sure we don't include the suggestion text
+            return text.slice(0, text.length - suggestionSpan.textContent.length).trim();
         }
-        return text;
+        return text.trim();
     }
 
     applySuggestion(line, result) {
         if (!line || !result) return;
 
+        // Store current selection
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        const cursorOffset = range.startOffset;
+
         // Apply the suggestion
-        line.textContent = result.text;
+        const textNode = document.createTextNode(result.text);
+        while (line.firstChild) {
+            line.removeChild(line.firstChild);
+        }
+        line.appendChild(textNode);
+
+        // Clear any suggestion display
         this.clearSuggestionDisplay();
 
-        // Save new term if applicable
-        if (result.format === 'header' || result.format === 'speaker') {
-            const term = result.text.trim().toUpperCase();
-            if (term && !this.hasStaticTerm(result.format, term) &&
-                !this.stateManager.hasAutocompleteTerm(result.format, term)) {
-                this.stateManager.addAutocompleteTerm(result.format, term);
-            }
-        }
-
-        // Move cursor to end of line
-        const range = document.createRange();
-        const sel = window.getSelection();
-        range.selectNodeContents(line);
-        range.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(range);
+        // Restore cursor to end of line
+        const newRange = document.createRange();
+        newRange.setStart(textNode, result.text.length);
+        newRange.setEnd(textNode, result.text.length);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
     }
 
     clearSuggestionDisplay() {
@@ -197,12 +191,20 @@ export class Autocomplete {
     }
 
     updateSuggestionDisplay(line, suggestionText) {
-        if (!this.editorArea || !line || !suggestionText) return;
+        if (!line || !suggestionText) {
+            this.clearSuggestionDisplay();
+            return;
+        }
 
-        // Remove any existing suggestion spans
+        // Store current selection
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        const cursorOffset = range.startOffset;
+
+        // Remove any existing suggestion first
         this.clearSuggestionDisplay();
 
-        // Get the current text content without any existing suggestion
+        // Get the current text without any suggestion
         const currentText = this.getCurrentText(line);
 
         // Create new suggestion span
@@ -210,78 +212,104 @@ export class Autocomplete {
         suggestionSpan.className = 'suggestion';
         suggestionSpan.textContent = suggestionText;
 
-        // Clear the line content
-        line.textContent = '';
+        // Create text node for current text
+        const textNode = document.createTextNode(currentText);
 
-        // Add the current text back
-        line.textContent = currentText;
-
-        // Append the suggestion span
+        // Clear and rebuild line content
+        while (line.firstChild) {
+            line.removeChild(line.firstChild);
+        }
+        line.appendChild(textNode);
         line.appendChild(suggestionSpan);
+
+        // Restore cursor position
+        const newRange = document.createRange();
+        const newOffset = Math.min(cursorOffset, currentText.length);
+        newRange.setStart(textNode, newOffset);
+        newRange.setEnd(textNode, newOffset);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
     }
 
-    getAllTerms(format) {
-        if (!format) return null;
+    findMatch(text, format, currentLine) {
+        if (!text || !format || text.length < 1) return null;
 
-        // Get static terms
+        // Clean old cache entries every minute
+        const now = Date.now();
+        if (now - this._lastCacheClean > 60000) {
+            this._matchCache.clear();
+            this._lastCacheClean = now;
+        }
+
+        // Check cache first
+        const cacheKey = `${text}:${format}`;
+        if (this._matchCache.has(cacheKey)) {
+            return this._matchCache.get(cacheKey);
+        }
+
+        // First check static format (already in memory)
         const staticTerms = format === 'header' ? this.locationTerms :
             format === 'speaker' ? this.characterTerms :
             null;
 
-        if (!staticTerms) return null;
-
-        // Get dynamic terms from state manager
-        const dynamicTerms = this.stateManager.getAutocompleteTerms();
-        if (!dynamicTerms) return staticTerms;
-
-        // Create a new object with static terms
-        const allTerms = {...staticTerms };
-
-        // Get the appropriate dynamic set
-        const dynamicSet = format === 'header' ? dynamicTerms.locations :
-            format === 'speaker' ? dynamicTerms.characters :
-            null;
-
-        // Add dynamic terms to the object
-        if (dynamicSet) {
-            dynamicSet.forEach(term => {
-                if (term && typeof term === 'string') {
-                    allTerms[term] = term;
-                }
-            });
+        let match = null;
+        if (staticTerms) {
+            match = Object.keys(staticTerms).find(term =>
+                term.startsWith(text) && term !== text
+            );
+            if (match) {
+                this._matchCache.set(cacheKey, match);
+                return match;
+            }
         }
 
-        return allTerms;
-    }
+        // Get all lines with this format
+        const lines = Array.from(this.editorArea.querySelectorAll(
+            `.script-line[data-format="${format}"]`
+        ));
 
-    findMatch(text, terms) {
-        if (!text || !terms || text.length < 1) return null;
+        // Sort lines so current line's siblings are checked first
+        if (currentLine) {
+            const currentIndex = lines.indexOf(currentLine);
+            if (currentIndex > -1) {
+                // Move siblings to the front
+                const prevSibling = currentLine.previousElementSibling;
+                const nextSibling = currentLine.nextElementSibling;
 
-        // Find all terms that start with the current text
-        const matches = Object.keys(terms).filter(term =>
-            term.startsWith(text) && term !== text
-        );
+                // Reorder array to check siblings first
+                lines.splice(currentIndex, 1);
+                if (nextSibling) {
+                    const nextIndex = lines.indexOf(nextSibling);
+                    if (nextIndex > -1) lines.splice(nextIndex, 1);
+                    lines.unshift(nextSibling);
+                }
+                if (prevSibling) {
+                    const prevIndex = lines.indexOf(prevSibling);
+                    if (prevIndex > -1) lines.splice(prevIndex, 1);
+                    lines.unshift(prevSibling);
+                }
+            }
+        }
 
-        // Return the first match, or null if no matches
-        return matches.length > 0 ? matches[0] : null;
-    }
+        // Check each line for a match
+        for (const line of lines) {
+            // Skip the current line itself
+            if (line === currentLine) continue;
 
-    hasStaticTerm(format, term) {
-        const terms = format === 'header' ? this.locationTerms :
-            format === 'speaker' ? this.characterTerms :
-            null;
+            const term = line.textContent.trim().toUpperCase();
+            // Only match if the term starts with our text and isn't exactly the same
+            if (term.startsWith(text) && term !== text) {
+                this._matchCache.set(cacheKey, term);
+                return term;
+            }
+        }
 
-        if (!terms) return false;
-
-        return Object.keys(terms).includes(term.toUpperCase());
-    }
-
-    getCurrentSuggestion() {
-        return this.currentSuggestion;
+        // Cache null result too
+        this._matchCache.set(cacheKey, null);
+        return null;
     }
 
     clearSuggestion() {
         this.currentSuggestion = null;
-        this.lastText = '';
     }
 }

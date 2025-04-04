@@ -113,8 +113,7 @@ input {
 }
 
 .output-panel {
-    overflow-y: auto;
-    padding: 1rem;
+    padding: 0;
 }
 
 .chat-input {

@@ -151,26 +151,20 @@ export class ScriptPalScript {
 
         // Handle empty content - start with HEADER format
         if (!content || content.trim() === '') {
-            return JSON.stringify({
-                content: '[HEADER][/HEADER]',
-                format: 'header',
-                metadata: {
-                    lastModified: new Date().toISOString(),
-                    version: currentScript.version_number || '1.0',
-                    formatVersion: '2.0'
-                }
-            });
+            return '<header></header>';
         }
 
-        // Try to parse as JSON first
+        // Try to parse as JSON first (for backward compatibility)
         try {
             const parsedContent = JSON.parse(content);
 
             // Check for format version to handle different formats
             if (parsedContent.metadata && parsedContent.metadata.formatVersion) {
-                if (parsedContent.metadata.formatVersion === '2.0') {
-                    // New format with markers - return as is
-                    return content;
+                if (parsedContent.lines) {
+                    // Convert JSON lines to XML format
+                    return parsedContent.lines.map(line =>
+                        `<${line.format}>${line.text}</${line.format}>`
+                    ).join('\n');
                 }
             }
 
@@ -178,134 +172,100 @@ export class ScriptPalScript {
             if (parsedContent.content) {
                 // Convert legacy content to new format
                 const lines = parsedContent.content.split('\n');
-                const formattedLines = lines.map(line => {
-                    // Default to ACTION for legacy content
-                    return `[ACTION]${line.trim()}[/ACTION]`;
-                }).join('\n');
-
-                return JSON.stringify({
-                    content: formattedLines,
-                    format: parsedContent.format || 'action',
-                    pageCount: parsedContent.pageCount || 1,
-                    chapters: parsedContent.chapters || [],
-                    metadata: {
-                        lastModified: new Date().toISOString(),
-                        formatVersion: '2.0'
-                    }
-                });
+                return lines.map(line =>
+                    `<action>${line.trim()}</action>`
+                ).join('\n');
             }
 
             // If it's some other JSON format, wrap it
-            return JSON.stringify({
-                content: `[ACTION]${content}[/ACTION]`,
-                format: 'action',
-                metadata: {
-                    lastModified: currentScript.updated_at,
-                    version: currentScript.version_number || '1.0',
-                    formatVersion: '2.0'
-                }
-            });
+            return `<action>${content}</action>`;
         } catch (e) {
-            // Legacy plain text format - wrap it in our structure
-            return JSON.stringify({
-                content: `[ACTION]${content}[/ACTION]`,
-                format: 'action',
-                metadata: {
-                    lastModified: currentScript.updated_at,
-                    version: currentScript.version_number || '1.0',
-                    formatVersion: '2.0'
-                }
-            });
+            // Not JSON, check if it's already in XML format
+            if (content.includes('</')) {
+                return content;
+            }
+            // Legacy plain text format - wrap it in action tags
+            return content.split('\n')
+                .filter(line => line.trim())
+                .map(line => `<action>${line.trim()}</action>`)
+                .join('\n');
         }
     }
 
-    async saveContent(updateData) {
-
+    async saveContent(content, title) {
         try {
+            // Ensure content is a string
+            if (typeof content !== 'string') {
+                throw new Error('Content must be a string');
+            }
+
+            // Validate XML format
+            if (!this.isValidXMLFormat(content)) {
+                throw new Error('Invalid script format. Content must be in XML format with valid tags.');
+            }
+
+            // Get current script
             const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-            if (!currentScript || !currentScript.id) {
-                throw new Error('No current script selected');
+            if (!currentScript) {
+                throw new Error('No current script found');
             }
 
-            // Handle content serialization
-            let contentToSave = updateData.content;
+            // Format version number
+            const version = this.major_version || 1;
+            const formattedVersion = version.toString().includes('.') ?
+                version.toString() :
+                `${version.toString()}.0`;
 
-            // If content is an object and not already stringified, stringify it
-            if (typeof contentToSave === 'object') {
-                contentToSave = JSON.stringify(contentToSave);
-            } else if (typeof contentToSave === 'string') {
-                // Validate if it's proper JSON
-                try {
-                    JSON.parse(contentToSave);
-                    // If parse successful, it's valid JSON, use as is
-                } catch (e) {
-                    console.warn('Content is not valid JSON, wrapping it');
-                    contentToSave = JSON.stringify({
-                        content: contentToSave,
-                        format: 'text',
-                        metadata: {
-                            lastModified: new Date().toISOString(),
-                            version: updateData.version_number || currentScript.version_number || '1.0'
-                        }
-                    });
-                }
-            } else {
-                throw new Error('Invalid content format: ' + typeof contentToSave);
-            }
-
-            // Prepare update data
-            const scriptData = {
-                ...currentScript,
-                content: contentToSave,
-                version_number: updateData.version_number || currentScript.version_number || '1.0',
-                title: updateData.title || currentScript.title || 'Untitled Script',
-                status: updateData.status || currentScript.status || 'draft'
-            };
-
-            console.log('Saving script id:', currentScript.id);
-            console.log('Saving script data:', scriptData);
-
-            // Save to server
-            const updatedScript = await this.api.updateScript(currentScript.id, scriptData);
-
-            if (!updatedScript) {
-                throw new Error('Failed to update script - no response from server');
-            }
-
-            console.log('Server response:', {
-                id: updatedScript.id,
-                title: updatedScript.title,
-                version: updatedScript.version_number
+            // Update script content
+            const response = await this.api.updateScript(currentScript.id, {
+                content: content,
+                version: formattedVersion,
+                title: title || currentScript.title // Use passed title or fallback to current
             });
 
-            // Update both the current script and the scripts list
-            this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT, updatedScript);
-
-            // Update the script in the scripts list
-            const scripts = this.stateManager.getState(StateManager.KEYS.SCRIPTS);
-            if (scripts) {
-                const updatedScripts = scripts.map(script =>
-                    script.id === updatedScript.id ? updatedScript : script
-                );
-                this.stateManager.setState(StateManager.KEYS.SCRIPTS, updatedScripts);
+            // Handle response
+            if (!response) {
+                throw new Error('Failed to save script - no response from server');
             }
 
-            // Publish events
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.UPDATED, {
-                script: updatedScript,
-                type: 'success',
-                message: `Saved "${updatedScript.title}" (v${updatedScript.version_number})`
+            // Update state if save was successful
+            this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT, {
+                ...currentScript,
+                content: content,
+                version_number: formattedVersion
             });
 
             return true;
         } catch (error) {
             console.error('Failed to save script content:', error);
-            // Publish error event
             this.eventManager.publish(EventManager.EVENTS.SCRIPT.UPDATED, {
                 type: 'error',
                 message: `Failed to save: ${error.message}`
             });
             throw error;
         }
+    }
+
+    isValidXMLFormat(content) {
+        const validTags = ['header', 'action', 'speaker', 'dialog', 'directions'];
+        const xmlRegex = new RegExp(`<(${validTags.join('|')})>(.*?)</\\1>`, 'g');
+        const matches = content.match(xmlRegex);
+
+        // Content should have at least one valid tag
+        if (!matches) {
+            return false;
+        }
+
+        // Check for any invalid tags
+        const invalidTagRegex = /<(\w+)>/g;
+        let match;
+        while ((match = invalidTagRegex.exec(content)) !== null) {
+            const tag = match[1];
+            if (!validTags.includes(tag)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -1,215 +1,225 @@
 import { BaseWidget } from '../../BaseWidget.js';
-import { EventManager } from '../../../core/EventManager.js';
 
 export class ContentManager extends BaseWidget {
     constructor(options) {
         super();
-        console.log('ContentManager: Constructing with options:', options);
         this.editorArea = options.editorArea;
-        if (!this.editorArea) {
-            console.error('ContentManager: No editor area provided!');
-        }
-        console.log('ContentManager: Editor area set:', this.editorArea);
         this.stateManager = options.stateManager;
         this.lineFormatter = options.lineFormatter;
         this.pageManager = options.pageManager;
+        this.VALID_TAGS = ['header', 'action', 'speaker', 'dialog', 'directions'];
+
+        // Event handling
+        this.eventHandlers = new Map();
         this._lastContent = '';
         this._debounceTimeout = null;
-        this._eventManager = new EventManager();
 
         // Store event handlers
-        this.handleKeydown = options.handleKeydown;
         this.handleInput = options.handleInput;
-        this.handlePaste = options.handlePaste;
+        this.handleImport = options.handleImport;
         this.handleSelectionChange = options.handleSelectionChange;
     }
 
-    async setContent(content, isHistoryOperation = false) {
-        console.log('ContentManager: Setting content:', content);
-
-        // Clear existing content
-        this.clear();
-
-        // Handle empty or null content
-        if (!content) {
-            const initialLine = this.lineFormatter.createFormattedLine('header');
-            await this.pageManager.addLine(initialLine);
-            return;
+    on(eventName, handler) {
+        if (!this.eventHandlers.has(eventName)) {
+            this.eventHandlers.set(eventName, new Set());
         }
+        this.eventHandlers.get(eventName).add(handler);
+    }
 
-        let contentStr;
+    off(eventName, handler) {
+        if (handler && this.eventHandlers.has(eventName)) {
+            this.eventHandlers.get(eventName).delete(handler);
+        } else if (!handler) {
+            this.eventHandlers.delete(eventName);
+        }
+    }
 
-        // Parse content if it's a JSON string
-        if (typeof content === 'string') {
+    emit(eventName, data) {
+        if (this.eventHandlers.has(eventName)) {
+            this.eventHandlers.get(eventName).forEach(handler => handler(data));
+        }
+    }
+
+    async setContent(content, isHistoryOperation = false) {
+        try {
+            // Clear existing content first, but don't add default header if we have content
+            this.clear(true); // Always skip default header since we'll handle it below
+
+            // Ensure we have an editor area
+            if (!this.editorArea) {
+                console.error('ContentManager: No editor area available');
+                return;
+            }
+
+            // If no content provided, create default header line
+            if (!content) {
+                const headerLine = this.lineFormatter.createFormattedLine('header');
+                headerLine.contentEditable = 'true';
+                await this.pageManager.addLine(headerLine);
+                headerLine.focus();
+                return;
+            }
+
+            // Try parsing as XML first
+            const xmlContent = this.parseXMLContent(content);
+            if (xmlContent && xmlContent.length > 0) {
+                for (const line of xmlContent) {
+                    const formattedLine = this.lineFormatter.createFormattedLine(line.format);
+                    formattedLine.textContent = line.text;
+                    await this.pageManager.addLine(formattedLine);
+                }
+                return;
+            }
+
+            // Fallback to legacy JSON format
             try {
-                // Try to parse if it looks like JSON
-                if (content.trim().startsWith('{')) {
-                    const parsed = JSON.parse(content);
-                    contentStr = parsed.content;
-                } else {
-                    contentStr = content;
+                console.warn('ContentManager: Attempting to parse legacy JSON format');
+                const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                if (Array.isArray(jsonContent)) {
+                    for (const line of jsonContent) {
+                        if (line && line.text) {
+                            const format = this.VALID_TAGS.includes(line.format) ? line.format : 'directions';
+                            const formattedLine = this.lineFormatter.createFormattedLine(format);
+                            formattedLine.textContent = line.text;
+                            await this.pageManager.addLine(formattedLine);
+                        }
+                    }
                 }
             } catch (e) {
-                console.log('ContentManager: Not a JSON string, using as is');
-                contentStr = content;
+                console.error('ContentManager: Failed to parse content:', e);
+                // If parsing fails, create a default header line
+                const headerLine = this.lineFormatter.createFormattedLine('header');
+                headerLine.contentEditable = 'true';
+                await this.pageManager.addLine(headerLine);
+                headerLine.focus();
             }
-        } else if (typeof content === 'object' && content.content !== undefined) {
-            contentStr = content.content;
+
+        } catch (error) {
+            console.error('ContentManager: Error setting content:', error);
+            // Create a default header line on error
+            const headerLine = this.lineFormatter.createFormattedLine('header');
+            headerLine.contentEditable = 'true';
+            await this.pageManager.addLine(headerLine);
+            headerLine.focus();
+            throw error;
         }
-
-        // Handle empty content after parsing
-        if (!contentStr || (typeof contentStr === 'string' && !contentStr.trim())) {
-            const initialLine = this.lineFormatter.createFormattedLine('header');
-            await this.pageManager.addLine(initialLine);
-            return;
-        }
-
-        // Split content into lines and create formatted lines
-        const lines = contentStr.split('\n').filter(line => line.trim());
-        console.log('ContentManager: Processing lines:', lines);
-
-        // If no valid lines, create initial header
-        if (lines.length === 0) {
-            const initialLine = this.lineFormatter.createFormattedLine('header');
-            await this.pageManager.addLine(initialLine);
-            return;
-        }
-
-        // Process lines sequentially to maintain order
-        for (const lineContent of lines) {
-            const format = this.getFormatFromLine(lineContent) || 'header';
-            const line = this.lineFormatter.createFormattedLine(format);
-            line.textContent = this.stripFormatMarkers(lineContent);
-            await this.pageManager.addLine(line);
-        }
-
-        // Update state if not a history operation
-        if (!isHistoryOperation) {
-            this._lastContent = contentStr;
-            this.emit('CHANGE', this._lastContent);
-        }
-    }
-
-    getFormatFromLine(line) {
-        const formatMatch = line.match(/\[(\w+)\](.*?)\[\/\1\]/);
-        return formatMatch ? formatMatch[1].toLowerCase() : null;
-    }
-
-    stripFormatMarkers(line) {
-        return line.replace(/\[(\w+)\](.*?)\[\/\1\]/, '$2');
     }
 
     getContent() {
-        console.log('ContentManager: getContent called, editorArea:', this.editorArea);
-        if (!this.editorArea) {
-            console.error('ContentManager: Cannot get content - no editor area!');
+        if (!this.editorArea) return '';
+
+        try {
+            const lines = [];
+            this.pageManager.getPages().forEach(page => {
+                const contentContainer = page.querySelector('.editor-page-content');
+                if (!contentContainer) {
+                    console.warn('ContentManager: No content container found in page');
+                    return;
+                }
+                Array.from(contentContainer.children).forEach(line => {
+                    if (!line.classList.contains('script-line')) return;
+                    const format = line.dataset.format || 'action';
+                    const text = line.textContent.trim();
+                    if (text) {
+                        // Save the format exactly as it is
+                        lines.push(`<${format}>${text}</${format}>`);
+                    }
+                });
+            });
+            return lines.join('\n');
+        } catch (error) {
+            console.error('ContentManager: Error getting content:', error);
             return '';
         }
-
-        // First find all editor pages
-        const pages = this.editorArea.querySelectorAll('.editor-page');
-        console.log('ContentManager: Found pages:', pages);
-
-        // Then find all script lines within those pages
-        const lines = Array.from(this.editorArea.querySelectorAll('.editor-page .script-line'));
-        console.log('ContentManager: Getting content from lines:', lines);
-
-        if (lines.length === 0) {
-            console.warn('ContentManager: No script lines found in editor area');
-            // Log the current DOM structure to help debug
-            console.log('ContentManager: Current editor area structure:', this.editorArea.innerHTML);
-            return '';
-        }
-
-        const formattedContent = lines.map(line => {
-            const format = line.getAttribute('data-format');
-            if (!format) {
-                console.warn('ContentManager: Line missing format attribute:', line);
-                return '';
-            }
-            const text = line.textContent.trim();
-            const formatted = `[${format.toUpperCase()}]${text}[/${format.toUpperCase()}]`;
-            console.log('ContentManager: Formatted line:', { format, text, formatted });
-            return formatted;
-        }).join('\n');
-
-        console.log('ContentManager: Final formatted content:', formattedContent);
-        return formattedContent;
     }
 
-    setLineFormat(format) {
-
-        if (!this.lineFormatter || !this.stateManager) {
-            console.warn('ContentManager: Missing formatter or state manager');
-            return;
-        }
-
-        const currentLine = this.stateManager.getCurrentLine();
-        if (!currentLine) {
-            console.warn('ContentManager: No current line to format');
-            return;
-        }
-
-        // Format the current line
-        this.lineFormatter.setLineFormat(currentLine, format);
-
-        // Update state and emit events
-        this.stateManager.setCurrentFormat(format);
-        this.emit('FORMAT_CHANGE', format);
-    }
-
-    clear() {
-        while (this.editorArea.firstChild) {
-            this.editorArea.removeChild(this.editorArea.firstChild);
-        }
-        this.stateManager.setCurrentLine(null);
-        this._lastContent = '';
+    destroy() {
         if (this._debounceTimeout) {
             clearTimeout(this._debounceTimeout);
-            this._debounceTimeout = null;
         }
+        super.destroy();
     }
 
     debouncedContentUpdate() {
         if (this._debounceTimeout) {
             clearTimeout(this._debounceTimeout);
         }
-
         this._debounceTimeout = setTimeout(() => {
             const content = this.getContent();
             if (content !== this._lastContent) {
                 this._lastContent = content;
-                // Emit both local and EditorContent events
-                this.emit('CHANGE', content);
-                if (this.editorArea) {
-                    const editorContent = this.editorArea.closest('.editor-content');
-                    if (editorContent && editorContent.dispatchEvent) {
-                        const event = new CustomEvent('EDITOR:CHANGE', { detail: content });
-                        editorContent.dispatchEvent(event);
-                    }
+                this.emit('contentChanged', content);
+            }
+        }, 300);
+    }
+
+    clear(skipDefaultHeader = false) {
+        // Remove all pages except the first one
+        const pages = this.pageManager.getPages();
+        while (pages.length > 1) {
+            pages[pages.length - 1].remove();
+            pages.pop();
+        }
+
+        // Clear the first page's content
+        if (pages.length > 0) {
+            const contentContainer = pages[0].querySelector('.editor-page-content');
+            if (contentContainer) {
+                while (contentContainer.firstChild) {
+                    contentContainer.removeChild(contentContainer.firstChild);
                 }
             }
-        }, 3000); // 3 second debounce
-    }
-
-    emit(eventType, data) {
-        this._eventManager.publish(eventType, data);
-    }
-
-    on(eventType, handler) {
-        return this._eventManager.subscribe(eventType, handler, this);
-    }
-
-    off(eventType) {
-        this._eventManager.unsubscribeAll(this);
-    }
-
-    destroy() {
-        if (this._debounceTimeout) {
-            clearTimeout(this._debounceTimeout);
-            this._debounceTimeout = null;
         }
-        this._eventManager.unsubscribeAll(this);
-        super.destroy();
+
+        // Only add default header if not skipped
+        if (!skipDefaultHeader) {
+            const headerLine = this.lineFormatter.createFormattedLine('header');
+            this.pageManager.addLine(headerLine);
+        }
+    }
+
+    setLineFormat(format) {
+        if (!this.editorArea || !this.lineFormatter) {
+            console.error('ContentManager: Cannot set format - missing editor area or line formatter');
+            return;
+        }
+
+        // Get current line from state manager
+        const currentLine = this.stateManager.getCurrentLine();
+        if (!currentLine) {
+            console.warn('ContentManager: No current line selected');
+            return;
+        }
+
+        try {
+            // Apply new format
+            this.lineFormatter.setLineFormat(currentLine, format);
+
+            // Update state
+            this.stateManager.setCurrentFormat(format);
+
+            // Trigger content update
+            this.debouncedContentUpdate();
+        } catch (error) {
+            console.error('ContentManager: Error setting line format:', error);
+        }
+    }
+
+    parseXMLContent(content) {
+        if (typeof content !== 'string') return null;
+
+        const lines = [];
+        const xmlRegex = /<(header|action|speaker|dialog|directions)>(.*?)<\/\1>/g;
+        let match;
+
+        while ((match = xmlRegex.exec(content)) !== null) {
+            const [_, format, text] = match;
+            if (this.VALID_TAGS.includes(format)) {
+                lines.push({ format, text: text.trim() });
+            }
+        }
+
+        return lines;
     }
 }
