@@ -55,6 +55,10 @@ export class EditorAutosave {
 
             // Save content with title
             await this.script.saveContent(content, currentScript.title);
+            console.log('Autosave successful');
+            console.log(currentScript);
+            console.log(content);
+            console.log('--------^^^^-------^^^^----------^^^^-------');
 
             // Update save status
             if (this.toolbar) {

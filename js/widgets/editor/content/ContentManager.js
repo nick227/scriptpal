@@ -119,10 +119,13 @@ export class ContentManager extends BaseWidget {
                 }
                 Array.from(contentContainer.children).forEach(line => {
                     if (!line.classList.contains('script-line')) return;
-                    const format = line.dataset.format || 'action';
+
+                    // Extract format from class name (format-xyz)
+                    const formatClass = Array.from(line.classList).find(cls => cls.startsWith('format-'));
+                    const format = formatClass ? formatClass.replace('format-', '') : 'action';
+
                     const text = line.textContent.trim();
                     if (text) {
-                        // Save the format exactly as it is
                         lines.push(`<${format}>${text}</${format}>`);
                     }
                 });

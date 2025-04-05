@@ -265,7 +265,29 @@ export class EditorStateManager extends WidgetStateManager {
     }
 
     reset() {
-        this.state.clear();
         this.constructor();
+    }
+
+    _createAndSetupPage() {
+        try {
+            const page = this._createPageElement();
+            this.editorArea.appendChild(page);
+            this.virtualScroll.observePage(page);
+            this.state.pages.push(page);
+            this.state.currentPage = page;
+            page.dataset.pageNumber = this.state.pages.length;
+
+            // Notify of page count change
+            this._notifyPageChange();
+
+            return page;
+        } catch (error) {
+            console.error('PageManager: Error creating page:', error);
+            return null;
+        }
+    }
+
+    deleteEmptyPage(page) {
+        // Updates state.pages when removing pages
     }
 }

@@ -48,7 +48,7 @@ export class ScriptPal {
                 // Get editor container element
                 const editorElements = {
                     editorContainer: document.getElementById('editor-container'),
-                    minimapContainer: document.getElementById('minimap-container') // Optional
+                    minimapContainer: document.getElementById('minimap-container')
                 };
 
                 // Validate required elements
@@ -60,6 +60,7 @@ export class ScriptPal {
                 this.editor = new EditorWidget(editorElements);
 
                 // Initialize with dependencies
+                console.log('script:::', this.script);
                 await this.editor.initialize(this.api, this.user, this.script)
                     .catch(error => {
                         console.error('Failed to initialize editor:', error);

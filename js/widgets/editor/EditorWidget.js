@@ -8,7 +8,7 @@ import { ChapterManager } from './ChapterManager.js';
 import { AICommandManager } from './AICommandManager.js';
 import { EditorStateManager } from './EditorStateManager.js';
 import { StateManager } from '../../core/StateManager.js';
-
+import { MAX_LINES_PER_PAGE } from './constants.js';
 export class EditorWidget extends BaseWidget {
     constructor(elements) {
         if (!elements || !elements.editorContainer) {

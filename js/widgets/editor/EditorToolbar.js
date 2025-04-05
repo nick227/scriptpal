@@ -70,10 +70,14 @@ export class EditorToolbar extends BaseWidget {
         this.toolbar = this.createElement('div', 'editor-toolbar');
         this.elements.editorContainer.appendChild(this.toolbar);
 
+        // Initialize all toolbar components
         this.createUndoRedoButtons();
         this.createFormatButtons();
-        this.createToolbar();
+        this.createToolbar(); // This creates the page counter
         this.setupEventListeners();
+
+        // Initialize page counter with current state
+        this.updatePageCount(this.stateManager.getPageCount());
     }
 
     createUndoRedoButtons() {
@@ -118,29 +122,42 @@ export class EditorToolbar extends BaseWidget {
     }
 
     createToolbar() {
-        //this.addPageCount();
-        //this.addChapterButton();
-    }
+        // Create a separator
+        const separator = this.createElement('span', 'toolbar-separator');
+        separator.textContent = '|';
+        this.toolbar.appendChild(separator);
 
-    addPageCount() {
-        // Add page count display
-        const pageCountElement = this.createElement('span', 'page-count');
-        pageCountElement.textContent = 'Page 1'; // Default to page 1
-        this.toolbar.appendChild(pageCountElement);
-    }
+        // Create page counter container
+        const pageCounter = this.createElement('div', 'page-counter');
 
-    addChapterButton() {
-        // Add chapter management buttons
-        const chapterButton = this.createElement('button', 'format-button');
-        chapterButton.innerHTML = 'Add Chapter';
-        chapterButton.title = 'Add a new chapter at current position';
-        chapterButton.onclick = () => {
-            const title = prompt('Enter chapter title:');
-            if (title) {
-                this.notifyChapterCreate(title);
-            }
+        // Create current page display
+        const currentPage = this.createElement('span', 'current-page');
+        currentPage.textContent = this.stateManager.getCurrentPage() || 1;
+
+        // Create total pages display
+        const totalPages = this.createElement('span', 'total-pages');
+        totalPages.textContent = this.stateManager.getPageCount() || 1;
+
+        // Assemble the counter with format "Page X of Y"
+        pageCounter.appendChild(document.createTextNode('Page '));
+        pageCounter.appendChild(currentPage);
+        pageCounter.appendChild(document.createTextNode(' of '));
+        pageCounter.appendChild(totalPages);
+
+        this.toolbar.appendChild(pageCounter);
+
+        // Store references for updates
+        this.pageCounter = {
+            container: pageCounter,
+            current: currentPage,
+            total: totalPages
         };
-        this.toolbar.appendChild(chapterButton);
+
+        // Add some basic styling
+        pageCounter.style.display = 'inline-block';
+        pageCounter.style.margin = '0 10px';
+        currentPage.style.fontWeight = 'bold';
+        totalPages.style.fontWeight = 'bold';
     }
 
     setupEventListeners() {
@@ -261,14 +278,23 @@ export class EditorToolbar extends BaseWidget {
     }
 
     updatePageCount(pageCount) {
-        // Update page count display if it exists
-        const pageCountElement = this.toolbar.querySelector('.page-count');
-        if (!pageCountElement) {
-            // Create page count element if it doesn't exist
-            const pageCountElement = this.createElement('span', 'page-count');
-            this.toolbar.appendChild(pageCountElement);
-        }
-        pageCountElement.textContent = `Page ${pageCount}`;
+        if (!this.pageCounter) return;
+
+        // Update the total pages display
+        this.pageCounter.total.textContent = pageCount;
+
+        // Get current page from state manager
+        const currentPage = this.stateManager.getCurrentPage() || 1;
+        this.pageCounter.current.textContent = currentPage;
+
+        // Ensure the container is visible
+        this.pageCounter.container.style.display = 'inline-block';
+    }
+
+    // Update the current page without changing total
+    updateCurrentPage(currentPage) {
+        if (!this.pageCounter) return;
+        this.pageCounter.current.textContent = currentPage;
     }
 
     onChapterCreate(callback) {

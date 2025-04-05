@@ -39,7 +39,8 @@ export const UI_ELEMENTS = {
     ERROR_MESSAGE: '.error-message',
     SUCCESS_MESSAGE: '.success-message',
     LOADING_INDICATOR: '.loading-indicator',
-    CONTROL_BUTTON: '.view-button'
+    CONTROL_BUTTON: '.view-button',
+    EDITOR_PAGE_CONTENT: '.editor-page-content'
 };
 
 /**

@@ -16,6 +16,21 @@ export class ScriptImportManager extends BaseWidget {
         this.formatTypes = formatTypes;
         this.parsers = this.initializeParsers();
 
+        // Format mapping for imported content
+        this.formatMapping = {
+            'directions': 'action', // Map directions to action
+            'direction': 'action', // Some parsers might use singular
+            'parenthetical': 'parenthetical',
+            'dialog': 'dialog',
+            'dialogue': 'dialog', // Handle alternate spelling
+            'speaker': 'speaker',
+            'character': 'speaker', // Some formats use character
+            'header': 'header',
+            'scene': 'header', // Some formats use scene
+            'transition': 'transition',
+            'action': 'action'
+        };
+
         this.handleImport = this.handleImport.bind(this);
     }
 
@@ -51,8 +66,11 @@ export class ScriptImportManager extends BaseWidget {
     }
 
     createFormattedLine(text, format) {
+        // Map the format to an accepted format type
+        const mappedFormat = this.formatMapping[format.toLowerCase()] || 'action'; // Default to action if no mapping
+
         const line = document.createElement('div');
-        line.className = `script-line format-${format}`;
+        line.className = `script-line format-${mappedFormat}`;
         line.contentEditable = 'true';
         line.textContent = text;
 
@@ -71,35 +89,45 @@ export class ScriptImportManager extends BaseWidget {
     async processLines(lines, output) {
         const total = lines.length;
         let count = 0;
+        const debugMsg = [];
 
         try {
             for (const line of lines) {
                 count++;
                 this.updateProgress(output, `Processing line ${count} of ${total}... (${line.format})`);
 
-                const formattedLine = this.createFormattedLine(line.text, line.format);
+                // Map the format before creating the line
+                const mappedFormat = this.formatMapping[line.format.toLowerCase()] || 'action';
+                const formattedLine = this.createFormattedLine(line.text, mappedFormat);
+                debugMsg.push(formattedLine);
 
                 // Add the line using PageManager
                 await this.pageManager.addLine(formattedLine);
 
                 // Update state in EditorContent
                 this.editorContent.stateManager.setCurrentLine(formattedLine);
-                this.editorContent.stateManager.setCurrentFormat(line.format);
+                this.editorContent.stateManager.setCurrentFormat(mappedFormat);
 
-                // Trigger content update
-                if (this.editorContent.contentManager) {
-                    this.editorContent.contentManager.debouncedContentUpdate();
-                }
-
-                // Emit change event
+                // Emit line added event
                 this.editorContent.emit(this.editorContent.constructor.EVENTS.LINE_ADDED, formattedLine);
-                this.editorContent.emit(this.editorContent.constructor.EVENTS.CHANGE, this.editorContent.getContent());
             }
 
-            // Final content update
+            // After all lines are added, trigger content update and change events
             if (this.editorContent.contentManager) {
+                // Force immediate content update
                 await this.editorContent.contentManager.debouncedContentUpdate();
+
+                // Get the updated content
+                const content = this.editorContent.getContent();
+
+                // Emit change events to trigger autosave
+                this.editorContent.contentManager.emit('contentChanged', content);
+                this.editorContent.emit(this.editorContent.constructor.EVENTS.CHANGE, content);
             }
+
+            console.log('debugMsg:');
+            console.log(debugMsg);
+            console.log('--------------------------------');
 
         } catch (error) {
             console.error('Error processing lines:', error);

@@ -22,7 +22,6 @@ export class ScriptPalScript {
         this.stateManager.setState(StateManager.KEYS.SCRIPTS, scripts);
 
         this.checkCurrentScriptId();
-        this.loadCurrentScript();
     }
 
     clearCurrentScript() {
@@ -77,6 +76,7 @@ export class ScriptPalScript {
 
     loadCurrentScript() {
         const scripts = this.stateManager.getState(StateManager.KEYS.SCRIPTS);
+        console.log('scripts', scripts);
         if (!scripts || scripts.length === 0) {
             this.eventManager.publish(EventManager.EVENTS.SCRIPT.UPDATED, {
                 message: "You don't have any scripts yet. Would you like to create one?",
