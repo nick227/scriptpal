@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Meta Tags -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ScriptPal is a collaborative film script writing platform.">
+    <meta name="author" content="ScriptPal">
+    <meta name="keywords" content="ScriptPal, film, script, writing, collaborative">
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    <meta name="google" content="notranslate">
+
+    <!-- Title -->
+    <title>ScriptPal</title>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+
+<body>
+    <!-- Main Navigation Bar -->
+    <div class="navbar">
+        <!-- Brand -->
+        <h1 class="title">ScriptPal</h1>
+
+        <!-- User Section -->
+        <div class="user-info"></div>
+        <button class="logout-button" style="display: none;"><i
+                    class="fas fa-sign-out-alt"></i> Logout</button>
+
+        <!-- Authentication Forms -->
+        <div class="user-forms">
+            <!-- Login Form -->
+            <form id="login-form" class="login-form">
+                <input type="email" id="email" placeholder="Enter email">
+                <button type="submit">Login</button>
+            </form>
+
+            <!-- Registration Form -->
+            <form id="register-form" class="register-form">
+                <input type="email" id="register-email" placeholder="Register with email">
+                <button type="submit">Register</button>
+            </form>
+        </div>
+
+        <!-- Site Navigation Controls -->
+        <div class="button-set site-controls">
+            <!-- Layout Toggle Button
+            <button id="toggle-view">switch</button>
+             -->
+        </div>
+    </div>
+
+    <div class="container-main">
+
+        <!-- Script Editor Panel -->
+        <div class="editor-container" data-name="editor"></div>
+
+        <div class="chatbot-container">
+            <!-- Message Input -->
+            <textarea id="message" placeholder="Type your message here..."></textarea>
+            <!-- Chat Controls -->
+            <div class="chat-controls">
+                <button id="send"><i
+                            class="fas fa-paper-plane"></i></button>
+                <button id="record"><i
+                            class="fas fa-microphone"></i></button>
+            </div>
+            <!-- Chat Messages Panel -->
+            <div class="chat-messages" data-name="chat">
+                <div class="loading-indicator"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/init.js"></script>
+</body>
+
+</html>

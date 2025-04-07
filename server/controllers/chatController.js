@@ -1,59 +1,85 @@
-import {
-    classifyIntent,
-    generateResponse,
-    generateButtons,
-    checkFunctionRequest
-} from "./langchain/index.js";
-import scriptModel from '../models/script.js';
+import { classifyIntent } from "./langchain/chains/system/classifyIntent.js";
+import { router } from "./langchain/router/index.js";
 
 const chatController = {
     startChat: async(req, res) => {
         try {
             const prompt = req.body.prompt;
             const scriptId = req.body.scriptId;
-            let script = null;
-            if (scriptId) {
-                script = await scriptModel.getScript(scriptId);
-            }
+
+            console.log('\n=== Chat Request Started ===');
+            console.log('Received prompt:', prompt);
+            console.log('ScriptId:', scriptId);
 
             if (!prompt) {
                 return res.status(400).json({ error: "Missing prompt" });
             }
 
-            //const isFunctionRequest = await checkFunctionRequest(prompt);
-            //console.log('!!! isFunctionRequest: ', isFunctionRequest);
+            // Classify the intent
+            console.log('\n=== Classifying Intent ===');
+            const intentResult = await classifyIntent(prompt);
+            console.log('Intent Classification Result:', JSON.stringify(intentResult, null, 2));
 
-            // Step 1: Classify
-            const intent = null;
-            //intent = await classifyIntent(prompt);
+            // Route to appropriate chain with scriptId
+            const response = await router.route(intentResult, scriptId, prompt);
 
-            // Step 2: Generate main response
-            const html = await generateResponse(prompt, intent, script);
-
-            // Step 3: Generate buttons (always)
-            let buttons = [];
-            //buttons = await generateButtons(prompt, html);
-
-            console.log('!!! intent: ', intent);
-            console.log('!!! html: ', html);
-            console.log('!!! buttons: ', buttons);
+            console.log('\n=== Routing Intent ===');
+            console.log('\n=== intentResult ===============', intentResult);
 
             res.status(200).json({
-                prompt,
-                intent,
-                html,
-                buttons,
+                intent: intentResult.intent,
+                confidence: intentResult.confidence,
+                target: intentResult.target,
+                response: response
             });
+
         } catch (error) {
-            console.error("Error in chat:", error);
-            res.status(500).json({ error: "Internal server error" });
+            console.error("\n=== Error in Chat ===");
+            console.error("Error details:", error);
+            console.error("Stack trace:", error.stack);
+            res.status(500).json({
+                error: "Internal server error",
+                details: error.message
+            });
         }
     },
+
     getWelcomeButtons: async(req, res) => {
-        const prompt = "Write array of 6 short unique prompts to start an ai writing session.";
-        const html = "Return comma separated list of prompts.";
-        const buttons = await generateButtons(prompt, html);
-        res.status(200).json({ buttons });
+        try {
+            // Define welcome buttons with their actions
+            const welcomeButtons = [{
+                    text: "Create New Script",
+                    action: "create_script",
+                    description: "Start a new script from scratch"
+                },
+                {
+                    text: "Import Script",
+                    action: "import_script",
+                    description: "Import an existing script"
+                },
+                {
+                    text: "View Tutorial",
+                    action: "view_tutorial",
+                    description: "Learn how to use the AI assistant"
+                },
+                {
+                    text: "Recent Scripts",
+                    action: "recent_scripts",
+                    description: "View your recent scripts"
+                }
+            ];
+
+            res.status(200).json({
+                buttons: welcomeButtons
+            });
+
+        } catch (error) {
+            console.error("Error getting welcome buttons:", error);
+            res.status(500).json({
+                error: "Internal server error",
+                details: error.message
+            });
+        }
     }
 };
 

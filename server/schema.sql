@@ -44,11 +44,11 @@ CREATE TABLE IF NOT EXISTS `conversations` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `story_elements`
+-- Table structure for table `script_elements`
 --
 
-DROP TABLE IF EXISTS `story_elements`;
-CREATE TABLE IF NOT EXISTS `story_elements` (
+DROP TABLE IF EXISTS `script_elements`;
+CREATE TABLE IF NOT EXISTS `script_elements` (
   `id` int NOT NULL AUTO_INCREMENT,
   `script_id` int NOT NULL,
   `type` enum('section', 'chapter', 'act','beat','location','character','theme','plot','opening','ending','style','climax','resolution','conflict','tone','genre') NOT NULL,
@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS `personas` (
   `id` int NOT NULL AUTO_INCREMENT,
   `description` text NOT NULL,
   `script_id` int NOT NULL,
+  `user_id` int NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

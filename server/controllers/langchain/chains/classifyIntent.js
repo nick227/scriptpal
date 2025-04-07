@@ -3,6 +3,11 @@ import { intentPrompt } from '../prompts/prompts.js';
 import { VALID_INTENTS, INTENT_DESCRIPTIONS } from '../constants.js';
 
 export async function classifyIntent(input) {
+    console.log('\n=========================================');
+    console.log('\n=========================================');
+    console.log('\n=========================================');
+    console.log('\n=== classifyIntent 00000111 ===============');
+    console.log(input);
     const chain = intentPrompt.pipe(intentModel);
     const result = await chain.invoke({
         input,

@@ -1,0 +1,117 @@
+/* Container Layouts */
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+
+/* Form Layouts */
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+input {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+}
+
+.container-main {
+    display: flex;
+}
+
+
+/* Vertical Layout */
+
+.vertical-layout .editor-container {
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+
+.vertical-layout .chatbot-container {
+    width: 25%;
+    height: 100%;
+    min-width: 300px;
+    position: fixed;
+    top: 120px;
+    right: 0;
+    z-index: 10001;
+}
+
+
+/* Horizontal Layout */
+
+body.horizontal-layout .container-main {
+    flex-direction: row-reverse;
+}
+
+
+/* Rows and Columns */
+
+.row {
+    display: flex;
+    flex-direction: row;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+}
+
+.col-50 {
+    width: 50%;
+}
+
+.col-25 {
+    width: 25%;
+}
+
+.col-75 {
+    width: 75%;
+}
+
+
+/* Responsive Layout */
+
+@media (max-width: 768px) {
+    body.horizontal-layout {
+        grid-template-columns: 1fr;
+    }
+    .title {
+        font-size: var(--font-size-md);
+    }
+    .chat-container {
+        margin: var(--spacing-md);
+    }
+}
+
+@media (max-width: 480px) {
+     :root {
+        --spacing-md: 1rem;
+        --spacing-lg: 1.5rem;
+        --spacing-xl: 2rem;
+    }
+    .navbar {
+        padding: var(--spacing-md);
+    }
+    .chat-buttons {
+        flex-wrap: wrap;
+    }
+    .chat-buttons button {
+        flex: 1;
+    }
+}

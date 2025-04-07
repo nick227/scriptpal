@@ -153,31 +153,31 @@ const db = {
     // Story Elements methods
     getScriptElements: async(scriptId) => {
         return await db.query(
-            'SELECT * FROM story_elements WHERE script_id = ? ORDER BY type, subtype', [scriptId]
+            'SELECT * FROM script_elements WHERE script_id = ? ORDER BY type, subtype', [scriptId]
         );
     },
 
     getElement: async(id) => {
-        const rows = await db.query('SELECT * FROM story_elements WHERE id = ?', [id]);
+        const rows = await db.query('SELECT * FROM script_elements WHERE id = ?', [id]);
         return rows[0];
     },
 
     createElement: async(element) => {
         const result = await db.query(
-            'INSERT INTO story_elements (script_id, type, subtype, content) VALUES (?, ?, ?, ?)', [element.script_id, element.type, element.subtype, element.content]
+            'INSERT INTO script_elements (script_id, type, subtype, content) VALUES (?, ?, ?, ?)', [element.script_id, element.type, element.subtype, element.content]
         );
         return { id: result.insertId, ...element };
     },
 
     updateElement: async(id, element) => {
         await db.query(
-            'UPDATE story_elements SET type = ?, subtype = ?, content = ? WHERE id = ?', [element.type, element.subtype, element.content, id]
+            'UPDATE script_elements SET type = ?, subtype = ?, content = ? WHERE id = ?', [element.type, element.subtype, element.content, id]
         );
         return { id, ...element };
     },
 
     deleteElement: async(id) => {
-        const result = await db.query('DELETE FROM story_elements WHERE id = ?', [id]);
+        const result = await db.query('DELETE FROM script_elements WHERE id = ?', [id]);
         return result.affectedRows > 0;
     },
 
@@ -193,7 +193,7 @@ const db = {
     // Script stats
     getScriptStats: async(scriptId) => {
         return await db.query(
-            'SELECT type, subtype, content, COUNT(*) as count FROM story_elements WHERE script_id = ? GROUP BY type, content', [scriptId]
+            'SELECT type, subtype, content, COUNT(*) as count FROM script_elements WHERE script_id = ? GROUP BY type, content', [scriptId]
         );
     },
 

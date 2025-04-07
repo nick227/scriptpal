@@ -1,0 +1,53 @@
+/* Button Base Styles */
+
+button {
+    padding: 0.5rem 1rem;
+    background-color: var(--button-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    color: var(--text-color);
+    cursor: pointer;
+    height: 36px;
+}
+
+button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+    background-color: #0056b3;
+    color: white;
+}
+
+
+/* Button Variations */
+
+.button-set {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.view-button.active {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.dynamic-button {
+    background-color: var(--accent-color);
+    color: white;
+    height: auto;
+}
+
+
+/* Assistant Buttons */
+
+.assistant-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-start;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    flex-wrap: wrap;
+}
