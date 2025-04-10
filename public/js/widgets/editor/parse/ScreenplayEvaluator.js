@@ -3,7 +3,8 @@ const SCORE_WEIGHTS = {
     header: 2.0, // Scene headers are strong indicators
     speaker: 1.5, // Character names are good indicators
     dialog: 1.0, // Dialog is common but not as distinctive
-    directions: 0.5 // Action/directions are least distinctive
+    directions: 0.5, // Action/directions are least distinctive
+    'chapter-break': 0.5 // Chapter breaks are least distinctive
 };
 
 // Minimum thresholds for a valid screenplay
@@ -45,7 +46,8 @@ function calculateStats(lines) {
         directions: 0,
         dialogBlocks: 0, // Complete dialog blocks (speaker + dialog)
         consecutiveDirections: 0,
-        maxConsecutiveDirections: 0
+        maxConsecutiveDirections: 0,
+        chapterBreak: 0
     };
 
     let lastFormat = null;
@@ -83,7 +85,8 @@ function evaluateStructure(stats) {
     // Check if meets minimum thresholds
     if (stats.header < MIN_THRESHOLDS.headers ||
         stats.speaker < MIN_THRESHOLDS.speakers ||
-        stats.dialog < MIN_THRESHOLDS.dialogs) {
+        stats.dialog < MIN_THRESHOLDS.dialogs ||
+        stats.chapterBreak < MIN_THRESHOLDS.chapterBreaks) {
         return 0;
     }
 
@@ -113,7 +116,8 @@ function evaluateFormatting(stats, totalLines) {
         header: 0.05, // About 5% scene headers
         speaker: 0.15, // About 15% character names
         dialog: 0.40, // About 40% dialog
-        directions: 0.40 // About 40% action/directions
+        directions: 0.40, // About 40% action/directions,
+        'chapter-break': 0.05 // About 5% chapter breaks
     };
 
     let score = 1;
@@ -143,7 +147,12 @@ function evaluateConsistency(lines) {
         'speaker:directions',
         'dialog:speaker',
         'dialog:directions',
-        'dialog:header'
+        'dialog:header',
+        'chapter-break:header',
+        'chapter-break:directions',
+        'chapter-break:speaker',
+        'chapter-break:dialog',
+        'chapter-break:chapter-break'
     ]);
 
     for (const line of lines) {

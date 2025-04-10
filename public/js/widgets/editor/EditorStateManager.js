@@ -19,6 +19,10 @@ export class EditorStateManager extends WidgetStateManager {
             pageMetrics: new Map(),
             currentLineCount: 0,
 
+            // Chapter state
+            currentChapterNumber: 1,
+            numberOfChapters: 0,
+
             // Line state
             currentLine: null,
             lastContent: '',
@@ -128,6 +132,33 @@ export class EditorStateManager extends WidgetStateManager {
         this.setState('chapters', chapters);
     }
 
+    getCurrentChapterNumber() {
+        return this.getState('currentChapterNumber');
+    }
+
+    setCurrentChapterNumber(chapterNumber) {
+        this.setState('currentChapterNumber', chapterNumber);
+    }
+
+    getNumberOfChapters() {
+        return this.getState('numberOfChapters');
+    }
+
+    setNumberOfChapters(numberOfChapters) {
+        this.setState('numberOfChapters', numberOfChapters);
+    }
+
+    addChapter(chapter) {
+        this.setState('chapters', [...this.getState('chapters'), chapter]);
+        this.setState('numberOfChapters', this.getState('numberOfChapters') + 1);
+    }
+
+    removeChapter(chapter) {
+        this.setState('chapters', this.getState('chapters').filter(c => c !== chapter));
+        this.setState('numberOfChapters', this.getState('numberOfChapters') - 1);
+    }
+
+
     // Page state methods
     getPages() {
         return this.getState('pages');
@@ -148,6 +179,14 @@ export class EditorStateManager extends WidgetStateManager {
     // Line state methods
     getCurrentLine() {
         return this.getState('currentLine');
+    }
+
+    getCurrentLineNumber() {
+        return this.getState('currentLineNumber');
+    }
+
+    setCurrentLineNumber(lineNumber) {
+        this.setState('currentLineNumber', lineNumber);
     }
 
     setCurrentLine(line) {

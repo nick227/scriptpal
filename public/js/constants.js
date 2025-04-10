@@ -19,7 +19,7 @@ export const UI_ELEMENTS = {
     MESSAGES_CONTAINER: '.chat-messages',
     EDITOR_CONTAINER: '.editor-container',
     USER_SCRIPTS_PANEL: '.user-scripts',
-    INPUT: '#message',
+    INPUT: '#user-input',
     SEND_BUTTON: '#send',
     RECORD_BUTTON: '#record',
     TOGGLE_VIEW: '#toggle-view',
@@ -34,9 +34,13 @@ export const UI_ELEMENTS = {
     ERROR_MESSAGE: '.error-message',
     SUCCESS_MESSAGE: '.success-message',
     LOADING_INDICATOR: '.loading-indicator',
+    EDITOR_LOADING_INDICATOR: '.editor-loading-indicator',
+    CHAT_LOADING_INDICATOR: '.chat-loading-indicator',
+    AUTH_LOADING_INDICATOR: '.auth-loading-indicator',
     CONTROL_BUTTON: '.view-button',
     EDITOR_PAGE_CONTENT: '.editor-page-content',
-    MINIMAP_CONTAINER: '.minimap-container'
+    MINIMAP_CONTAINER: '.minimap-container',
+    EDITOR_AREA: '.editor-area'
 };
 
 /**

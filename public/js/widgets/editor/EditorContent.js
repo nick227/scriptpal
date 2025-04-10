@@ -17,7 +17,8 @@ export class EditorContent extends BaseWidget {
         UNDO: 'EDITOR:UNDO',
         REDO: 'EDITOR:REDO',
         ERROR: 'EDITOR:ERROR',
-        AUTOCOMPLETE: 'EDITOR:AUTOCOMPLETE'
+        AUTOCOMPLETE: 'EDITOR:AUTOCOMPLETE',
+        EDITOR_AREA_READY: 'EDITOR:EDITOR_AREA_READY'
     };
 
     constructor(options) {
@@ -86,6 +87,9 @@ export class EditorContent extends BaseWidget {
             // Initialize DOM
             const editorArea = await this.domManager.initialize();
             this.editorArea = editorArea;
+
+            // Emit editor area ready event with the correct event name
+            this.emit(EditorContent.EVENTS.EDITOR_AREA_READY, editorArea);
 
             // Set up autocomplete
             this.autocomplete.setEditorArea(editorArea);

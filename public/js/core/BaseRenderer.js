@@ -31,8 +31,9 @@ export class BaseRenderer {
 
     appendElement(element) {
         if (this.container && element) {
+            console.log('appendElement:::', element);
             this.container.appendChild(element);
-            this.scrollToBottom();
+            this.scrollToTop();
         }
     }
 

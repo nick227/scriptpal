@@ -3,6 +3,9 @@ export class StateManager {
         // Initialize with default state
         this.state = new Map([
             ['loading', false],
+            ['editorLoading', false],
+            ['chatLoading', false],
+            ['authLoading', false],
             ['authenticated', false],
             ['currentView', null],
             ['error', null],
@@ -15,6 +18,9 @@ export class StateManager {
         this.subscriptions = new Map();
         this.validators = {
             loading: (value) => typeof value === 'boolean',
+            editorLoading: (value) => typeof value === 'boolean',
+            chatLoading: (value) => typeof value === 'boolean',
+            authLoading: (value) => typeof value === 'boolean',
             authenticated: (value) => typeof value === 'boolean',
             currentView: (value) => typeof value === 'string' || value === null,
             error: (value) => value instanceof Error || value === null,
@@ -152,6 +158,9 @@ export class StateManager {
         // Reset to default state
         this.state = new Map([
             ['loading', false],
+            ['editorLoading', false],
+            ['chatLoading', false],
+            ['authLoading', false],
             ['authenticated', false],
             ['currentView', null],
             ['error', null],
@@ -176,6 +185,9 @@ export class StateManager {
         USER: 'user',
         CURRENT_VIEW: 'currentView',
         LOADING: 'loading',
+        EDITOR_LOADING: 'editorLoading',
+        CHAT_LOADING: 'chatLoading',
+        AUTH_LOADING: 'authLoading',
         ERROR: 'error',
         CURRENT_SCRIPT: 'currentScript',
         SCRIPTS: 'scripts'

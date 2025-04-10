@@ -25,6 +25,9 @@ export class ChatWidget extends BaseWidget {
         this.manager = new ChatManager(this.stateManager, this.chat.api, this.eventManager);
         this.manager.initialize(this.elements);
 
+        // Set the manager on the chat instance
+        this.chat.setManager(this.manager);
+
         // Create and initialize events
         this.events = new ChatEvents({
             handleSend: (message) => {
@@ -65,9 +68,10 @@ export class ChatWidget extends BaseWidget {
 
         this.chat = chat;
 
-        // If manager exists, update it
+        // If manager exists, update it and set it on the chat instance
         if (this.manager) {
             this.manager.updateChat(chat);
+            this.chat.setManager(this.manager);
         } else {
             // If manager doesn't exist, reinitialize the widget
             this.initialize(chat);

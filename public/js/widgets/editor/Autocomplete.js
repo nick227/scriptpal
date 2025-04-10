@@ -2,7 +2,7 @@ export class Autocomplete {
     /*
     ultra simple proof of concept 
     using minimal static terms here in the class
-    proves ability to match different terms in different contexts i.e. headings, dialog, directions, etc.
+    proves ability to match different terms in different contexts
     */
     constructor(stateManager) {
         this.stateManager = stateManager;

@@ -8,6 +8,10 @@ import db from '../../../db/index.js';
  * Handles routing of intents to appropriate chains
  */
 class IntentRouter {
+    constructor() {
+        this.chainFactory = chainFactory;
+    }
+
     /**
      * Gets full script context including elements and personas
      */
@@ -49,33 +53,33 @@ class IntentRouter {
     }
 
     /**
-     * Routes the intent to appropriate chain
+     * Route the request to the appropriate chain
+     * @param {Object} intentResult - Result from intent classification
+     * @param {Object} context - Context object containing script info and content
+     * @param {string} prompt - Original user prompt
+     * @returns {Promise<Object>} Chain response
      */
-    async route(intent, scriptId, prompt, context = '') {
+    async route(intentResult, context, prompt) {
         try {
-            // Get full script context if scriptId provided
-            const scriptContext = scriptId ? await this.getScriptContext(scriptId) : null;
-
-            // Handle multi-intent requests
-            if (intent.intent === INTENT_TYPES.MULTI_INTENT) {
-                return this.handleMultiIntent(scriptContext, prompt, context);
+            if (!intentResult || !intentResult.intent) {
+                throw new Error(ERROR_TYPES.INVALID_INTENT);
             }
 
-            const response = await chainFactory.executeChain(
-                intent.intent,
-                scriptContext || prompt, {
-                    scriptId,
-                    prompt,
-                    context
-                }
-            );
-
-            // Log the activity
-            if (scriptId) {
-                await this.logActivity(scriptId, intent.intent, prompt, response);
+            if (!context || !context.scriptId) {
+                throw new Error(ERROR_TYPES.MISSING_REQUIRED + ': Script context is required');
             }
 
-            return response;
+            console.log('\n=========================================');
+            console.log('Requested intent:', intentResult.intent);
+
+            // Get the appropriate chain
+            const chain = this.chainFactory.getChain(intentResult.intent);
+            if (!chain) {
+                throw new Error(ERROR_TYPES.ROUTING_ERROR + `: No chain found for intent ${intentResult.intent}`);
+            }
+
+            // Execute the chain with context
+            return await this.chainFactory.executeChain(chain, context, prompt);
 
         } catch (error) {
             console.error('Routing error:', error);
@@ -122,5 +126,5 @@ class IntentRouter {
     }
 }
 
-// Export singleton instance
+// Export router instance
 export const router = new IntentRouter();

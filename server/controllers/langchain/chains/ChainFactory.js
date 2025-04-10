@@ -17,48 +17,39 @@ class ChainFactory {
 
     registerDefaultChains() {
         // Register core chains
-        this.registerChain(INTENT_TYPES.ANALYZE_SCRIPT, ScriptAnalyzerChain);
-        this.registerChain(INTENT_TYPES.LIST_SCENES, SceneListChain);
-        this.registerChain(INTENT_TYPES.LIST_BEATS, BeatListChain);
-        this.registerChain(INTENT_TYPES.GET_INSPIRATION, InspirationChain);
-        this.registerChain(INTENT_TYPES.SCRIPT_QUESTIONS, ScriptQuestionsChain);
+        this.registerChain(INTENT_TYPES.SCRIPT_QUESTIONS, new ScriptQuestionsChain());
+        this.registerChain(INTENT_TYPES.GET_INSPIRATION, new InspirationChain());
+        this.registerChain(INTENT_TYPES.ANALYZE_SCRIPT, new ScriptAnalyzerChain());
 
         // Always register the default chain last
-        this.registerChain(INTENT_TYPES.EVERYTHING_ELSE, DefaultChain);
+        this.registerChain(INTENT_TYPES.EVERYTHING_ELSE, new DefaultChain());
     }
 
-    registerChain(intentType, ChainClass) {
-        if (!(ChainClass.prototype instanceof BaseChain)) {
-            throw new Error('Chain must extend BaseChain');
-        }
-        this.chains.set(intentType, ChainClass);
+    registerChain(intentType, chain) {
+        this.chains.set(intentType, chain);
     }
 
-    createChain(intentType, config = {}) {
-        console.log('\n=========================================');
-        console.log('\n=========================================');
-        console.log('Requested intent:', intentType);
-
-        const ChainClass = this.chains.get(intentType);
-        if (!ChainClass) {
-            console.log('No specific chain found, falling back to default chain');
-            const defaultChain = this.chains.get(INTENT_TYPES.EVERYTHING_ELSE);
-            if (!defaultChain) {
-                console.error('Default chain not registered!');
-                throw new Error(ERROR_TYPES.INVALID_INTENT);
-            }
-            return new defaultChain(config);
-        }
-        return new ChainClass(config);
-    }
-
-    async executeChain(intentType, input, context = {}, config = {}) {
-        const chain = this.createChain(intentType, config);
-        return chain.run(input, context);
+    getChain(intentType) {
+        return this.chains.get(intentType);
     }
 
     getRegisteredIntents() {
         return Array.from(this.chains.keys());
+    }
+
+    /**
+     * Execute a chain with context
+     * @param {BaseChain} chain - Chain instance to execute
+     * @param {Object} context - Context object containing script info and content
+     * @param {string} prompt - User prompt
+     * @returns {Promise<Object>} Chain response
+     */
+    async executeChain(chain, context, prompt) {
+        if (!chain || typeof chain.run !== 'function') {
+            throw new Error('Invalid chain provided');
+        }
+
+        return await chain.run(context, prompt);
     }
 }
 

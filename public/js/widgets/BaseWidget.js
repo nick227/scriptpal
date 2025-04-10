@@ -96,6 +96,12 @@ export class BaseWidget {
         }
     }
 
+    scrollToTop() {
+        if (this.elements.messagesContainer) {
+            this.elements.messagesContainer.scrollTop = 0;
+        }
+    }
+
     clearContainer(container) {
         if (container) {
             container.innerHTML = '';
@@ -116,7 +122,6 @@ export class BaseWidget {
     appendToContainer(container, element) {
         if (container && element) {
             container.appendChild(element);
-            this.scrollToBottom();
         }
     }
 }

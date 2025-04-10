@@ -80,6 +80,11 @@ export class StandardFormatParser extends ScreenplayParser {
             return 'directions';
         }
 
+        // Chapter break detection
+        if (isChapterBreak(line)) {
+            return 'chapter-break';
+        }
+
         return null;
     }
 
@@ -105,6 +110,11 @@ export class StandardFormatParser extends ScreenplayParser {
             return 'dialog';
         }
 
+        // Handle chapter break detection
+        if (format === 'chapter-break') {
+            return 'chapter-break';
+        }
+
         return format;
     }
 
@@ -122,6 +132,9 @@ export class StandardFormatParser extends ScreenplayParser {
                 break;
             case 'dialog':
                 this.state.consecutiveDirections = 0;
+                break;
+            case 'chapter-break':
+                this.resetState();
                 break;
         }
     }

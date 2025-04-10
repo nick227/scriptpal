@@ -92,7 +92,8 @@ export class PageMeasurement {
             'format-speaker': 20,
             'format-dialog': 20,
             'format-directions': 20,
-            'default': 20
+            'default': 20,
+            'format-chapter-break': 20
         };
 
         return baseHeights[format] || baseHeights.default;

@@ -25,6 +25,9 @@ export class ScriptPalUI {
         this.currentUser = null;
         this._handleViewChange = this.handleViewChange.bind(this);
         this._handleToggleView = this.handleToggleView.bind(this);
+
+        // Initialize loading states
+        this.loadingStates = new Map();
     }
 
     async initialize(currentUser) {
@@ -128,22 +131,28 @@ export class ScriptPalUI {
         }
     }
 
-    updateComponents(chat, script) {
+    async updateComponents(chat, script) {
         try {
             // Update dependencies
             this.dependencies.chat = chat;
             this.dependencies.script = script;
-            // Initialize widgets if not already done
-            if (!this.widgets.chat || !this.widgets.script) {
-                this.initializeWidgets();
+
+            // Initialize or update chat widget
+            if (!this.widgets.chat) {
+                this.widgets.chat = new ChatWidget(this.elements);
+                this.widgets.chat.setManagers(this.stateManager, this.eventBus);
+                await this.widgets.chat.initialize(chat);
             } else {
-                // Update existing widgets
-                if (this.widgets.chat) {
-                    this.widgets.chat.update(chat);
-                }
-                if (this.widgets.script) {
-                    this.widgets.script.update(script);
-                }
+                await this.widgets.chat.update(chat);
+            }
+
+            // Initialize or update script widget
+            if (!this.widgets.script) {
+                this.widgets.script = new ScriptWidget(this.elements);
+                this.widgets.script.setManagers(this.stateManager, this.eventBus);
+                await this.widgets.script.initialize(script);
+            } else {
+                await this.widgets.script.update(script);
             }
         } catch (error) {
             this.handleError(error);
@@ -153,6 +162,9 @@ export class ScriptPalUI {
     initializeElements() {
         // Initialize required elements
         this.elements.messagesContainer = document.querySelector(UI_ELEMENTS.MESSAGES_CONTAINER);
+        console.log('Messages container found?', !!this.elements.messagesContainer);
+        console.log('Messages container:', this.elements.messagesContainer);
+
         this.elements.input = document.querySelector(UI_ELEMENTS.INPUT);
         this.elements.sendButton = document.querySelector(UI_ELEMENTS.SEND_BUTTON);
         this.elements.userInfo = document.querySelector(UI_ELEMENTS.USER_INFO);
@@ -160,13 +172,11 @@ export class ScriptPalUI {
         this.elements.registerForm = document.querySelector(UI_ELEMENTS.REGISTER_FORM);
         this.elements.logoutButton = document.querySelector(UI_ELEMENTS.LOGOUT_BUTTON);
         this.elements.toggleView = document.querySelector(UI_ELEMENTS.TOGGLE_VIEW);
-        this.elements.loadingIndicator = document.querySelector(UI_ELEMENTS.LOADING_INDICATOR);
         this.elements.siteControls = document.querySelector(UI_ELEMENTS.SITE_CONTROLS);
 
         // Initialize output panels
         this.elements.settingsPanel = document.querySelector(UI_ELEMENTS.SETTINGS_PANEL);
         this.elements.chatPanel = document.querySelector(UI_ELEMENTS.CHAT_PANEL);
-
     }
 
     initializeWidgets() {
@@ -187,10 +197,21 @@ export class ScriptPalUI {
     }
 
     setupStateSubscriptions() {
+        // Subscribe to individual loading states
         this.stateManager.subscribe('loading', (loading) => {
-            if (this.elements.loadingIndicator) {
-                this.elements.loadingIndicator.style.display = loading ? 'block' : 'none';
-            }
+            this.updateLoadingIndicator('global', loading);
+        });
+
+        this.stateManager.subscribe('editorLoading', (loading) => {
+            this.updateLoadingIndicator('editor', loading);
+        });
+
+        this.stateManager.subscribe('chatLoading', (loading) => {
+            this.updateLoadingIndicator('chat', loading);
+        });
+
+        this.stateManager.subscribe('authLoading', (loading) => {
+            this.updateLoadingIndicator('auth', loading);
         });
 
         this.stateManager.subscribe('authenticated', (authenticated) => {
@@ -202,6 +223,21 @@ export class ScriptPalUI {
                 this.handleError(error);
             }
         });
+    }
+
+    updateLoadingIndicator(type, isLoading) {
+        // Update internal state
+        this.loadingStates.set(type, isLoading);
+
+        // Select all loading indicators and toggle them
+        const indicators = document.querySelectorAll(UI_ELEMENTS.LOADING_INDICATOR);
+        indicators.forEach(indicator => {
+            indicator.style.display = isLoading ? 'block' : 'none';
+        });
+    }
+
+    setLoading(type, isLoading) {
+        this.stateManager.setState(`${type}Loading`, isLoading);
     }
 
     updateUIForAuthState(authenticated) {

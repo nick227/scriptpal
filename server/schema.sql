@@ -44,6 +44,23 @@ CREATE TABLE IF NOT EXISTS `conversations` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `chat_history`
+--
+
+DROP TABLE IF EXISTS `chat_history`;
+CREATE TABLE IF NOT EXISTS `chat_history` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `script_id` int DEFAULT NULL,
+  `content` text NOT NULL,
+  `timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `type` enum('user','assistant') NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `script_elements`
 --
 

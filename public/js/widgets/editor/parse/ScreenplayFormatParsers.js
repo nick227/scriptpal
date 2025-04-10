@@ -31,6 +31,9 @@ export class StandardFormatParser extends ScreenplayParser {
             } else if (this.isDirection(cleanedLine, previousLine, nextLine)) {
                 format = 'directions';
                 inDialogBlock = false;
+            } else if (this.isChapterBreak(cleanedLine)) {
+                format = 'chapter-break';
+                inDialogBlock = false;
             }
 
             if (format) {
@@ -109,6 +112,11 @@ export class PDFFormatParser extends ScreenplayParser {
                     currentBlock.format = 'directions';
                     currentBlock.text = line;
                 }
+            } else if (this.isChapterBreak(line)) {
+                currentBlock = this.commitBlock(currentBlock);
+                currentBlock.format = 'chapter-break';
+                currentBlock.text = line;
+                inDialogBlock = false;
             }
 
             previousLine = line;
@@ -175,6 +183,11 @@ export class PlainTextFormatParser extends ScreenplayParser {
                     currentBlock.format = 'directions';
                     currentBlock.text = line;
                 }
+            } else if (this.isChapterBreak(line)) {
+                currentBlock = this.commitBlock(currentBlock);
+                currentBlock.format = 'chapter-break';
+                currentBlock.text = line;
+                inDialogBlock = false;
             }
 
             previousLine = line;

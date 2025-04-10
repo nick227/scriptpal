@@ -1,11 +1,14 @@
 import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-// Create a connection pool
+dotenv.config();
+
+// Create the connection pool
 const pool = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'scriptpal',
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'scriptpal',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
@@ -47,17 +50,122 @@ const queryQueue = new QueryQueue();
 
 // Database wrapper
 const db = {
-    // Helper function to execute queries through the queue
-    query: async(sql, params = []) => {
-        return queryQueue.enqueue(async() => {
-            const connection = await pool.getConnection();
-            try {
-                const [rows] = await connection.execute(sql, params);
-                return rows;
-            } finally {
-                connection.release();
-            }
-        });
+    /**
+     * Get a script by ID
+     * @param {number} scriptId - The ID of the script to fetch
+     * @returns {Promise<Object>} The script object
+     */
+    async getScript(scriptId) {
+        try {
+            const [rows] = await pool.query(
+                'SELECT * FROM scripts WHERE id = ?', [scriptId]
+            );
+            return rows[0];
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get script elements
+     * @param {number} scriptId - The ID of the script
+     * @returns {Promise<Array>} Array of script elements
+     */
+    async getScriptElements(scriptId) {
+        try {
+            const [rows] = await pool.query(
+                'SELECT * FROM script_elements WHERE script_id = ?', [scriptId]
+            );
+            return rows;
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Create a new script element
+     * @param {Object} data - Element data
+     * @returns {Promise<Object>} Created element
+     */
+    async createElement(data) {
+        try {
+            const [result] = await pool.query(
+                'INSERT INTO script_elements (script_id, type, subtype, content) VALUES (?, ?, ?, ?)', [data.script_id, data.type, data.subtype, data.content]
+            );
+            return {
+                id: result.insertId,
+                ...data
+            };
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Update an existing script element
+     * @param {number} elementId - Element ID to update
+     * @param {Object} data - Updated element data
+     * @returns {Promise<Object>} Updated element
+     */
+    async updateElement(elementId, data) {
+        try {
+            await pool.query(
+                'UPDATE script_elements SET type = ?, subtype = ?, content = ? WHERE id = ?', [data.type, data.subtype, data.content, elementId]
+            );
+            return {
+                id: elementId,
+                ...data
+            };
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get script profile including basic info and elements
+     * @param {number} scriptId - The ID of the script
+     * @returns {Promise<Object>} Script profile
+     */
+    async getScriptProfile(scriptId) {
+        try {
+            const [script] = await pool.query(
+                'SELECT * FROM scripts WHERE id = ?', [scriptId]
+            );
+
+            if (!script[0]) return null;
+
+            const [elements] = await pool.query(
+                'SELECT * FROM script_elements WHERE script_id = ?', [scriptId]
+            );
+
+            return {
+                ...script[0],
+                elements
+            };
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Execute a raw query
+     * @param {string} query - SQL query
+     * @param {Array} params - Query parameters
+     * @returns {Promise<Array>} Query results
+     */
+    async query(query, params = []) {
+        try {
+            const [rows] = await pool.query(query, params);
+            return rows;
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
     },
 
     // User methods
@@ -89,11 +197,6 @@ const db = {
     },
 
     // Script methods
-    getScript: async(id) => {
-        const rows = await db.query('SELECT * FROM scripts WHERE id = ?', [id]);
-        return rows[0];
-    },
-
     createScript: async(script) => {
         const result = await db.query(
             'INSERT INTO scripts (user_id, title, status, version_number, content) VALUES (?, ?, ?, ?, ?)', [script.user_id, script.title, script.status || 'draft', script.version_number || 1, script.content || '']
@@ -151,43 +254,14 @@ const db = {
     },
 
     // Story Elements methods
-    getScriptElements: async(scriptId) => {
-        return await db.query(
-            'SELECT * FROM script_elements WHERE script_id = ? ORDER BY type, subtype', [scriptId]
-        );
-    },
-
     getElement: async(id) => {
         const rows = await db.query('SELECT * FROM script_elements WHERE id = ?', [id]);
         return rows[0];
     },
 
-    createElement: async(element) => {
-        const result = await db.query(
-            'INSERT INTO script_elements (script_id, type, subtype, content) VALUES (?, ?, ?, ?)', [element.script_id, element.type, element.subtype, element.content]
-        );
-        return { id: result.insertId, ...element };
-    },
-
-    updateElement: async(id, element) => {
-        await db.query(
-            'UPDATE script_elements SET type = ?, subtype = ?, content = ? WHERE id = ?', [element.type, element.subtype, element.content, id]
-        );
-        return { id, ...element };
-    },
-
     deleteElement: async(id) => {
         const result = await db.query('DELETE FROM script_elements WHERE id = ?', [id]);
         return result.affectedRows > 0;
-    },
-
-    // Script Profile methods
-    getScriptProfile: async(scriptId) => {
-        const script = await db.getScript(scriptId);
-        if (!script) return null;
-
-        const elements = await db.getScriptElements(scriptId);
-        return {...script, elements };
     },
 
     // Script stats
@@ -256,7 +330,24 @@ const db = {
         return await db.query(
             'SELECT * FROM conversations WHERE script_id = ? ORDER BY created_at DESC', [scriptId]
         );
-    }
+    },
+
+    // Chat history methods
+    getChatHistory: async(userId) => {
+        return await db.query(
+            'SELECT * FROM chat_history WHERE user_id = ? ORDER BY id DESC', [userId]
+        );
+    },
+
+    createChatHistory: async(userId, content, type) => {
+        // Ensure content is a string
+        const safeContent = typeof content === 'string' ? content : JSON.stringify(content);
+
+        return await db.query(
+            'INSERT INTO chat_history (user_id, type, content) VALUES (?, ?, ?)', [userId, type, safeContent]
+        );
+    },
+
 };
 
 export default db;

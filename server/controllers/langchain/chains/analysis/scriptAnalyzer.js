@@ -1,13 +1,14 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
-import { ERROR_TYPES } from '../../constants.js';
+import { ERROR_TYPES, TOKEN_LIMITS, INTENT_TYPES } from '../../constants.js';
+import { ChainHelper } from '../helpers/ChainHelper.js';
 import db from '../../../../db/index.js';
 
 export class ScriptAnalyzerChain extends BaseChain {
     constructor(config = {}) {
         super({
             ...config,
-            maxTokens: 4000 // Ensure enough tokens for comprehensive analysis
+            maxTokens: TOKEN_LIMITS.ANALYSIS // Use analysis-specific token limit
         });
     }
 
@@ -86,71 +87,83 @@ export class ScriptAnalyzerChain extends BaseChain {
 
     async run(input, context = {}) {
         try {
-            const { scriptId = null, prompt = null } = context;
+            // Extract context with defaults
+            const { scriptId, prompt } = ChainHelper.extractContext(context);
+            console.log(`Running script analyzer for scriptId: ${scriptId}`);
 
             // Get script content - could be an object, string, or null
             let scriptContent = input;
 
             // If input seems to be the prompt instead of the script content
-            if (typeof input === 'string' && input.length < 500 && prompt) {
-                scriptContent = prompt;
+            if (typeof input === 'string' && input.length < 500 && context.prompt) {
+                console.log('Input appears to be the prompt, using context as input');
+                scriptContent = context.prompt;
             }
 
-            // Handle script object vs raw content
-            const processedScript = this.preprocessScript(scriptContent);
-
-            // Check if we actually have any content to analyze
-            if (!processedScript.content || processedScript.content.trim().length < 10) {
-                return {
-                    response: "I couldn't find enough script content to analyze. Please make sure you've selected a valid script with dialogue and scenes.",
-                    type: 'error_response'
-                };
-            }
-            console.log('\n=========================================');
-            console.log('\n=========================================');
-            console.log('\n=========================================');
-            console.log('\n=== scriptAnalyzer ===============');
-            console.log(`Analyzing script: ${processedScript.title} (${processedScript.content.length} chars)`);
-
-            // Format the prompt using prompt manager
-            const formattedPrompt = await promptManager.formatPrompt('scriptAnalysis', {
-                title: processedScript.title,
-                status: processedScript.status,
-                version: processedScript.version_number,
-                content: processedScript.content
-            }).catch(err => {
-                console.error('Error formatting prompt:', err);
-                // Fallback to basic prompt if promptManager fails
-                return [
-                    { role: 'system', content: 'You are a script analysis assistant. Provide a comprehensive analysis of the script, including story structure, characters, themes, plot, and dialogue. Focus on giving actionable feedback.' },
-                    { role: 'user', content: `Please analyze this script:\n\nTitle: ${processedScript.title}\n\n${processedScript.content}` }
-                ];
+            // Process the script
+            const processedScript = ChainHelper.preprocessScript(scriptContent, {
+                includeElements: true,
+                elementType: 'analysis'
             });
 
-            // Execute the chain
-            console.log('Executing analysis chain...');
-            const response = await this.execute(formattedPrompt);
-            console.log('Analysis complete, processing response...');
-
-            // Process the response
-            const { analysis } = await this.validateAnalysis(response);
-
-            // Save if scriptId provided
-            if (scriptId) {
-                await this.saveAnalysisResults(scriptId, analysis);
+            // Validate content
+            if (!ChainHelper.validateContent(processedScript.content)) {
+                return {
+                    response: "I couldn't find enough script content to analyze. Please provide more content or start with a basic story outline.",
+                    type: INTENT_TYPES.ANALYZE_SCRIPT,
+                    metadata: {
+                        error: 'insufficient_content',
+                        timestamp: new Date().toISOString()
+                    }
+                };
             }
 
-            return {
-                response: analysis,
-                type: 'complete_analysis'
-            };
+            // Get existing analysis if any
+            const existingAnalysis = processedScript.elements.analysis || [];
+
+            // Format the prompt
+            const fallbackPrompt = [{
+                role: 'system',
+                content: 'You are a skilled script analyst specializing in comprehensive story analysis.'
+            }, {
+                role: 'user',
+                content: `Please provide a comprehensive analysis of this script:\n\nTitle: ${processedScript.title}\n\n${processedScript.content}`
+            }];
+
+            const formattedPrompt = await ChainHelper.handlePromptFormatting(
+                promptManager,
+                'scriptAnalysis', {
+                    content: processedScript.content,
+                    existingAnalysis: existingAnalysis.length > 0 ?
+                        existingAnalysis.map(a => a.content).join('\n') : 'No existing analysis found',
+                    focus: prompt || 'Provide a comprehensive analysis of the script'
+                },
+                fallbackPrompt
+            );
+
+            // Execute the chain with context
+            console.log('Executing script analysis chain...');
+            return await this.execute(formattedPrompt, {
+                scriptTitle: processedScript.title,
+                metadata: {
+                    scriptId: scriptId,
+                    title: processedScript.title,
+                    chars: processedScript.content.length,
+                    words: processedScript.content.split(/\s+/).length,
+                    lines: processedScript.content.split('\n').length,
+                    lastUpdated: new Date().toISOString()
+                }
+            });
 
         } catch (error) {
             console.error('Script analysis error:', error);
             return {
-                response: "I'm sorry, I encountered an error analyzing your script. Please try again.",
-                type: 'error_response',
-                error: error.message
+                response: "I'm sorry, I encountered an error analyzing the script. Please try again with a more detailed script or outline.",
+                type: INTENT_TYPES.ANALYZE_SCRIPT,
+                metadata: {
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                }
             };
         }
     }

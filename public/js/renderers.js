@@ -13,6 +13,16 @@ export class BaseRenderer {
         this.container.scrollTop = this.container.scrollHeight;
     }
 
+    scrollToTop() {
+        this.sleep(1000).then(() => {
+            this.container.scrollTop = 0;
+        });
+    }
+
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     createElement(tag, className, content = '') {
         const element = document.createElement(tag);
         element.className = className;
@@ -24,7 +34,10 @@ export class BaseRenderer {
 
     appendElement(element) {
         this.container.appendChild(element);
-        this.scrollToBottom();
+    }
+
+    prependElement(element) {
+        this.container.insertBefore(element, this.container.firstChild);
     }
 
     createContainer(className) {
@@ -48,8 +61,10 @@ export class MessageRenderer extends BaseRenderer {
     }
 
     render(content, type = MESSAGE_TYPES.USER) {
-        const messageDiv = this.createElement('div', `message ${type}`, content);
-        this.appendElement(messageDiv);
+        const messageDiv = this.createElement('div', `message ${type}`);
+        messageDiv.innerHTML = content;
+        this.prependElement(messageDiv);
+        this.scrollToTop();
     }
 
     renderButtons(buttons) {
@@ -112,11 +127,11 @@ export class ButtonContainerRenderer extends BaseRenderer {
         buttons.forEach(button => {
             const buttonElement = this.buttonRenderer.render(button, onClick);
             if (buttonElement) {
-                buttonContainer.appendChild(buttonElement);
+                buttonContainer.insertBefore(buttonElement, buttonContainer.firstChild);
             }
         });
 
-        this.appendElement(buttonContainer);
+        this.prependElement(buttonContainer);
     }
 }
 

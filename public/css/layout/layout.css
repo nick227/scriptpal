@@ -59,6 +59,11 @@ body.horizontal-layout .container-main {
     flex-direction: row-reverse;
 }
 
+body.horizontal-layout .chatbot-container {
+    width: 40vw;
+    margin-left: 30vw;
+}
+
 
 /* Rows and Columns */
 
@@ -88,9 +93,6 @@ body.horizontal-layout .container-main {
 /* Responsive Layout */
 
 @media (max-width: 768px) {
-    body.horizontal-layout {
-        grid-template-columns: 1fr;
-    }
     .title {
         font-size: var(--font-size-md);
     }

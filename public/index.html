@@ -48,9 +48,8 @@
 
         <!-- Site Navigation Controls -->
         <div class="button-set site-controls">
-            <!-- Layout Toggle Button
+            <!-- Layout Toggle Button -->
             <button id="toggle-view">switch</button>
-             -->
         </div>
     </div>
 
@@ -61,13 +60,14 @@
 
         <div class="chatbot-container">
             <!-- Message Input -->
-            <textarea id="message" placeholder="Type your message here..."></textarea>
+            <textarea id="user-input" placeholder="Type your message here..."></textarea>
             <!-- Chat Controls -->
             <div class="chat-controls">
                 <button id="send"><i
                             class="fas fa-paper-plane"></i></button>
                 <button id="record"><i
                             class="fas fa-microphone"></i></button>
+                <div class="spinner loading-indicator hidden"></div>
             </div>
             <!-- Chat Messages Panel -->
             <div class="chat-messages" data-name="chat">

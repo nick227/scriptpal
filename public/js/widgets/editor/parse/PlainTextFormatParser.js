@@ -87,7 +87,15 @@ export class PlainTextFormatParser extends ScreenplayParser {
             return 'directions';
         }
 
+        if (isChapterBreak(line)) {
+            return 'chapter-break';
+        }
+
         return null;
+    }
+
+    isChapterBreak(line) {
+        return line.startsWith('*') || line.startsWith('**') || line.startsWith('***') || line.includes('CHAPTER');
     }
 
     handleFormattedLine(line, format) {

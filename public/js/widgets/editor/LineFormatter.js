@@ -13,7 +13,8 @@ export class LineFormatter {
             action: 'action',
             speaker: 'speaker',
             dialog: 'dialog',
-            directions: 'directions'
+            directions: 'directions',
+            'chapter-break': 'chapter-break'
         };
 
         // Define format cycle for shift+arrow navigation
@@ -22,7 +23,8 @@ export class LineFormatter {
             this.VALID_FORMATS.action,
             this.VALID_FORMATS.directions,
             this.VALID_FORMATS.speaker,
-            this.VALID_FORMATS.dialog
+            this.VALID_FORMATS.dialog,
+            this.VALID_FORMATS['chapter-break']
         ];
 
         // Define format flow for Enter key
@@ -31,7 +33,8 @@ export class LineFormatter {
             [this.VALID_FORMATS.action]: this.VALID_FORMATS.speaker,
             [this.VALID_FORMATS.speaker]: this.VALID_FORMATS.dialog,
             [this.VALID_FORMATS.dialog]: this.VALID_FORMATS.speaker,
-            [this.VALID_FORMATS.directions]: this.VALID_FORMATS.action
+            [this.VALID_FORMATS.directions]: this.VALID_FORMATS.action,
+            [this.VALID_FORMATS['chapter-break']]: this.VALID_FORMATS.action
         };
 
         // Default format

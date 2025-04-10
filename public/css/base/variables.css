@@ -16,6 +16,7 @@
     --button-bg: #f8f9fa;
     --button-hover: #f0f2f5;
     --button-active: #e8eaf6;
+    --navbar-bg: #f8f9fa;
     /* Spacing */
     --spacing-xs: 0.5rem;
     --spacing-sm: 1rem;
@@ -37,6 +38,6 @@
     --transition-slow: 0.3s ease;
     /* Heights */
     --chat-controls-height: 80px;
-    --navbar-bg: #f8f9fa;
     --chat-textarea-height: 56px;
+    --navbar-height: 70px;
 }

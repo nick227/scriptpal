@@ -37,12 +37,14 @@ export class ScriptPal {
 
             // Initialize authenticated components
             if (isAuthenticated && currentUser) {
-                // Create chat first since script depends on it
-                this.chat = new ScriptPalChat(this.api, this.user);
-                await this.chat.initialize();
+                // Get chat history
+                const chatHistory = await this.api.getChatHistory();
+                console.log('chatHistory:::', chatHistory);
 
-                // Create and initialize script with chat
+                // Create chat and script instances
+                this.chat = new ScriptPalChat(this.api, this.user);
                 this.script = new ScriptPalScript(this.api, this.user, this.chat);
+
                 // Set managers before initialization
                 this.script.setManagers(this.ui.stateManager, this.ui.eventBus);
                 await this.script.initialize();
@@ -61,16 +63,21 @@ export class ScriptPal {
                 // Create and initialize editor widget
                 this.editor = new EditorWidget(editorElements);
 
-                // Initialize with dependencies
-                console.log('script:::', this.script);
+                // Initialize editor with dependencies
                 await this.editor.initialize(this.api, this.user, this.script)
                     .catch(error => {
                         console.error('Failed to initialize editor:', error);
                         throw new Error(`Editor initialization failed: ${error.message}`);
                     });
 
-                // Update UI with authenticated components
-                this.ui.updateComponents(this.chat, this.script, this.editor);
+                // Update UI with authenticated components first
+                await this.ui.updateComponents(this.chat, this.script, this.editor);
+
+                // Initialize chat (without history)
+                await this.chat.initialize();
+
+                // Now that chat manager is ready, load the history
+                await this.chat.loadHistory(chatHistory);
 
             } else {
                 // Create empty chat and script for unauthenticated state
@@ -80,18 +87,6 @@ export class ScriptPal {
                 this.script.setManagers(this.ui.stateManager, this.ui.eventBus);
                 await this.script.initialize();
             }
-
-            // Get welcome buttons regardless of auth state
-            // TODO: Add welcome buttons back in
-            /*
-            const randomButtons = await this.api.getRandomButtons();
-            const buttonContainerRenderer = RendererFactory.createButtonContainerRenderer(this.ui.elements.messagesContainer);
-            buttonContainerRenderer.render(randomButtons.buttons, (text) => {
-                if (this.ui.widgets.chat && this.ui.widgets.chat.manager) {
-                    this.ui.widgets.chat.manager.handleSend(text);
-                }
-            });
-            */
 
 
         } catch (error) {

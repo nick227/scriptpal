@@ -1,243 +1,146 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
-import { ERROR_TYPES } from '../../constants.js';
+import { ERROR_TYPES, INTENT_TYPES } from '../../constants.js';
 import { ChainHelper } from '../helpers/ChainHelper.js';
+import db from "../../../../db/index.js";
 
+// Import modular components
+import { validateQuestion, formatQuestion } from './script-questions/QuestionValidator.js';
+import { processScriptInput } from './script-questions/ScriptProcessor.js';
+import { formatResponse, getErrorResponse, createResponseObject } from './script-questions/ResponseFormatter.js';
+
+/**
+ * Chain for answering specific questions about scripts
+ * 
+ * Flow Control Points:
+ * 1. Question Validation:
+ *    - Basic validation in QuestionValidator.js
+ *    - Adjust length limits and validation rules
+ * 
+ * 2. Script Processing:
+ *    - Control script preprocessing in ScriptProcessor.js
+ *    - Modify metadata extraction and formatting
+ * 
+ * 3. Response Formatting:
+ *    - Control response structure in ResponseFormatter.js
+ *    - Adjust sanitization and truncation rules
+ */
 export class ScriptQuestionsChain extends BaseChain {
-    constructor(config = {}) {
+    constructor() {
         super({
-            ...config,
-            temperature: 0.3, // Lower temperature for more precise answers
-            maxTokens: 2000
+            type: INTENT_TYPES.SCRIPT_QUESTIONS,
+            temperature: 0.3,
+            modelConfig: {
+                response_format: { type: "text" } // Force text response
+            }
         });
-
-        // Question type patterns for validation
-        this.questionPatterns = {
-            character: /\b(who|what|why|how).+(character|protagonist|antagonist|motivation|feel|think|want|relationship|conflict)\b/i,
-            plot: /\b(what|why|how|when).+(happen|plot|story|event|scene|action|result|cause|lead|outcome)\b/i,
-            theme: /\b(what|how|why).+(theme|meaning|message|symbolism|represent|metaphor|motif)\b/i,
-            structure: /\b(how|what|where).+(structure|pacing|flow|act|begin|end|opening|closing|transition)\b/i
-        };
     }
 
-    formatResponse(response) {
-        // If response is already a string, return it
-        if (typeof response === 'string') {
-            return response;
-        }
-
+    /**
+     * Extract and validate context from input
+     * @param {Object} context - Input context object
+     * @returns {Promise<Object>} Processed context
+     */
+    async extractContext(context) {
         try {
-            // If it's a JSON object with multiple fields, combine them
-            if (typeof response === 'object') {
-                if (response.answer && response.supporting_information) {
-                    return `${response.answer}\n\n${response.supporting_information}`;
-                }
-                if (response.answer) {
-                    return response.answer;
-                }
-                if (response.response) {
-                    return response.response;
-                }
-                // If it's some other object structure, stringify it nicely
-                return Object.entries(response)
-                    .filter(([key, value]) => typeof value === 'string' && value.trim())
-                    .map(([key, value]) => value)
-                    .join('\n\n');
+            if (!context || !context.scriptContent) {
+                throw new Error(ERROR_TYPES.MISSING_REQUIRED + ': Script content is required');
             }
 
-            // If it's a JSON string, parse and format it
-            const parsed = JSON.parse(response);
-            return this.formatResponse(parsed);
+            const processedScript = ChainHelper.preprocessScript(context.scriptContent);
+
+            return {
+                scriptContent: processedScript.content,
+                scriptMetadata: {
+                    title: context.scriptTitle || processedScript.title || 'Untitled Script',
+                    chars: context.scriptContent.length,
+                    words: context.scriptContent.split(/\s+/).length,
+                    lines: context.scriptContent.split('\n').length,
+                    lastUpdated: (context.scriptMetadata && context.scriptMetadata.lastUpdated) || new Date().toISOString()
+                }
+            };
         } catch (error) {
-            // If parsing fails, return the original response
-            return response.toString();
+            console.error('Context extraction error:', error);
+            throw new Error(`Failed to extract context: ${error.message}`);
         }
     }
 
-    // Helper function to preprocess script content
-    preprocessScript(scriptContent) {
-        // If scriptContent is a string, use as is
-        if (typeof scriptContent === 'string') {
-            return {
-                title: 'Untitled Script',
-                status: 'Draft',
-                version_number: '1.0',
-                content: scriptContent
-            };
-        }
-
-        // If scriptContent is null or undefined
-        if (!scriptContent) {
-            return {
-                title: 'Untitled Script',
-                status: 'Draft',
-                version_number: '1.0',
-                content: ''
-            };
-        }
-
-        // Return with defaults for missing fields
-        return {
-            title: scriptContent.title || 'Untitled Script',
-            status: scriptContent.status || 'Draft',
-            version_number: scriptContent.version_number || '1.0',
-            content: scriptContent.content || ''
-        };
-    }
-
-    validateQuestion(question) {
-        if (!question || typeof question !== 'string') {
-            return {
-                isValid: false,
-                error: "Please provide a question about the script."
-            };
-        }
-
-        if (question.length < 5) {
-            return {
-                isValid: false,
-                error: "Please ask a more detailed question about the script."
-            };
-        }
-
-        // Detect question type
-        const questionType = this.detectQuestionType(question);
-
-        return {
-            isValid: true,
-            type: questionType,
-            question: question
-        };
-    }
-
-    detectQuestionType(question) {
-        // Check against each pattern
-        for (const [type, pattern] of Object.entries(this.questionPatterns)) {
-            if (pattern.test(question)) {
-                return type;
-            }
-        }
-
-        // Default to general if no specific pattern matches
-        return 'general';
-    }
-
-    enhanceQuestion(questionInfo, scriptTitle) {
-        // Add type-specific context to the question
-        const typePrompts = {
-            character: `Regarding the script "${scriptTitle}", focus on character development, motivations, and relationships. Provide a single, comprehensive answer. `,
-            plot: `Analyzing the script "${scriptTitle}", examine plot elements, cause-and-effect relationships, and story progression. Provide a single, comprehensive answer. `,
-            theme: `In the script "${scriptTitle}", examine thematic elements, recurring motifs, and their significance. Provide a single, comprehensive answer. `,
-            structure: `Looking at the script "${scriptTitle}", consider structural elements, pacing, and narrative organization. Provide a single, comprehensive answer. `,
-            general: `For the script "${scriptTitle}", provide a single, comprehensive answer based on the script content. `
-        };
-
-        return {
-            question: questionInfo.question,
-            enhancedPrompt: typePrompts[questionInfo.type] + "Question: " + questionInfo.question
-        };
-    }
-
-    async run(input, context = {}) {
+    async run(context, prompt) {
         try {
-            // Extract context with defaults
-            const { prompt = null } = ChainHelper.extractContext(context);
+            // Extract script content and metadata
+            const { scriptContent, scriptMetadata } = await this.extractContext(context);
 
-            // Get script content and user's question
-            let scriptContent = input;
-            let userQuestion = prompt;
-
-            // If input is the question and prompt is the script
-            if (typeof input === 'string' && input.length < 500 && !input.includes('\n')) {
-                userQuestion = input;
-                scriptContent = prompt;
-            }
-
-            // Process the script with metadata
-            const processedScript = this.preprocessScript(scriptContent);
-
-            // Create compressed metadata
-            const metadata = {
-                chars: processedScript.content.length,
-                words: processedScript.content.split(/\s+/).length,
-                lines: processedScript.content.split('\n').length,
-                scenes: (processedScript.content.match(/SCENE|INT\.|EXT\./gi) || []).length,
-                characters: new Set(processedScript.content.match(/[A-Z]{2,}(?:\s+[A-Z]{2,})*(?=\s*[\n:])/g) || []).size
-            };
-
-            // Validate content
-            if (!ChainHelper.validateContent(processedScript.content)) {
-                return ChainHelper.getErrorResponse(
-                    "I couldn't find any script content to analyze. Please make sure you've provided a script."
-                );
-            }
-
-            // Validate and enhance the question
-            const questionValidation = this.validateQuestion(userQuestion);
-            if (!questionValidation.isValid) {
-                return ChainHelper.getErrorResponse(questionValidation.error);
-            }
-
-            // Enhance the question with type-specific context and script title
-            const enhancedQuestion = this.enhanceQuestion(questionValidation, processedScript.title);
+            // Fetch saved elements from database
+            const scriptElements = await db.getScriptElements(context.scriptId);
+            const formattedElements = this.formatDatabaseElements(scriptElements);
 
             // Format the prompt
-            const fallbackPrompt = [{
+            const formattedPrompt = [{
                 role: 'system',
-                content: `You are a script analysis assistant. Answer specific questions about the provided script accurately and concisely. 
-Provide a single, comprehensive answer that incorporates all relevant information.
-Do not separate your response into sections or return JSON.
-Base your answers only on the actual content of the script.`
+                content: `You are analyzing a script titled "${scriptMetadata.title}".
+
+Your task is to answer questions about the script content and saved elements.
+Format your response using ONLY HTML <h2> and <p> tags.
+
+SCRIPT CONTENT:
+${scriptContent}
+
+SAVED DATABASE ELEMENTS:
+${formattedElements}
+
+FORMATTING RULES:
+    Use <h2> and <p> tags
+    Commonly use h2 for brief single line responses.
+    Add p tags for longer multi-line responses.
+    Keep responses concise and direct.
+    Do not use any other HTML tags.
+    Do not return any JSON or metadata.
+`
             }, {
                 role: 'user',
-                content: `📄 "${processedScript.title}" (${processedScript.status} v${processedScript.version_number})
-📊 Stats: ${metadata.chars}c ${metadata.words}w ${metadata.lines}l ${metadata.scenes}s ${metadata.characters}ch
-
-${processedScript.content}
-
-❓ ${enhancedQuestion.enhancedPrompt}
-
-Remember to provide a single, comprehensive answer without sections or JSON formatting.`
+                content: prompt
             }];
 
-            const formattedPrompt = await ChainHelper.handlePromptFormatting(
-                promptManager,
-                'scriptQuestions', {
-                    script: `📄 "${processedScript.title}" (${processedScript.status} v${processedScript.version_number})
-📊 Stats: ${metadata.chars}c ${metadata.words}w ${metadata.lines}l ${metadata.scenes}s ${metadata.characters}ch
-
-${processedScript.content}`,
-                    question: `${enhancedQuestion.enhancedPrompt}\n\nProvide a single, comprehensive answer without sections or JSON formatting.`
-                },
-                fallbackPrompt
-            );
-
-            // Execute the chain
-            console.log('Executing script questions chain...');
-            console.log('Question type:', questionValidation.type);
-            console.log('Script metadata:', {
-                title: processedScript.title,
-                ...metadata
-            });
+            // Get response from model
             const response = await this.execute(formattedPrompt);
 
-            // Format the response to ensure a single text answer
-            const formattedResponse = this.formatResponse(response);
-
+            // Return clean HTML response
             return {
-                response: formattedResponse,
+                response: response,
                 type: 'script_question_answer',
-                questionType: questionValidation.type,
-                scriptTitle: processedScript.title,
-                metadata: metadata
+                metadata: {
+                    ...scriptMetadata,
+                    responseLength: response.length,
+                    truncated: false,
+                    timestamp: new Date().toISOString()
+                }
             };
-
         } catch (error) {
-            console.error('Script questions error:', error);
-            return ChainHelper.getErrorResponse(
-                "I'm sorry, I encountered an error answering your question. Please try asking in a different way.",
-                'error_response'
-            );
+            console.error('Error in ScriptQuestionsChain:', error);
+            return {
+                response: "<h2>Error</h2><p>I apologize, but I encountered an error analyzing the script. Please try asking your question again.</p>",
+                type: 'error_response',
+                metadata: {
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                }
+            };
         }
+    }
+
+    formatDatabaseElements(elements) {
+        if (!elements || elements.length === 0) {
+            return "No saved elements found in database.";
+        }
+
+        return elements.map(element => {
+            let content;
+            try {
+                content = JSON.parse(element.content);
+            } catch {
+                content = element.content;
+            }
+            return `${element.type} (${element.subtype}): ${typeof content === 'object' ? JSON.stringify(content) : content}`;
+        }).join('\n');
     }
 }

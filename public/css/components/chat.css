@@ -10,9 +10,24 @@
 .chat-controls {
     padding: var(--spacing-md);
     display: flex;
+    flex-wrap: wrap;
     gap: var(--spacing-sm);
     background-color: whitesmoke;
     height: var(--chat-controls-height);
+}
+
+.button-container {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    gap: var(--spacing-sm);
+}
+
+.action-button {
+    min-height: 36px;
+    width: 48%;
+    height: auto;
+    line-height: 1.5;
 }
 
 
@@ -21,7 +36,6 @@
 .chat-messages {
     display: flex;
     flex-direction: column;
-    flex-direction: column-reverse;
     padding: var(--spacing-md);
     max-height: 70%;
     overflow-y: auto;
@@ -49,18 +63,19 @@
 
 /* Chat Textarea */
 
-.chatbot-container textarea {
+.chatbot-container textarea#user-input {
     width: 100%;
     resize: none;
-    padding: var(--spacing-md);
+    padding: var(--spacing-lg);
     border: none;
+    border-radius: var(--border-radius-lg);
     outline: none;
     min-height: var(--chat-textarea-height);
     background-color: var(--textarea-background);
     color: var(--textarea-color);
     font-size: var(--font-size-md);
     transition: all var(--transition-normal);
-    height: 25%;
+    height: 15%;
 }
 
 .chatbot-container textarea:focus {

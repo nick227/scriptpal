@@ -28,7 +28,8 @@ export class ScriptImportManager extends BaseWidget {
             'header': 'header',
             'scene': 'header', // Some formats use scene
             'transition': 'transition',
-            'action': 'action'
+            'action': 'action',
+            'chapter-break': 'chapter-break'
         };
 
         this.handleImport = this.handleImport.bind(this);

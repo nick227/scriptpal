@@ -98,6 +98,14 @@ export class PDFFormatParser extends ScreenplayParser {
         }
     }
 
+    handleChapterBreak(line) {
+        this.commitCurrentBlock();
+        this.state.currentBlock.format = 'chapter-break';
+        this.state.currentBlock.text = line;
+        this.state.inDialogBlock = false;
+        this.state.currentBlock.text = line;
+    }
+
     handleDirection(line) {
         if (this.state.currentBlock.format === 'directions') {
             appendToBlock(this.state.currentBlock, line);

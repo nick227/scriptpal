@@ -254,6 +254,12 @@ export class ScriptPalAPI {
         return typeof processedResult === 'string' ? { html: processedResult } : processedResult;
     }
 
+    async getChatHistory() {
+        return this._makeRequest('/chat/history', {
+            method: 'GET'
+        });
+    }
+
     // Script methods
     async getScript(id) {
 

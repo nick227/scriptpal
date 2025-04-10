@@ -75,7 +75,6 @@
 .editor-container {
     display: grid;
     height: 94vh;
-    width: 100%;
     background: var(--color-bg-workspace);
     grid-template-rows: var(--toolbar-height) 1fr;
 }
@@ -91,6 +90,9 @@
     align-items: center;
     justify-content: center;
     gap: var(--spacing-xs);
+    position: sticky;
+    top: var(--navbar-height);
+    z-index: 2;
 }
 
 .editor-area {
@@ -202,8 +204,32 @@
 
 /* Buttons */
 
+.format-buttons-container {
+    display: flex;
+    flex-direction: column;
+    top: 0;
+    position: sticky;
+    background-color: var(--toolbar-bg);
+    width: 155px;
+}
+
+.format-buttons-container button.format-button {
+    top: 0;
+    text-align: left;
+    display: none;
+}
+
+.format-buttons-container button.open-button,
+.format-buttons-container:hover button.format-button,
+.format-buttons-container button.button:hover {
+    display: block;
+}
+
+.format-buttons-container:hover button.open-button {
+    display: none;
+}
+
 .format-button {
-    height: 80%;
     padding: 0 var(--spacing-md);
     border: 1px solid var(--toolbar-border);
     border-radius: 3px;
@@ -338,6 +364,14 @@
     margin-left: var(--directions-left);
     color: var(--color-text-dim);
     text-align: right;
+}
+
+.script-line.format-break {
+    text-align: center;
+    margin: var(--spacing-md) 0;
+    color: var(--color-text-dim);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
 }
 
 .script-line.selected {

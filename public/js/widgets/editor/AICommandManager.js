@@ -95,7 +95,7 @@ class AddLineCommand extends AICommand {
     }
 
     validate() {
-        return this.params.format && ['action', 'dialog', 'speaker', 'header', 'directions'].includes(this.params.format);
+        return this.params.format && ['action', 'dialog', 'speaker', 'header', 'directions', 'chapter-break'].includes(this.params.format);
     }
 }
 
@@ -110,7 +110,7 @@ class SetFormatCommand extends AICommand {
 
     validate() {
         return typeof this.params.lineIndex === 'number' &&
-            this.params.format && ['action', 'dialog', 'speaker', 'header', 'directions'].includes(this.params.format);
+            this.params.format && ['action', 'dialog', 'speaker', 'header', 'directions', 'chapter-break'].includes(this.params.format);
     }
 }
 

@@ -1,69 +1,148 @@
 import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from "@langchain/core/prompts";
+import { INTENT_TYPES, COMMON_PROMPT_INSTRUCTIONS, OUTPUT_FORMATS } from '../constants.js';
 
 // Response prompts map
 export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
-    const basePrompt = "You are an AI writing assistant focused on helping users write quality scripts. You provide thoughtful, creative responses that help drive the story forward while maintaining the user's style.";
+    const basePrompt = COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX;
+    const formatGuidelines = `\n\nResponse Guidelines:
+- ${COMMON_PROMPT_INSTRUCTIONS.RESPONSE_GUIDELINES.FORMAT}
+- ${COMMON_PROMPT_INSTRUCTIONS.RESPONSE_GUIDELINES.VALIDATION}
+- ${COMMON_PROMPT_INSTRUCTIONS.RESPONSE_GUIDELINES.CONTEXT}`;
 
     return {
-        SCRIPT_THINKING: ChatPromptTemplate.fromMessages([
+        /**
+         * SCRIPT QUESTIONS HANDLER
+         * Purpose: Answers specific questions about script content
+         * Input: User's question about the script
+         * Output: Simple HTML response using only <h2> and <p> tags
+         * Variables: 
+         * - scriptContent: The full script text
+         * - input: User's question
+         */
+        [INTENT_TYPES.SCRIPT_QUESTIONS]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nScript content:\n{scriptContent}"
+                basePrompt + "\n\nAnalyze and answer questions about the script content. Provide clear, focused responses based on the actual content.\n\nScript content:\n{scriptContent}\n\nFormat your response using only HTML <h2> and <p> tags:\n- Use <h2> for section titles\n- Use <p> for explanatory text\n- Keep responses concise and direct\n- Focus on answering the specific question asked\n\nExample format:\n<h2>Character Analysis</h2>\n<p>John is the protagonist who...</p>"
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ]),
-        GETTING_MOTIVATED: ChatPromptTemplate.fromMessages([
+
+        /**
+         * CREATIVE INSPIRATION GENERATOR
+         * Purpose: Generates creative ideas for script development
+         * Input: User's request for inspiration
+         * Output: Plain text creative ideas
+         * Variables:
+         * - scriptTitle: Title of the current script
+         * - input: User's inspiration request
+         */
+        [INTENT_TYPES.GET_INSPIRATION]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nYou are especially ENTHUSIASTIC and motivating. Help the user overcome writer's block and get started with their script titled: {scriptTitle}."
+                basePrompt + "\n\nGenerate creative, unique ideas and thoughts in a clear, natural writing style. Focus on providing inspiring, actionable ideas that build on the existing script content. Return your response as plain text, not JSON.\n\nScript title: {scriptTitle}" + formatGuidelines
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ]),
-        BRAINSTORMING: ChatPromptTemplate.fromMessages([
+
+        /**
+         * SCRIPT EDIT COMMAND PARSER
+         * Purpose: Processes script editing requests into structured commands
+         * Input: User's edit request
+         * Output: JSON object with command, target, and value
+         * Variables:
+         * - scriptContent: Current script content
+         * - input: User's edit request
+         */
+        [INTENT_TYPES.EDIT_SCRIPT]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nCreate quality lists of creative ideas and suggestions for the script titled: {scriptTitle}. Avoid generic or obvious ideas."
+                basePrompt + "\n\nParse the edit request and return a structured command. You MUST return a JSON object with exactly these fields:\n" +
+                "- command: The type of edit (REPLACE_CHARACTER_NAME, REPLACE_TEXT, MODIFY_SCENE_HEADING, MODIFY_DIALOGUE)\n" +
+                "- target: What to edit (character name, specific text, etc.)\n" +
+                "- value: The new value to apply\n\n" +
+                "Example format:\n" + JSON.stringify(OUTPUT_FORMATS.EDIT_SCRIPT.example, null, 2) +
+                "\n\nScript content:\n{scriptContent}" + formatGuidelines
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ]),
-        EVERYTHING_ELSE: ChatPromptTemplate.fromMessages([
+
+        /**
+         * ELEMENT SAVE COMMAND PARSER
+         * Purpose: Processes requests to save script elements (characters, scenes, etc.)
+         * Input: User's save request
+         * Output: JSON object with target type and value
+         * Variables:
+         * - scriptContent: Current script content
+         * - input: User's save request
+         */
+        [INTENT_TYPES.SAVE_ELEMENT]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nYou are working on a script titled: {scriptTitle}. Keep the focus on script writing and story elements."
+                basePrompt + "\n\nParse the save request and return a structured command. You MUST return a JSON object with exactly these fields:\n" +
+                "- target: The type of element (CHARACTER, SCENE, DIALOGUE, PLOT_POINT)\n" +
+                "- value: The data to save\n\n" +
+                "Example format:\n" + JSON.stringify(OUTPUT_FORMATS.SAVE_ELEMENT.example, null, 2) +
+                "\n\nScript content:\n{scriptContent}" + formatGuidelines
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ]),
+
+        /**
+         * SCRIPT ANALYSIS PROCESSOR
+         * Purpose: Provides comprehensive script analysis
+         * Input: Request for script analysis
+         * Output: Detailed analysis of structure, characters, plot, and themes
+         * Variables:
+         * - scriptContent: Full script content
+         * - input: User's analysis request
+         */
+        [INTENT_TYPES.ANALYZE_SCRIPT]: ChatPromptTemplate.fromMessages([
+            SystemMessagePromptTemplate.fromTemplate(
+                basePrompt + "\n\nProvide a thorough analysis of the entire script, covering structure, characters, plot, themes, and potential improvements.\n\nScript content:\n{scriptContent}" + formatGuidelines
+            ),
+            HumanMessagePromptTemplate.fromTemplate("{input}")
+        ]),
+
+        /**
+         * MULTI-INTENT REQUEST HANDLER
+         * Purpose: Handles requests that combine multiple intents
+         * Input: Complex multi-part request
+         * Output: Structured response addressing each component
+         * Variables:
+         * - scriptContent: Full script content
+         * - input: User's multi-part request
+         */
+        [INTENT_TYPES.MULTI_INTENT]: ChatPromptTemplate.fromMessages([
+            SystemMessagePromptTemplate.fromTemplate(
+                basePrompt + "\n\nAddress multiple aspects of the script request while maintaining focus and clarity for each part. Use appropriate output formats for each component.\n\nScript content:\n{scriptContent}" + formatGuidelines
+            ),
+            HumanMessagePromptTemplate.fromTemplate("{input}")
+        ]),
+
+        /**
+         * GENERAL SCRIPT ASSISTANCE
+         * Purpose: Handles miscellaneous script-related requests
+         * Input: General script-related query
+         * Output: Focused guidance on script writing
+         * Variables:
+         * - input: User's request
+         */
+        [INTENT_TYPES.EVERYTHING_ELSE]: ChatPromptTemplate.fromMessages([
+            SystemMessagePromptTemplate.fromTemplate(
+                basePrompt + "\n\nProvide general script writing assistance while keeping responses focused and relevant." + formatGuidelines
+            ),
+            HumanMessagePromptTemplate.fromTemplate("{input}")
+        ]),
+
+        /**
+         * DEFAULT FALLBACK HANDLER
+         * Purpose: Handles unclassified or unknown intents
+         * Input: Any unclassified request
+         * Output: General script-focused guidance
+         * Variables:
+         * - input: User's request
+         */
         default: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                "You are a helpful writing assistant."
+                basePrompt + "\n\nProvide helpful guidance while keeping the focus on script writing." + formatGuidelines
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ])
     };
-};
-
-// Intent Types - Consolidated
-export const INTENT_TYPES = {
-    // Core Script Analysis
-    LIST_SCENES: 'scene_list',
-    LIST_BEATS: 'beat_list',
-
-    // Creative Support
-    GET_INSPIRATION: 'inspiration',
-
-    // Comprehensive Analysis
-    ANALYZE_SCRIPT: 'comprehensive_analysis',
-
-    // Meta Intents
-    MULTI_INTENT: 'multi_intent',
-    EVERYTHING_ELSE: 'everything_else'
-};
-
-// Intent Descriptions - Consolidated
-export const INTENT_DESCRIPTIONS = {
-    scene_list: 'List and analyze scenes in the script',
-    beat_list: 'List and analyze story beats',
-    inspiration: 'Generate creative ideas and suggestions',
-    comprehensive_analysis: 'Perform complete script analysis including structure, characters, plot, and themes',
-    LIST_SCENES: 'Break down and organize script into formatted scenes',
-    LIST_BEATS: 'Analyze and list major story beats',
-    GET_INSPIRATION: 'Generate creative ideas and break writer\'s block',
-    MULTI_INTENT: 'Multiple operations requested',
-    EVERYTHING_ELSE: 'Not script related or general conversation'
 };

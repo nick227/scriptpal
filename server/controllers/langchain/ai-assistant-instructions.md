@@ -61,9 +61,15 @@ The AI script writing assistant is built using a modular chain-based architectur
    - Suggests beat placements
 
 3. **Inspiration Generator** (`chains/creative/inspirationGen.js`)
-   - Provides creative suggestions
-   - References similar works
+   - Provides creative strategy
+   - References similar ideas
    - Offers implementation strategies
+
+4. **Script Questions** (`chains/creative/scriptQuestions.js`)
+   - Answers specific questions about script content
+   - Provides focused analysis based on question type
+   - Handles character, plot, theme, and structure queries
+   - Returns single comprehensive answers
 
 ### Analysis Chains
 1. **Script Analyzer** (`chains/analysis/scriptAnalyzer.js`)
@@ -168,6 +174,7 @@ export const INTENT_TYPES = {
 
     // Creative Support
     GET_INSPIRATION: 'inspiration',
+    SCRIPT_QUESTIONS: 'script_questions',
 
     // Meta Intents
     MULTI_INTENT: 'multi_intent',
@@ -177,8 +184,9 @@ export const INTENT_TYPES = {
 export const INTENT_DESCRIPTIONS = {
     scene_list: 'List and analyze scenes in the script',
     beat_list: 'List and analyze story beats',
-    inspiration: 'Generate creative ideas and suggestions',
+    inspiration: 'Generate creative ideas and thoughts',
     comprehensive_analysis: 'Perform complete script analysis including structure, characters, plot, and themes',
+    script_questions: 'Answer specific questions about script content with focused analysis',
     MULTI_INTENT: 'Multiple operations requested',
     EVERYTHING_ELSE: 'Not script related or general conversation'
 };

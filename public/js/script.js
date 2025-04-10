@@ -247,7 +247,7 @@ export class ScriptPalScript {
     }
 
     isValidXMLFormat(content) {
-        const validTags = ['header', 'action', 'speaker', 'dialog', 'directions'];
+        const validTags = ['header', 'action', 'speaker', 'dialog', 'directions', 'chapter-break'];
         const xmlRegex = new RegExp(`<(${validTags.join('|')})>(.*?)</\\1>`, 'g');
         const matches = content.match(xmlRegex);
 

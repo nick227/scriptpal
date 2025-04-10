@@ -1,133 +1,146 @@
-// Function definitions
+//=============================================================================
+// SYSTEM FUNCTIONS & OPERATIONS
+//=============================================================================
+
+// Core function definitions for system operations
 export const FUNCTION_DEFINITIONS = {
     SAVE_SCRIPT: "save_script",
-    SAVE_ELEMENT: "save_story_element",
+    SAVE_ELEMENT: "save_element",
     CHANGE_SCRIPT_TITLE: "change_script_title",
     SHARE_SCRIPT: "share_script"
 };
 
-// Intent Types - Consolidated
+//=============================================================================
+// INTENT CLASSIFICATION
+//=============================================================================
+
+// Core intent types for request classification
 export const INTENT_TYPES = {
     // Core Script Analysis
-    LIST_SCENES: 'scene_list',
-    LIST_BEATS: 'beat_list',
-    SCRIPT_QUESTIONS: 'script_questions',
+    SCRIPT_QUESTIONS: 'SCRIPT_QUESTIONS',
+    ANALYZE_SCRIPT: 'ANALYZE_SCRIPT',
 
     // Creative Support
-    GET_INSPIRATION: 'inspiration',
-    BRAINSTORMING: 'brainstorming',
+    GET_INSPIRATION: 'GET_INSPIRATION',
+    GET_QUESTIONS: 'GET_QUESTIONS',
 
     // Script Operations
-    EDIT_SCRIPT: 'edit_script',
-    SAVE_ELEMENT: 'save_element',
-
-    // Analysis & Feedback
-    GIVE_FEEDBACK: 'give_feedback',
-    SCRIPT_THINKING: 'script_thinking',
+    EDIT_SCRIPT: 'EDIT_SCRIPT',
+    SAVE_ELEMENT: 'SAVE_ELEMENT',
 
     // Meta Intents
-    MULTI_INTENT: 'multi_intent',
-    EVERYTHING_ELSE: 'everything_else',
-
-    // Comprehensive Analysis
-    ANALYZE_SCRIPT: 'comprehensive_analysis'
+    MULTI_INTENT: 'MULTI_INTENT',
+    EVERYTHING_ELSE: 'EVERYTHING_ELSE'
 };
 
-// Intent Descriptions - Consolidated
+// Detailed descriptions for each intent type
 export const INTENT_DESCRIPTIONS = {
-    scene_list: 'List and analyze scenes in the script',
-    beat_list: 'List and analyze story beats',
-    script_questions: 'Answer specific questions about the script content',
-    inspiration: 'Generate creative ideas and suggestions',
-    comprehensive_analysis: 'Perform complete script analysis including structure, characters, plot, and themes',
-    LIST_SCENES: 'Break down and organize script into formatted scenes',
-    LIST_BEATS: 'Analyze and list major story beats',
-    GET_INSPIRATION: 'Generate creative ideas and break writer\'s block',
-    BRAINSTORMING: 'Brainstorming, list making, or generating creative ideas',
-    EDIT_SCRIPT: 'Make direct changes to the script',
-    SAVE_ELEMENT: 'Save or update script components',
-    GIVE_FEEDBACK: 'Provide script analysis and feedback',
-    SCRIPT_THINKING: 'Help discussing existing script and analyzing current content',
-    MULTI_INTENT: 'Multiple operations requested',
-    EVERYTHING_ELSE: 'Not script related or general conversation'
+    SCRIPT_QUESTIONS: 'Answer questions, provide feedback, and discuss any aspect of the script including analysis, scenes, beats, characters, and general feedback',
+    ANALYZE_SCRIPT: 'Perform complete script analysis including structure, characters, plot, themes, and potential improvements',
+    GET_INSPIRATION: 'Generate creative ideas, help with brainstorming, and break writer\'s block',
+    GET_QUESTIONS: 'Generate relevant follow-up questions to help explore and improve the script',
+    EDIT_SCRIPT: 'Make direct changes to the script content or structure',
+    SAVE_ELEMENT: 'Save or update script components and maintain script consistency',
+    MULTI_INTENT: 'Handle multiple script-related operations in a single request',
+    EVERYTHING_ELSE: 'Handle general script-related queries or conversations'
 };
 
-// Output Formats
+//=============================================================================
+// COMMAND DEFINITIONS & FORMATS
+//=============================================================================
+
+// Available edit commands for script modifications
+export const EDIT_COMMANDS = {
+    SAVE_ELEMENT: 'SAVE_ELEMENT',
+    REPLACE_TEXT: 'REPLACE_TEXT'
+};
+
+// Valid targets for save operations
+export const SAVE_TARGETS = {
+    CHARACTER: 'CHARACTER',
+    SCENE: 'SCENE',
+    DIALOGUE: 'DIALOGUE',
+    PLOT_POINT: 'PLOT_POINT'
+};
+
+//=============================================================================
+// OUTPUT FORMATS & VALIDATION
+//=============================================================================
+
+// Structured output formats for different operations
 export const OUTPUT_FORMATS = {
-    SCENE: {
-        required: ['sceneNumber', 'description', 'location', 'timeOfDay'],
-        optional: ['characters', 'mood', 'notes'],
+    EDIT_SCRIPT: {
+        required: ['command', 'target', 'value'],
         example: {
-            sceneNumber: 1,
-            description: 'Opening scene',
-            location: 'INT. OFFICE',
-            timeOfDay: 'DAY',
-            characters: ['JOHN', 'MARY'],
-            mood: 'tense',
-            notes: 'Sets up main conflict'
+            command: 'REPLACE_CHARACTER_NAME',
+            target: 'NICK',
+            value: 'BILL'
         }
     },
-    BEAT: {
-        required: ['beatNumber', 'description', 'purpose'],
-        optional: ['emotionalChange', 'notes'],
+    SAVE_ELEMENT: {
+        required: ['target', 'value'],
         example: {
-            beatNumber: 1,
-            description: 'Inciting incident',
-            purpose: 'Set main conflict in motion',
-            emotionalChange: 'Hope to uncertainty',
-            notes: 'Key character decision point'
-        }
-    },
-    INSPIRATION: {
-        required: ['idea', 'reasoning'],
-        optional: ['alternatives', 'impact'],
-        example: {
-            idea: 'Character reveals hidden motivation',
-            reasoning: 'Adds depth to conflict',
-            alternatives: ['Delayed reveal', 'Partial reveal'],
-            impact: 'Changes audience perception'
+            target: 'CHARACTER',
+            value: {
+                name: 'JOHN',
+                description: 'A determined detective',
+                traits: ['intelligent', 'persistent']
+            }
         }
     }
 };
 
-// Chain Configuration
+// Validation rules for content length and structure
+export const VALIDATION_RULES = {
+    MAX_SCENE_LENGTH: 1000,
+    MAX_BEAT_LENGTH: 500,
+    MAX_IDEAS: 5,
+    REQUIRED_FIELDS_THRESHOLD: 0.8
+};
+
+//=============================================================================
+// AI CONFIGURATION & INSTRUCTIONS
+//=============================================================================
+
+// Configuration for AI chain operations
+export const TOKEN_LIMITS = {
+    DEFAULT: 2000,
+    ANALYSIS: 4000, // Comprehensive analysis needs more tokens
+};
+
 export const CHAIN_CONFIG = {
-    TEMPERATURE: 0.7,
-    MAX_TOKENS: 1000,
-    MODEL: 'gpt-4-turbo-preview',
+    MODEL: "gpt-3.5-turbo",
+    TEMPERATURE: 0.3,
+    MAX_TOKENS: TOKEN_LIMITS.DEFAULT,
     RESPONSE_FORMAT: 'json'
 };
 
-// Common Prompt Instructions
+// System instructions for AI responses
 export const COMMON_PROMPT_INSTRUCTIONS = {
     SYSTEM_PREFIX: `You are a professional script writing assistant. Follow these core principles:
 1. Focus on script improvement and storytelling
-2. Provide specific, actionable feedback
-3. Maintain consistent story elements
-4. Consider emotional impact and audience engagement
-5. Respect the writer's creative vision
+2. Provide creative, unexpected, and unexpected feedback
+3. Ask questions to learn more about the script and the writer
+4. Be emotional and passionate about the script
+5. Figure out ways to help the user keep writing
 6. Use industry-standard terminology
 7. Keep responses clear and structured`,
     RESPONSE_GUIDELINES: {
-        FORMAT: 'Always structure responses in clear, parseable JSON, never use ```json or ```python',
-        VALIDATION: 'Include rationale for suggestions',
+        FORMAT: 'Always structure responses in creative, engaging, and concise format. Use h2 and p tags for formatting.',
+        VALIDATION: 'Include rationale for responses',
         CONTEXT: 'Reference specific script elements when possible'
     }
 };
 
-// Error Types
+//=============================================================================
+// ERROR HANDLING
+//=============================================================================
+
+// Error type definitions for system operations
 export const ERROR_TYPES = {
     INVALID_INTENT: 'INVALID_INTENT',
     INVALID_FORMAT: 'INVALID_FORMAT',
     MISSING_REQUIRED: 'MISSING_REQUIRED',
     CHAIN_ERROR: 'CHAIN_ERROR',
     ROUTING_ERROR: 'ROUTING_ERROR'
-};
-
-// Validation Rules
-export const VALIDATION_RULES = {
-    MAX_SCENE_LENGTH: 1000,
-    MAX_BEAT_LENGTH: 500,
-    MAX_IDEAS: 5,
-    REQUIRED_FIELDS_THRESHOLD: 0.8
 };

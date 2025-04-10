@@ -7,7 +7,7 @@ export class ContentManager extends BaseWidget {
         this.stateManager = options.stateManager;
         this.lineFormatter = options.lineFormatter;
         this.pageManager = options.pageManager;
-        this.VALID_TAGS = ['header', 'action', 'speaker', 'dialog', 'directions'];
+        this.VALID_TAGS = ['header', 'action', 'speaker', 'dialog', 'directions', 'chapter-break'];
 
         // Event handling
         this.eventHandlers = new Map();
@@ -213,7 +213,7 @@ export class ContentManager extends BaseWidget {
         if (typeof content !== 'string') return null;
 
         const lines = [];
-        const xmlRegex = /<(header|action|speaker|dialog|directions)>(.*?)<\/\1>/g;
+        const xmlRegex = /<(header|action|speaker|dialog|directions|chapter-break)>(.*?)<\/\1>/g;
         let match;
 
         while ((match = xmlRegex.exec(content)) !== null) {

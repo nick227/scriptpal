@@ -38,6 +38,12 @@ const routes = [
         middleware: [validateSession]
     },
     {
+        path: '/chat/history',
+        method: 'get',
+        handler: chatController.getChatHistory,
+        middleware: [validateSession]
+    },
+    {
         path: '/user/current',
         method: 'get',
         handler: userController.getCurrentUser,

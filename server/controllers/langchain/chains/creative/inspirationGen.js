@@ -1,126 +1,146 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
-import { ERROR_TYPES } from '../../constants.js';
+import { ERROR_TYPES, INTENT_TYPES } from '../../constants.js';
 import { ChainHelper } from '../helpers/ChainHelper.js';
+import db from "../../../../db/index.js";
 
 export class InspirationChain extends BaseChain {
-    constructor(config = {}) {
+    constructor() {
         super({
-            ...config,
-            temperature: 0.8 // Higher creativity for inspiration
+            type: INTENT_TYPES.GET_INSPIRATION,
+            temperature: 0.7, // Higher temperature for more creative responses
+            modelConfig: {
+                response_format: { type: "text" } // Force text response instead of JSON
+            }
         });
     }
 
-    async validateInspiration(result) {
-        return ChainHelper.validateStructuredResponse(result, {
-            requiredArray: 'suggestions',
-            alternateArrays: ['ideas', 'inspirations'],
-            defaultValues: {
-                idea: 'Creative suggestion',
-                rationale: 'This could enhance the story',
-                implementation: 'Consider incorporating this element',
-                impact: 'Could improve audience engagement'
-            },
-            requireRationale: true
-        });
+    formatFallbackPrompt(scriptMetadata, scriptContent, formattedElements) {
+        return [{
+            role: 'system',
+            content: 'You are a BRIEF clever writing assistant specializing in generating fresh ideas. Be short and concise. Listing at most 3 very short ideas. Maximum 100 words.'
+        }, {
+            role: 'user',
+            content: [
+                'Please generate creative ideas for this script:',
+                '',
+                'Title: ' + scriptMetadata.title,
+                '',
+                'Content:',
+                scriptContent,
+                '',
+                'Existing Elements:',
+                formattedElements
+            ].join('\n')
+        }];
     }
 
-    async saveInspirationElements(scriptId, suggestions) {
-        return ChainHelper.saveElements(scriptId, suggestions, {
-            type: 'inspiration',
-            getSubtype: (index) => `inspiration_${index + 1}`,
-            processElement: (suggestion) => ({
-                idea: suggestion.idea,
-                rationale: suggestion.rationale,
-                implementation: suggestion.implementation,
-                impact: suggestion.impact
-            })
-        });
+    async extractContext(input) {
+        try {
+            if (!input || !input.scriptId) {
+                throw new Error(ERROR_TYPES.MISSING_REQUIRED + ': Script ID is required');
+            }
+
+            // Fetch script content and metadata from database
+            const script = await db.getScript(input.scriptId);
+            if (!script || !script.content) {
+                throw new Error(ERROR_TYPES.NOT_FOUND + ': Script not found');
+            }
+
+            // Process the script using ChainHelper
+            const processedScript = ChainHelper.preprocessScript(script.content);
+
+            // Fetch saved elements from database
+            const scriptElements = await db.getScriptElements(input.scriptId);
+            const formattedElements = this.formatElements(scriptElements);
+
+            // Calculate script metrics
+            const content = processedScript.content || script.content;
+            const words = content.split(/\s+/).length;
+            const lines = content.split('\n').length;
+
+            return {
+                scriptContent: content,
+                scriptMetadata: {
+                    id: script.id,
+                    title: script.title || processedScript.title || 'Untitled Script',
+                    status: script.status || processedScript.status || 'Draft',
+                    elements: formattedElements,
+                    words,
+                    lines,
+                    lastUpdated: script.updated_at || new Date().toISOString()
+                }
+            };
+        } catch (error) {
+            console.error('Context extraction error:', error);
+            throw new Error(`Failed to extract context: ${error.message}`);
+        }
+    }
+
+    formatElements(scriptElements) {
+        if (!scriptElements || scriptElements.length === 0) {
+            return 'No saved elements found.';
+        }
+        return scriptElements.map(element => {
+            try {
+                const content = JSON.parse(element.content);
+                return element.type + ' (' + element.subtype + '): ' + JSON.stringify(content);
+            } catch {
+                return element.type + ' (' + element.subtype + '): ' + element.content;
+            }
+        }).join('\n');
     }
 
     async run(input, context = {}) {
         try {
-            // Extract context with defaults
-            const { scriptId, prompt } = ChainHelper.extractContext(context);
-            console.log(`Running inspiration generator for scriptId: ${scriptId}`);
+            const { scriptContent, scriptMetadata } = await this.extractContext(input);
 
-            // Get script content - could be an object, string, or null
-            let scriptContent = input;
-
-            // If input seems to be the prompt instead of the script content
-            if (typeof input === 'string' && input.length < 500 && context.prompt) {
-                console.log('Input appears to be the prompt, using context as input');
-                scriptContent = context.prompt;
-            }
-
-            // Process the script
-            const processedScript = ChainHelper.preprocessScript(scriptContent, {
-                includeElements: true,
-                elementType: 'inspirations'
-            });
-
-            // Validate content
-            if (!ChainHelper.validateContent(processedScript.content)) {
-                return ChainHelper.getErrorResponse(
-                    "I couldn't find enough script content to generate inspiration. Please provide more content or start with a basic story outline.",
-                    'error_response'
-                );
-            }
-
-            // Get existing inspirations if any
-            const existingInspirations = processedScript.elements.inspirations || [];
-
-            // Format the prompt
-            const fallbackPrompt = [{
-                    role: 'system',
-                    content: 'You are a creative writing consultant specializing in story enhancement and creative inspiration.'
-                },
-                {
-                    role: 'user',
-                    content: `Please suggest creative ideas to enhance this script:\n\n${processedScript.content}`
-                }
-            ];
-
-            const formattedPrompt = await ChainHelper.handlePromptFormatting(
-                promptManager,
-                'inspiration', {
-                    content: processedScript.content,
-                    existingInspirations: existingInspirations.length > 0 ?
-                        existingInspirations.map(i => i.content).join('\n') : 'No existing inspirations found',
-                    focus: prompt || 'Generate creative ideas to enhance the story'
-                },
-                fallbackPrompt
-            );
-
-            // Execute the chain
-            console.log('Executing inspiration chain...');
-            const response = await this.execute(formattedPrompt);
-            console.log('Inspiration generation complete, validating format...');
-
-            try {
-                // Validate the inspiration format
-                const validatedInspirations = await this.validateInspiration(response);
-
-                // Save if scriptId provided
-                if (scriptId) {
-                    await this.saveInspirationElements(scriptId, validatedInspirations.suggestions);
-                }
-
-                return validatedInspirations;
-            } catch (validationError) {
-                console.error('Inspiration validation failed:', validationError);
-                return ChainHelper.getUnstructuredResponse(response, {
-                    type: 'unstructured_inspirations',
-                    emptyArray: 'suggestions',
-                    prefix: "I generated some creative ideas but couldn't format them properly. Here's what I found: "
+            // Get the template from promptManager
+            const template = promptManager.getTemplate(INTENT_TYPES.GET_INSPIRATION);
+            if (!template) {
+                // Fallback to basic prompt if template not found
+                const messages = this.formatFallbackPrompt(scriptMetadata, scriptContent, scriptMetadata.elements);
+                return this.execute(messages, {
+                    scriptTitle: scriptMetadata.title,
+                    metadata: {
+                        scriptId: scriptMetadata.id,
+                        title: scriptMetadata.title,
+                        timestamp: new Date().toISOString()
+                    }
                 });
             }
+
+            // Format the prompt using the template
+            const messages = await template.format({
+                title: scriptMetadata.title,
+                script: scriptContent,
+                elements: scriptMetadata.elements,
+                words: scriptMetadata.words,
+                lines: scriptMetadata.lines,
+                lastUpdated: scriptMetadata.lastUpdated
+            });
+
+            // Add common instructions and execute with context
+            const formattedMessages = this.addCommonInstructions(messages);
+            return this.execute(formattedMessages, {
+                scriptTitle: scriptMetadata.title,
+                metadata: {
+                    scriptId: scriptMetadata.id,
+                    title: scriptMetadata.title,
+                    words: scriptMetadata.words,
+                    lines: scriptMetadata.lines,
+                    lastUpdated: scriptMetadata.lastUpdated,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
         } catch (error) {
-            console.error('Inspiration generation error:', error);
-            return ChainHelper.getErrorResponse(
-                "I'm sorry, I encountered an error generating creative ideas. Please try again with a more detailed script or outline.",
-                'error_response'
-            );
+            console.error('Error in InspirationChain:', error);
+            return {
+                response: `Error generating inspiration: ${error.message}`,
+                type: 'error',
+                timestamp: new Date().toISOString()
+            };
         }
     }
 }

@@ -15,5 +15,6 @@ export const formatTypes = {
     ACTION: 'action',
     SPEAKER: 'speaker',
     DIALOG: 'dialog',
-    DIRECTIONS: 'directions'
+    DIRECTIONS: 'directions',
+    CHAPTER_BREAK: 'chapter-break'
 };

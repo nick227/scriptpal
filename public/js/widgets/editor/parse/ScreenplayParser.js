@@ -15,7 +15,8 @@ export class ScreenplayParser {
                     header: 0,
                     speaker: 0,
                     dialog: 0,
-                    directions: 0
+                    directions: 0,
+                    'chapter-break': 0
                 }
             }
         };

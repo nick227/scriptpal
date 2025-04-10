@@ -1,6 +1,8 @@
 import { BaseWidget } from '../BaseWidget.js';
 import { formatTypes } from './constants.js';
 import { ScriptImportWidget } from '../uploader/ScriptImportWidget.js';
+import { UI_ELEMENTS } from '../../constants.js';
+
 
 export class EditorToolbar extends BaseWidget {
     constructor(options) {
@@ -19,6 +21,8 @@ export class EditorToolbar extends BaseWidget {
             editorContainer: options.editorContainer
         });
 
+        console.log('options: ', options);
+
         // Store references
         this.stateManager = options.stateManager;
         this.editorContent = options.editorContent;
@@ -29,18 +33,22 @@ export class EditorToolbar extends BaseWidget {
         this.toolbar = null;
         this.formatButtons = new Map();
         this.pageCounter = null;
+        this.currentPage = null;
+        this.totalPages = null;
         this.undoButton = null;
         this.redoButton = null;
         this.saveButton = null;
         this.importButton = null;
         this.fileInput = null;
+        this.chapterBreakCreateButton = null;
+        this.editorArea = null;
 
         // Initialize handlers
         this._handlers = {
             formatSelected: null,
             undo: null,
             redo: null,
-            chapterCreate: null,
+            chapterBreakCreate: null,
             save: null,
             import: null
         };
@@ -52,8 +60,43 @@ export class EditorToolbar extends BaseWidget {
         this._handleSaveClick = this.handleSaveClick.bind(this);
         this._handleImportClick = this.handleImportClick.bind(this);
         this._handleFileSelect = this.handleFileSelect.bind(this);
+        this._handleScroll = this.handleScroll.bind(this);
+        this._handleChapterBreakCreateClick = this.handleChapterBreakCreateClick.bind(this);
+
+        // Wait for editor area to be ready
+        this.editorContent.on('EDITOR:EDITOR_AREA_READY', (editorArea) => {
+            console.log('Editor area ready, storing reference');
+            this.editorArea = editorArea;
+
+            setTimeout(() => {
+                if (this.editorArea) {
+                    this.editorArea.addEventListener('scroll', this._handleScroll);
+                    console.log('Scroll listener attached');
+                }
+            }, 13000);
+        });
 
         this.formats = formatTypes;
+    }
+
+    handleScroll(event) {
+        // Add detailed logging
+        const editorArea = event.target;
+        console.log('handleScroll triggered', {
+            scrollTop: editorArea.scrollTop,
+            scrollHeight: editorArea.scrollHeight,
+            clientHeight: editorArea.clientHeight,
+            target: event.target,
+            currentTarget: event.currentTarget,
+            hasPages: !!editorArea.querySelector('.editor-page')
+        });
+
+        // Calculate current page based on scroll position and page height
+        const page = editorArea.querySelector('.editor-page');
+        const pageHeight = page ? page.offsetHeight : editorArea.clientHeight;
+        const currentPage = Math.floor(editorArea.scrollTop / pageHeight) + 1;
+
+        this.updateCurrentPage(currentPage);
     }
 
     validateElements() {
@@ -70,9 +113,10 @@ export class EditorToolbar extends BaseWidget {
         this.toolbar = this.createElement('div', 'editor-toolbar');
         this.elements.editorContainer.appendChild(this.toolbar);
 
-        // Initialize all toolbar components
-        this.createUndoRedoButtons();
+        // Initialize all toolbar components in correct order
+        this.createUndoRedoButtons(); // Create this first since it includes fileInput
         this.createFormatButtons();
+        this.createChapterBreakCreateButton();
         this.createPageNumButtons();
         this.setupEventListeners();
 
@@ -81,6 +125,14 @@ export class EditorToolbar extends BaseWidget {
         if (pageCount > 0) {
             this.updatePageCount(pageCount);
         }
+    }
+
+    createChapterBreakCreateButton() {
+        const chapterBreakCreateButton = this.createElement('button', 'format-button chapter-break-create-button');
+        chapterBreakCreateButton.innerHTML = '<i class="fas fa-plus"></i>';
+        chapterBreakCreateButton.title = 'Insert Chapter Break';
+        this.chapterBreakCreateButton = chapterBreakCreateButton;
+        this.toolbar.appendChild(chapterBreakCreateButton);
     }
 
     createUndoRedoButtons() {
@@ -116,12 +168,19 @@ export class EditorToolbar extends BaseWidget {
     }
 
     createFormatButtons() {
+        const container = this.createElement('div', 'format-buttons-container');
+        const openButton = this.createElement('button', 'format-button open-button');
+        openButton.innerHTML = 'format';
+        container.appendChild(openButton);
+
         Object.entries(this.formats).forEach(([key, value]) => {
             const button = this.createElement('button', 'format-button', key.toLowerCase());
             button.dataset.format = value;
             button.title = `Format as ${key.toLowerCase()}`;
-            this.toolbar.appendChild(button);
+            container.appendChild(button);
         });
+
+        this.toolbar.appendChild(container);
     }
 
     createPageNumButtons() {
@@ -134,43 +193,43 @@ export class EditorToolbar extends BaseWidget {
         const pageCounter = this.createElement('div', 'page-counter');
 
         // Create current page display
-        const currentPage = this.createElement('span', 'current-page');
-        currentPage.textContent = this.stateManager.getCurrentPage() || 1;
+        this.currentPage = this.createElement('span', 'current-page');
+        this.currentPage.textContent = this.stateManager.getCurrentPage() || 1;
 
         // Create total pages display
-        const totalPages = this.createElement('span', 'total-pages');
-        totalPages.textContent = this.stateManager.getPageCount() || 1;
-
-        setTimeout(() => {
-            console.log('this.stateManager.getPageCount()', this.stateManager.getPageCount());
-        }, 5000);
-
+        this.totalPages = this.createElement('span', 'total-pages');
+        this.totalPages.textContent = this.stateManager.getPageCount() || 1;
 
         // Assemble the counter with format "Page X of Y"
         pageCounter.appendChild(document.createTextNode('Page '));
-        pageCounter.appendChild(currentPage);
+        pageCounter.appendChild(this.currentPage);
         pageCounter.appendChild(document.createTextNode(' of '));
-        pageCounter.appendChild(totalPages);
+        pageCounter.appendChild(this.totalPages);
 
         this.toolbar.appendChild(pageCounter);
 
         // Store references for updates
         this.pageCounter = {
             container: pageCounter,
-            current: currentPage,
-            total: totalPages
+            current: this.currentPage,
+            total: this.totalPages
         };
 
         // Add some basic styling
         pageCounter.style.display = 'inline-block';
         pageCounter.style.margin = '0 10px';
-        currentPage.style.fontWeight = 'bold';
-        totalPages.style.fontWeight = 'bold';
+        this.currentPage.style.fontWeight = 'bold';
+        this.totalPages.style.fontWeight = 'bold';
     }
 
     setupEventListeners() {
+        console.log('setupEventListeners');
         this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
         this.fileInput.addEventListener('change', this._handleFileSelect);
+
+        if (this.chapterBreakCreateButton) {
+            this.chapterBreakCreateButton.addEventListener('click', this._handleChapterBreakCreateClick);
+        }
     }
 
     handleFormatClick(format) {
@@ -237,6 +296,8 @@ export class EditorToolbar extends BaseWidget {
             this._handleSaveClick();
         } else if (button.classList.contains('import-button')) {
             this._handleImportClick();
+        } else if (button.classList.contains('chapter-break-create-button')) {
+            this._handleChapterBreakCreateClick();
         } else if (button.dataset.format) {
             this._handleFormatClick(button.dataset.format);
         }
@@ -306,13 +367,14 @@ export class EditorToolbar extends BaseWidget {
         this.pageCounter.current.textContent = currentPage;
     }
 
-    onChapterCreate(callback) {
-        this._handlers.chapterCreate = callback;
+    onChapterBreakCreate(callback) {
+        console.log('Registering chapter break handler');
+        this._handlers.chapterBreakCreate = callback;
     }
 
-    notifyChapterCreate(title) {
-        if (this._handlers.chapterCreate) {
-            this._handlers.chapterCreate(title);
+    notifyChapterBreakCreate() {
+        if (this._handlers.chapterBreakCreate) {
+            this._handlers.chapterBreakCreate();
         }
     }
 
@@ -332,6 +394,13 @@ export class EditorToolbar extends BaseWidget {
             case 'autosaving':
                 this.saveButton.classList.add('autosaving');
                 break;
+        }
+    }
+
+    handleChapterBreakCreateClick() {
+        console.log('Chapter break button clicked');
+        if (this._handlers.chapterBreakCreate) {
+            this._handlers.chapterBreakCreate();
         }
     }
 

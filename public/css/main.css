@@ -8,8 +8,9 @@
 @import 'components/buttons.css';
 @import 'components/chat.css';
 @import 'components/navbar.css';
-@import 'editor.css';
-@import 'uploader.css';
+@import 'components/editor.css';
+@import 'components/uploader.css';
+@import 'components/spinner.css';
 
 /* Layout Imports */
 

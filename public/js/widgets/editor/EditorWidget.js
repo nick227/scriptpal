@@ -492,18 +492,31 @@ export class EditorWidget extends BaseWidget {
     }
 
     setupChapterHandling() {
-        // Update minimap when chapters change
-        this.chapterManager.onChapterChange((chapters) => {
-            if (this.hasMinimapSupport) {
-                this.minimap.updateChapters(chapters);
-            }
-        });
+        try {
+            // Update to use the new method name
+            this.toolbar.onChapterBreakCreate(() => {
+                const currentLine = this.state.getCurrentLine();
+                if (!currentLine) {
+                    console.warn('No current line selected for chapter break');
+                    return;
+                }
 
-        // Handle chapter creation from toolbar
-        this.toolbar.onChapterCreate((title) => {
-            const currentPage = this.content.getCurrentPage();
-            this.chapterManager.createChapter(title, currentPage);
-        });
+                const currentChapterNumber = this.state.getNumberOfChapters();
+
+                // Create and insert the break line after current line
+                const breakLine = this.content.lineFormatter.createFormattedLine('break');
+                breakLine.textContent = '* * *'; // Or whatever break marker you want
+
+                // Insert after current line
+                currentLine.insertAdjacentElement('afterend', breakLine);
+
+                // Notify content manager of the change
+                this.content.contentManager.debouncedContentUpdate();
+            });
+        } catch (error) {
+            console.error('Failed to setup optional chapters relationship:', error);
+            throw error;
+        }
     }
 
     async loadInitialContent() {
