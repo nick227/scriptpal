@@ -1,4 +1,5 @@
 import { MAX_LINES_PER_PAGE } from '../constants.js';
+import { PageTracker } from './PageTracker.js';
 
 export class PageOperations {
     constructor(stateManager) {
@@ -12,6 +13,7 @@ export class PageOperations {
         this.currentPage = null;
         this.currentPageLineCount = 0;
         this.maxLinesPerPage = MAX_LINES_PER_PAGE;
+        this.pageTracker = new PageTracker();
 
         // Event handling
         this._eventHandlers = {

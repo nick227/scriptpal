@@ -206,27 +206,6 @@
 
 .format-buttons-container {
     display: flex;
-    flex-direction: column;
-    top: 0;
-    position: sticky;
-    background-color: var(--toolbar-bg);
-    width: 155px;
-}
-
-.format-buttons-container button.format-button {
-    top: 0;
-    text-align: left;
-    display: none;
-}
-
-.format-buttons-container button.open-button,
-.format-buttons-container:hover button.format-button,
-.format-buttons-container button.button:hover {
-    display: block;
-}
-
-.format-buttons-container:hover button.open-button {
-    display: none;
 }
 
 .format-button {

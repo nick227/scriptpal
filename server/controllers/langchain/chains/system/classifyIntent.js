@@ -39,6 +39,7 @@ Common command patterns and their intents:
 - Requests for complete script analysis -> ANALYZE_SCRIPT
 - Saving script elements or components -> SAVE_ELEMENT
 - Multiple operations in one request -> MULTI_INTENT
+- Writing script content -> WRITE_SCRIPT
 
 For SAVE_ELEMENT intents, you must identify:
 1. The type of element being saved (character, location, scene, plot_point, etc.)

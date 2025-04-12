@@ -1,23 +1,30 @@
 export class Autocomplete {
-    /*
-    ultra simple proof of concept 
-    using minimal static terms here in the class
-    proves ability to match different terms in different contexts
-    */
+    static SUPPORTED_FORMATS = ['speaker', 'header'];
+
     constructor(stateManager) {
+        if (!stateManager) {
+            throw new Error('StateManager is required for Autocomplete');
+        }
+
         this.stateManager = stateManager;
         this.editorArea = null;
         this.currentSuggestion = null;
         this.lastSuggestionLine = null;
 
-        // Static data for proof of concept
-        this.locationTerms = {
-            'INTERIOR': 'INTERIOR',
-            'EXTERIOR': 'EXTERIOR'
-        };
-
-        this.characterTerms = {
-            'TOM': 'TOM'
+        // Static data for proof of concept - move to configuration later
+        this.suggestions = {
+            header: {
+                'INT': 'INTERIOR',
+                'EXT': 'EXTERIOR',
+                'INTERIOR': 'INTERIOR',
+                'EXTERIOR': 'EXTERIOR'
+            },
+            speaker: {
+                'TOM': 'TOM',
+                'SARAH': 'SARAH',
+                'JOHN': 'JOHN',
+                'JANE': 'JANE'
+            }
         };
 
         // Enhanced cache with TTL and size limit
@@ -37,6 +44,14 @@ export class Autocomplete {
         this._handleKeyup = this.debounce(this.handleKeyup.bind(this), this.DEBOUNCE_DELAY);
         this._handleKeydown = this.handleKeydown.bind(this);
         this._handleFocusOut = this.handleFocusOut.bind(this);
+    }
+
+    isFormatSupported(format) {
+        return Autocomplete.SUPPORTED_FORMATS.includes(format);
+    }
+
+    getSuggestionsForFormat(format) {
+        return this.suggestions[format] || {};
     }
 
     // Debounce utility
@@ -149,17 +164,22 @@ export class Autocomplete {
         const scriptLine = event.target.closest('.script-line');
         if (!scriptLine || !this.currentSuggestion) return null;
 
+        const format = scriptLine.getAttribute('data-format');
+        // Only process autocomplete for speaker and header formats
+        if (!format || !['speaker', 'header'].includes(format)) {
+            return null;
+        }
+
         // Only handle Tab for accepting suggestions
         if (event.key === 'Tab') {
             event.preventDefault(); // Prevent default tab behavior
 
-            const lineFormat = scriptLine.getAttribute('data-format');
             const currentText = this.getCurrentText(scriptLine).trim().toUpperCase();
 
             const result = {
                 text: this.currentSuggestion,
                 accepted: true,
-                format: lineFormat,
+                format: format,
                 currentText: currentText
             };
 
@@ -173,32 +193,44 @@ export class Autocomplete {
     }
 
     handleKeyup(event) {
-        // Don't process modifier keys or navigation keys
-        if (event.altKey || event.ctrlKey || event.metaKey) return null;
-        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return null;
+        try {
+            // Don't process modifier keys or navigation keys
+            if (event.altKey || event.ctrlKey || event.metaKey) return null;
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return null;
 
-        const scriptLine = event.target.closest('.script-line');
-        if (!scriptLine) return null;
+            const scriptLine = event.target.closest('.script-line');
+            if (!scriptLine) return null;
 
-        const format = scriptLine.getAttribute('data-format');
-        if (!format) return null;
+            const format = scriptLine.getAttribute('data-format');
+            if (!this.isFormatSupported(format)) {
+                this.clearSuggestion();
+                this.clearSuggestionDisplay();
+                return null;
+            }
 
-        // Update last suggestion line
-        this.lastSuggestionLine = scriptLine;
+            // Update last suggestion line
+            this.lastSuggestionLine = scriptLine;
 
-        // Get current text without any existing suggestion
-        const currentText = this.getCurrentText(scriptLine);
+            // Get current text without any existing suggestion
+            const currentText = this.getCurrentText(scriptLine);
 
-        // Always clear current suggestion if backspacing or deleting
-        if (event.key === 'Backspace' || event.key === 'Delete') {
+            // Handle backspace/delete
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+                this.clearSuggestion();
+                this.clearSuggestionDisplay();
+                return currentText ? this.processSuggestion(currentText, format, scriptLine) : null;
+            }
+
+            return this.processSuggestion(currentText, format, scriptLine);
+        } catch (error) {
+            console.error('Error in handleKeyup:', error);
             this.clearSuggestion();
             this.clearSuggestionDisplay();
-
-            // If no text left, just return
-            if (!currentText) return null;
+            return null;
         }
+    }
 
-        // Don't process if empty
+    processSuggestion(currentText, format, scriptLine) {
         if (!currentText) {
             this.clearSuggestion();
             this.clearSuggestionDisplay();
@@ -308,34 +340,32 @@ export class Autocomplete {
     }
 
     findMatch(text, format, currentLine) {
-        if (!text || !format || text.length < 1) return null;
+        if (!text || !this.isFormatSupported(format) || text.length < 1) return null;
 
         // Check cache first
         const cacheKey = `${text}:${format}`;
         const cachedResult = this._getFromCache(cacheKey);
         if (cachedResult !== null) return cachedResult;
 
-        // First check static format (already in memory)
-        const staticTerms = format === 'header' ? this.locationTerms :
-            format === 'speaker' ? this.characterTerms :
-            null;
-
-        let match = null;
-        if (staticTerms) {
-            match = Object.keys(staticTerms).find(term =>
-                term.startsWith(text) && term !== text
+        // Check static suggestions first
+        const formatSuggestions = this.getSuggestionsForFormat(format);
+        const staticMatch = Object.entries(formatSuggestions)
+            .find(([key, value]) =>
+                (key.startsWith(text) || value.startsWith(text)) &&
+                key !== text &&
+                value !== text
             );
-            if (match) {
-                this._addToCache(cacheKey, match);
-                return match;
-            }
+
+        if (staticMatch) {
+            const match = staticMatch[1];
+            this._addToCache(cacheKey, match);
+            return match;
         }
 
-        // Get cached lines for this format
+        // Check existing lines in the editor
         const lines = this._getFormatLines(format);
         if (!lines) return null;
 
-        // Sort lines so current line's siblings are checked first
         const sortedLines = this._getSortedLines(lines, currentLine);
 
         // Check each line for a match

@@ -78,7 +78,8 @@ export class EditorContent extends BaseWidget {
             input: this.handleInput.bind(this),
             import: this.handleImport.bind(this),
             click: this.handleClick.bind(this),
-            selectionChange: this.handleSelectionChange.bind(this)
+            selectionChange: this.handleSelectionChange.bind(this),
+            paste: this.handlePaste.bind(this)
         };
     }
 
@@ -149,6 +150,9 @@ export class EditorContent extends BaseWidget {
                 this.emit(EditorContent.EVENTS.CHANGE, content);
             }
 
+            // Add event listener for page tracker
+            this.setupPageTracker();
+
             return true;
         } catch (error) {
             console.error('EditorContent: Initialization failed:', error);
@@ -159,7 +163,6 @@ export class EditorContent extends BaseWidget {
     setupEventListeners() {
         if (!this.editorArea) return;
 
-
         // Remove any existing listeners
         this.removeEventListeners();
 
@@ -167,21 +170,37 @@ export class EditorContent extends BaseWidget {
         this.editorArea.addEventListener('input', this._boundHandlers.input);
         this.editorArea.addEventListener('import', this._boundHandlers.import);
         this.editorArea.addEventListener('click', this._boundHandlers.click);
+        this.editorArea.addEventListener('paste', this._boundHandlers.paste);
 
         // Keep editor area non-editable
         this.editorArea.contentEditable = 'false';
 
         // Selection change at document level
         document.addEventListener('selectionchange', this._boundHandlers.selectionChange);
+    }
 
+    setupPageTracker() {
+        setTimeout(() => {
+            this.pageManager.operations.pageTracker.initialize();
+        }, 1000);
     }
 
     handleClick(event) {
         const scriptLine = event.target.closest('.script-line');
         if (!scriptLine) {
-            this.clearSelection();
+            // Only clear selection if clicking outside script lines completely
+            if (!event.target.closest('.editor-area')) {
+                this.clearSelection();
+            }
             return;
         }
+
+        // Don't interfere with text selection
+        const selection = window.getSelection();
+        if (selection.toString() && !event.shiftKey) {
+            return;
+        }
+
         const notFirstLine = scriptLine.previousElementSibling !== null;
 
         if (event.shiftKey && this.selectionStart && notFirstLine) {
@@ -191,9 +210,12 @@ export class EditorContent extends BaseWidget {
             const currentIdx = lines.indexOf(scriptLine);
 
             if (startIdx > -1 && currentIdx > -1) {
-                // Clear only the previous shift-click selection, not the initial selection
+                // Clear only the previous shift-click selection
                 this.selectedLines.forEach(line => {
-                    if (line !== this.selectionStart) {
+                    if (line !== this.selectionStart && !lines.slice(
+                            Math.min(startIdx, currentIdx),
+                            Math.max(startIdx, currentIdx) + 1
+                        ).includes(line)) {
                         line.classList.remove('selected');
                         this.selectedLines.delete(line);
                     }
@@ -201,22 +223,23 @@ export class EditorContent extends BaseWidget {
 
                 // Select all lines in the range
                 const [from, to] = startIdx < currentIdx ? [startIdx, currentIdx] : [currentIdx, startIdx];
-
                 for (let i = from; i <= to; i++) {
                     this.selectLine(lines[i]);
                 }
             }
-        } else {
-            // Regular click (no shift)
+        } else if (!event.shiftKey && !selection.toString()) {
+            // Only clear selection if not dragging to select text
             this.clearSelection();
             this.selectionStart = scriptLine;
         }
 
-        // Update state and format
-        this.stateManager.setCurrentLine(scriptLine);
-        const format = this.lineFormatter.getFormatForLine(scriptLine);
-        this.stateManager.setCurrentFormat(format);
-        this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
+        // Update state and format only if not in the middle of text selection
+        if (!selection.toString() || event.shiftKey) {
+            this.stateManager.setCurrentLine(scriptLine);
+            const format = this.lineFormatter.getFormatForLine(scriptLine);
+            this.stateManager.setCurrentFormat(format);
+            this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
+        }
     }
 
     handleKeydown(event) {
@@ -298,8 +321,11 @@ export class EditorContent extends BaseWidget {
 
         // Store current selection before any operations
         const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
         const range = selection.getRangeAt(0);
         const offset = range.startOffset;
+        const container = range.startContainer;
 
         // Get current content and emit change event
         const content = this.getContent();
@@ -308,16 +334,34 @@ export class EditorContent extends BaseWidget {
         // Trigger content manager update
         this.contentManager.debouncedContentUpdate();
 
-        // Ensure focus is maintained
+        // Only restore cursor if we lost focus
         if (document.activeElement !== currentLine) {
             currentLine.focus();
+
+            // Find the same text node or create a new range at the end
             const newRange = document.createRange();
-            const textNode = currentLine.firstChild || currentLine;
-            const newOffset = Math.min(offset, textNode.length || 0);
-            newRange.setStart(textNode, newOffset);
-            newRange.setEnd(textNode, newOffset);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
+            let targetNode = container;
+            let targetOffset = offset;
+
+            // If original node no longer exists, find an appropriate text node
+            if (!currentLine.contains(container)) {
+                targetNode = currentLine.firstChild || currentLine;
+                targetOffset = Math.min(offset, (targetNode.length || 0));
+            }
+
+            try {
+                newRange.setStart(targetNode, targetOffset);
+                newRange.setEnd(targetNode, targetOffset);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            } catch (e) {
+                console.warn('Failed to restore cursor position:', e);
+                // Fallback: move cursor to end
+                newRange.selectNodeContents(currentLine);
+                newRange.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            }
         }
     }
 
@@ -349,6 +393,11 @@ export class EditorContent extends BaseWidget {
         const range = selection.getRangeAt(0);
         if (!range) return;
 
+        // Don't update state if user is selecting text
+        if (selection.toString()) {
+            return;
+        }
+
         let selectedLine = null;
         const container = range.commonAncestorContainer;
 
@@ -366,6 +415,149 @@ export class EditorContent extends BaseWidget {
         }
     }
 
+    handlePaste(event) {
+        try {
+            // Prevent the default paste behavior
+            event.preventDefault();
+
+            // Get plain text from clipboard
+            const text = event.clipboardData.getData('text/plain');
+            if (!text) return;
+
+            // Get current selection and validate
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return;
+
+            const range = selection.getRangeAt(0);
+
+            // Find the script line and validate
+            const scriptLine = range.startContainer.nodeType === Node.TEXT_NODE ?
+                range.startContainer.parentElement.closest('.script-line') :
+                range.startContainer.closest('.script-line');
+
+            if (!scriptLine) {
+                console.warn('Paste attempted outside of script line');
+                return;
+            }
+
+            // Store current format
+            const currentFormat = this.lineFormatter.getFormatForLine(scriptLine);
+
+            // Clean and sanitize the text
+            const cleanText = this.sanitizePastedText(text);
+
+            // Handle multi-line paste
+            if (cleanText.includes('\n')) {
+                this.handleMultiLinePaste(cleanText, scriptLine, currentFormat);
+                return;
+            }
+
+            // Create a text node with the sanitized text
+            const textNode = document.createTextNode(cleanText);
+
+            // Delete any selected content and insert the clean text
+            range.deleteContents();
+            range.insertNode(textNode);
+
+            // Move cursor to end of inserted text
+            range.setStartAfter(textNode);
+            range.setEndAfter(textNode);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            // Ensure the line format is maintained
+            this.lineFormatter.setLineFormat(scriptLine, currentFormat);
+
+            // Update state and emit changes
+            this.stateManager.setCurrentLine(scriptLine);
+            this.stateManager.setCurrentFormat(currentFormat);
+
+            // Emit change event
+            const content = this.getContent();
+            this.emit(EditorContent.EVENTS.CHANGE, content);
+
+            // Update content
+            this.contentManager.debouncedContentUpdate();
+        } catch (error) {
+            console.error('Error handling paste:', error);
+            this.emit(EditorContent.EVENTS.ERROR, {
+                context: 'paste',
+                error: error.message || 'Failed to paste content'
+            });
+        }
+    }
+
+    sanitizePastedText(text) {
+        return text
+            // Remove any zero-width spaces or other invisible characters
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            // Remove any repeated spaces
+            .replace(/\s+/g, ' ')
+            // Remove leading/trailing whitespace
+            .trim();
+    }
+
+    handleMultiLinePaste(text, currentLine, currentFormat) {
+        try {
+            // Split text into lines and filter out empty lines
+            const lines = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            if (lines.length === 0) return;
+
+            // Handle first line - insert into current line
+            currentLine.textContent = currentLine.textContent || '';
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            const startOffset = range.startOffset;
+
+            // Split current line content and insert first pasted line
+            const beforeText = currentLine.textContent.slice(0, startOffset);
+            const afterText = currentLine.textContent.slice(range.endOffset);
+            currentLine.textContent = beforeText + lines[0] + afterText;
+
+            // Create and insert remaining lines
+            let lastInsertedLine = currentLine;
+            for (let i = 1; i < lines.length; i++) {
+                const newLine = this.lineFormatter.createFormattedLine(currentFormat);
+                newLine.textContent = lines[i];
+
+                // Insert after the last line we created
+                const added = this.pageManager.addLine(newLine, lastInsertedLine.nextSibling);
+                if (added) {
+                    lastInsertedLine = newLine;
+                }
+            }
+
+            // Focus the last line and move cursor to end
+            if (lastInsertedLine) {
+                lastInsertedLine.focus();
+                const newRange = document.createRange();
+                const textNode = lastInsertedLine.firstChild || lastInsertedLine;
+                newRange.setStartAfter(textNode);
+                newRange.setEndAfter(textNode);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            }
+
+            // Update state
+            this.stateManager.setCurrentLine(lastInsertedLine);
+            this.stateManager.setCurrentFormat(currentFormat);
+
+            // Emit change event
+            const content = this.getContent();
+            this.emit(EditorContent.EVENTS.CHANGE, content);
+            this.contentManager.debouncedContentUpdate();
+        } catch (error) {
+            console.error('Error handling multi-line paste:', error);
+            this.emit(EditorContent.EVENTS.ERROR, {
+                context: 'multiLinePaste',
+                error: error.message || 'Failed to paste multiple lines'
+            });
+        }
+    }
+
     removeEventListeners() {
         // Remove document level listener
         document.removeEventListener('selectionchange', this._boundHandlers.selectionChange);
@@ -375,6 +567,7 @@ export class EditorContent extends BaseWidget {
             this.editorArea.removeEventListener('input', this._boundHandlers.input);
             this.editorArea.removeEventListener('import', this._boundHandlers.import);
             this.editorArea.removeEventListener('click', this._boundHandlers.click);
+            this.editorArea.removeEventListener('paste', this._boundHandlers.paste);
         }
     }
 

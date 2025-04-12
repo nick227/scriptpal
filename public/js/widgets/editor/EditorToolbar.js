@@ -1,7 +1,6 @@
 import { BaseWidget } from '../BaseWidget.js';
 import { formatTypes } from './constants.js';
 import { ScriptImportWidget } from '../uploader/ScriptImportWidget.js';
-import { UI_ELEMENTS } from '../../constants.js';
 
 
 export class EditorToolbar extends BaseWidget {
@@ -398,7 +397,6 @@ export class EditorToolbar extends BaseWidget {
     }
 
     handleChapterBreakCreateClick() {
-        console.log('Chapter break button clicked');
         if (this._handlers.chapterBreakCreate) {
             this._handlers.chapterBreakCreate();
         }

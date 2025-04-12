@@ -69,7 +69,6 @@ export class PageManager {
         this.state = new PageManagerState();
         this.virtualScroll = new VirtualScrollManager({ buffer: 2 });
         this.operations = new PageOperations();
-
         // Cache static values
         this.PAGE_HEIGHT = 1056;
         this.PAGE_MARGIN = 30;

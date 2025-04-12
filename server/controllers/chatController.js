@@ -28,10 +28,6 @@ const chatController = {
             const scriptId = parseInt(req.body.scriptId, 10); // Ensure scriptId is a number
             const userId = req.user.id;
 
-            console.log('\n=== Chat Request Started ===');
-            console.log('Received prompt:', prompt);
-            console.log('ScriptId:', scriptId);
-
             if (!prompt) {
                 return res.status(400).json({ error: "Missing prompt" });
             }

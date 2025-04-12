@@ -73,15 +73,62 @@ export class LineFormatter {
         line.contentEditable = 'true';
         line.classList.add('format-' + format);
 
-        // Prevent focus loss on click
+        // Only prevent focus loss when clicking non-text areas
         line.addEventListener('mousedown', (e) => {
-            if (document.activeElement === line) {
+            // Allow natural selection if clicking text content
+            if (e.target.nodeType === Node.TEXT_NODE ||
+                (e.target === line && line.textContent.length > 0)) {
+                return;
+            }
+
+            // Prevent focus loss only when clicking empty areas
+            if (document.activeElement === line && !line.textContent.trim()) {
                 e.preventDefault();
             }
         });
 
-        // Highlight contents on double click
-        line.addEventListener('dblclick', (e) => this.highlightContents(line));
+        // Improve double-click behavior
+        line.addEventListener('dblclick', (e) => {
+            // If user double-clicked text, let browser handle word selection
+            if (e.target.nodeType === Node.TEXT_NODE ||
+                window.getSelection().toString()) {
+                return;
+            }
+
+            // Only select all if double-clicking empty space
+            this.highlightContents(line);
+        });
+
+        // Handle cursor positioning
+        line.addEventListener('click', (e) => {
+            // Don't interfere with existing selection
+            const selection = window.getSelection();
+            if (selection.toString()) {
+                return;
+            }
+
+            // Only handle clicks directly on the line element
+            if (e.target !== line) {
+                return;
+            }
+
+            const rect = line.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+
+            // Find nearest text position
+            const range = document.createRange();
+            const textNode = line.firstChild;
+            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+                let position = Math.round((clickX / rect.width) * textNode.length);
+                position = Math.max(0, Math.min(position, textNode.length));
+
+                range.setStart(textNode, position);
+                range.setEnd(textNode, position);
+
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        });
 
         // Attach keydown handler if available
         if (this.keydownHandler) {
@@ -96,7 +143,12 @@ export class LineFormatter {
     }
 
     highlightContents(line) {
+        // Don't override existing selection
         const selection = window.getSelection();
+        if (selection.toString()) {
+            return;
+        }
+
         const range = document.createRange();
         range.selectNodeContents(line);
         selection.removeAllRanges();

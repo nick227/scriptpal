@@ -1,6 +1,7 @@
 import { inspirationTemplate } from './templates/inspirationPrompt.js';
 import { scriptAnalysisTemplate } from './templates/scriptAnalysisPrompt.js';
 import { scriptQuestionsTemplate } from './templates/scriptQuestionsPrompt.js';
+import { writeScriptTemplate } from './templates/writeScriptTemplate.js';
 import { INTENT_TYPES } from '../constants.js';
 
 /**
@@ -20,6 +21,7 @@ class PromptManager {
         this.registerTemplate(INTENT_TYPES.GET_INSPIRATION, inspirationTemplate);
         this.registerTemplate(INTENT_TYPES.ANALYZE_SCRIPT, scriptAnalysisTemplate);
         this.registerTemplate(INTENT_TYPES.SCRIPT_QUESTIONS, scriptQuestionsTemplate);
+        this.registerTemplate(INTENT_TYPES.WRITE_SCRIPT, writeScriptTemplate);
     }
 
     /**

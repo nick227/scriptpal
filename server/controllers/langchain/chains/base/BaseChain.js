@@ -1,5 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { CHAIN_CONFIG, ERROR_TYPES, INTENT_TYPES, COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
+import db from "../../../../db/index.js";
 
 // Internal questions generator class
 class QuestionGenerator {
@@ -73,6 +74,22 @@ export class BaseChain {
         this.questionGenerator = new QuestionGenerator(this.model);
     }
 
+    // Helper to get chat history
+    async getChatHistory(context) {
+        if (!context.userId) return [];
+
+        try {
+            const history = await db.getChatHistory(context.userId);
+            return history.map(msg => ({
+                role: msg.type === 'user' ? 'user' : 'assistant',
+                content: msg.content
+            })).slice(-10); // Get last 10 messages
+        } catch (error) {
+            console.error('Error fetching chat history:', error);
+            return [];
+        }
+    }
+
     // Helper to add common instructions to prompts
     addCommonInstructions(messages) {
         // If messages is a string, convert to system message
@@ -125,18 +142,47 @@ export class BaseChain {
 
     async execute(messages, context = {}, shouldGenerateQuestions = true) {
         try {
+            // Get chat history
+            const history = await this.getChatHistory(context);
+
+            // Combine history with current messages
+            const fullMessages = [
+                // System message always first
+                messages.find(m => m.role === 'system'),
+                // Then chat history
+                ...history,
+                // Then current user message
+                ...messages.filter(m => m.role !== 'system')
+            ].filter(Boolean); // Remove any undefined entries
+
             // Log the final OpenAI API Request Parameters
             console.log('\n=== OpenAI API Request Parameters ===');
             console.log('Model:', this.model.modelName);
             console.log('Temperature:', this.model.temperature);
             console.log('Max Tokens:', this.model.maxTokens);
-            console.log('Messages:', JSON.stringify(messages, null, 2));
+            console.log('Messages:', JSON.stringify(fullMessages, null, 2));
             console.log('Additional Config:', JSON.stringify(this.model.config, null, 2));
             console.log('=====================================\n');
 
             // Get model response
-            const response = await this.model.invoke(messages);
+            const response = await this.model.invoke(fullMessages);
             const content = response.content;
+
+            // Save the interaction to history if we have a userId
+            if (context.userId) {
+                // Save user message
+                await db.createChatHistory(
+                    context.userId,
+                    fullMessages[fullMessages.length - 1].content,
+                    'user'
+                );
+                // Save assistant response
+                await db.createChatHistory(
+                    context.userId,
+                    content,
+                    'assistant'
+                );
+            }
 
             // Skip questions for default chain or if not requested
             if (!shouldGenerateQuestions || this.config.type === INTENT_TYPES.EVERYTHING_ELSE) {

@@ -27,6 +27,23 @@ export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
         ]),
 
         /**
+         * SCRIPT WRITER
+         * Purpose: Writes script content for the user
+         * Input: User's request for script content
+         * Output: Plain text script content
+         * Variables:
+         * - scriptContent: Current script content
+         * - scriptTitle: Title of the current script
+         * - input: User's request for script content
+         */
+        [INTENT_TYPES.WRITE_SCRIPT]: ChatPromptTemplate.fromMessages([
+            SystemMessagePromptTemplate.fromTemplate(
+                basePrompt + "\n\nWrite script content for the user. Keep responses concise and direct.\n\nScript title: {scriptTitle}\n\nScript content:\n{scriptContent}" + formatGuidelines
+            ),
+            HumanMessagePromptTemplate.fromTemplate("{input}")
+        ]),
+
+        /**
          * CREATIVE INSPIRATION GENERATOR
          * Purpose: Generates creative ideas for script development
          * Input: User's request for inspiration

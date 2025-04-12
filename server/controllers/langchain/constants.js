@@ -23,6 +23,7 @@ export const INTENT_TYPES = {
     // Creative Support
     GET_INSPIRATION: 'GET_INSPIRATION',
     GET_QUESTIONS: 'GET_QUESTIONS',
+    WRITE_SCRIPT: 'WRITE_SCRIPT',
 
     // Script Operations
     EDIT_SCRIPT: 'EDIT_SCRIPT',
@@ -42,7 +43,8 @@ export const INTENT_DESCRIPTIONS = {
     EDIT_SCRIPT: 'Make direct changes to the script content or structure',
     SAVE_ELEMENT: 'Save or update script components and maintain script consistency',
     MULTI_INTENT: 'Handle multiple script-related operations in a single request',
-    EVERYTHING_ELSE: 'Handle general script-related queries or conversations'
+    EVERYTHING_ELSE: 'Handle general script-related queries or conversations',
+    WRITE_SCRIPT: 'Write script content for the user'
 };
 
 //=============================================================================

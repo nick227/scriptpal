@@ -44,9 +44,6 @@ export class ChatWidget extends BaseWidget {
         // Set up event listeners
         this.setupEventListeners();
 
-        // Load initial welcome buttons
-        // TODO: Remove this once we have a proper welcome message
-        //this.manager.loadWelcomeButtons();
     }
 
     setupEventListeners() {

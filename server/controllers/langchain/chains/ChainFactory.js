@@ -8,6 +8,7 @@ import { BeatListChain } from './creative/beatLister.js';
 import { InspirationChain } from './creative/inspirationGen.js';
 import { ScriptQuestionsChain } from './creative/scriptQuestions.js';
 import { DefaultChain } from './base/DefaultChain.js';
+import { WriteScriptChain } from './creative/WriteScript.js';
 
 class ChainFactory {
     constructor() {
@@ -18,6 +19,7 @@ class ChainFactory {
     registerDefaultChains() {
         // Register core chains
         this.registerChain(INTENT_TYPES.SCRIPT_QUESTIONS, new ScriptQuestionsChain());
+        this.registerChain(INTENT_TYPES.WRITE_SCRIPT, new WriteScriptChain());
         this.registerChain(INTENT_TYPES.GET_INSPIRATION, new InspirationChain());
         this.registerChain(INTENT_TYPES.ANALYZE_SCRIPT, new ScriptAnalyzerChain());
 
