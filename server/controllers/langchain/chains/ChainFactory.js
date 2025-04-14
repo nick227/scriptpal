@@ -1,5 +1,5 @@
-import { INTENT_TYPES, ERROR_TYPES } from '../constants.js';
-import { BaseChain } from './base/BaseChain.js';
+import { INTENT_TYPES } from '../constants.js';
+import { chainRegistry } from './registry.js';
 
 // Import all chains
 import { ScriptAnalyzerChain } from './analysis/scriptAnalyzer.js';
@@ -10,50 +10,57 @@ import { ScriptQuestionsChain } from './creative/scriptQuestions.js';
 import { DefaultChain } from './base/DefaultChain.js';
 import { WriteScriptChain } from './creative/WriteScript.js';
 
-class ChainFactory {
-    constructor() {
-        this.chains = new Map();
-        this.registerDefaultChains();
-    }
+// Register all chains with their configurations
+try {
+    console.log('Starting chain registration...');
 
-    registerDefaultChains() {
-        // Register core chains
-        this.registerChain(INTENT_TYPES.SCRIPT_QUESTIONS, new ScriptQuestionsChain());
-        this.registerChain(INTENT_TYPES.WRITE_SCRIPT, new WriteScriptChain());
-        this.registerChain(INTENT_TYPES.GET_INSPIRATION, new InspirationChain());
-        this.registerChain(INTENT_TYPES.ANALYZE_SCRIPT, new ScriptAnalyzerChain());
+    // Core writing chain
+    chainRegistry.register(INTENT_TYPES.WRITE_SCRIPT, WriteScriptChain, {
+        requiresAuth: true,
+        shouldGenerateQuestions: false, // Custom buttons handled in chain
+        modelConfig: {
+            temperature: 0.7,
+            response_format: { type: "text" }
+        },
+        condition: (context) => !!context.scriptId // Only run if we have a scriptId
+    });
 
-        // Always register the default chain last
-        this.registerChain(INTENT_TYPES.EVERYTHING_ELSE, new DefaultChain());
-    }
+    // Analysis chains
+    chainRegistry.register(INTENT_TYPES.SCRIPT_QUESTIONS, ScriptQuestionsChain, {
+        requiresAuth: true,
+        modelConfig: { temperature: 0.3 }
+    });
 
-    registerChain(intentType, chain) {
-        this.chains.set(intentType, chain);
-    }
-
-    getChain(intentType) {
-        return this.chains.get(intentType);
-    }
-
-    getRegisteredIntents() {
-        return Array.from(this.chains.keys());
-    }
-
-    /**
-     * Execute a chain with context
-     * @param {BaseChain} chain - Chain instance to execute
-     * @param {Object} context - Context object containing script info and content
-     * @param {string} prompt - User prompt
-     * @returns {Promise<Object>} Chain response
-     */
-    async executeChain(chain, context, prompt) {
-        if (!chain || typeof chain.run !== 'function') {
-            throw new Error('Invalid chain provided');
+    chainRegistry.register(INTENT_TYPES.ANALYZE_SCRIPT, ScriptAnalyzerChain, {
+        requiresAuth: true,
+        shouldGenerateQuestions: false,
+        modelConfig: {
+            temperature: 0.2,
+            response_format: { type: "text" }
         }
+    });
 
-        return await chain.run(context, prompt);
-    }
+    // Creative chains
+    chainRegistry.register(INTENT_TYPES.GET_INSPIRATION, InspirationChain, {
+        modelConfig: { temperature: 0.8 }
+    });
+
+    // Default chain for unhandled intents - Must be registered last
+    chainRegistry.register(INTENT_TYPES.EVERYTHING_ELSE, DefaultChain, {
+        shouldGenerateQuestions: true, // Enable questions for better UX
+        modelConfig: { temperature: 0.5 }
+    });
+
+    // Complete registration and validate
+    chainRegistry.completeRegistration();
+
+    console.log('Chain registration completed successfully');
+    console.log('Registry status:', chainRegistry.getStatus());
+
+} catch (error) {
+    console.error('Failed to register chains:', error);
+    throw new Error(`Chain registration failed: ${error.message}`);
 }
 
-// Export singleton instance
-export const chainFactory = new ChainFactory();
+// Export the registry instance
+export { chainRegistry };

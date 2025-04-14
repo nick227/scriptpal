@@ -22,64 +22,59 @@ export class WriteScriptChain extends BaseChain {
                 throw new Error(ERROR_TYPES.INVALID_INPUT);
             }
 
-            // Extract script details from context
-            const { scriptId, scriptContent, scriptTitle } = context;
+            // Extract metadata
+            const { scriptId, scriptTitle } = ChainHelper.extractContext(context);
 
-            // Format the system prompt for script writing
-            const systemPrompt = await promptManager.formatPrompt(INTENT_TYPES.WRITE_SCRIPT, {
-                scriptTitle: scriptTitle || 'Untitled',
-                currentContent: scriptContent || ''
-            });
+            // Create messages array
+            const messages = [{
+                role: 'system',
+                content: promptManager.getPrompt('WRITE_SCRIPT')
+            }, {
+                role: 'user',
+                content: prompt
+            }];
 
-            // Prepare messages for the chain
-            const messages = [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: prompt }
-            ];
-
-            // Call the language model using execute with shouldGenerateQuestions=false
+            // Call the language model using execute with context
             const response = await this.execute(messages, {
                 scriptTitle: scriptTitle || 'Untitled',
                 metadata: {
                     scriptId,
                     scriptTitle,
                     timestamp: new Date().toISOString()
+                },
+                context: {
+                    userId: context.userId,
+                    scriptId: scriptId
                 }
-            }, false);
+            });
+
+            // Get the actual content from the response
+            const responseContent = typeof response === 'object' && response.response ? response.response : response;
 
             // Process and format the response
-            const formattedResponse = await this.formatResponse(response);
+            const formattedResponse = await this.formatResponse(responseContent);
 
-            // Build the final response object
-            const finalResponse = {
-                type: 'script_update',
-                content: formattedResponse.content,
-                metadata: {
-                    scriptId,
-                    scriptTitle,
-                    updatedAt: new Date().toISOString()
-                },
-                // Add custom questions for script writing
+            // Return the final response with custom questions
+            return {
+                response: formattedResponse,
                 questions: [{
-                    text: "Apply to the script",
+                    text: "Continue writing from here",
                     intent: INTENT_TYPES.WRITE_SCRIPT,
-                    description: "Applying the changes to the script"
+                    description: "Continue the current writing flow"
                 }, {
-                    text: "Try again",
-                    intent: INTENT_TYPES.WRITE_SCRIPT,
-                    description: "Try again with the same prompt"
+                    text: "Analyze what I've written",
+                    intent: INTENT_TYPES.ANALYZE_SCRIPT,
+                    description: "Get feedback on the current content"
                 }, {
-                    text: "Keep going",
-                    intent: INTENT_TYPES.WRITE_SCRIPT,
-                    description: "Keep going with the same prompt"
+                    text: "Save this version",
+                    intent: INTENT_TYPES.SAVE_SCRIPT,
+                    description: "Save the current version"
                 }]
             };
 
-            return finalResponse;
-
         } catch (error) {
-            console.error('WriteScript Chain Error:', error);
-            throw new Error(ERROR_TYPES.CHAIN_EXECUTION_ERROR);
+            console.error('WriteScript chain error:', error);
+            throw error;
         }
     }
 

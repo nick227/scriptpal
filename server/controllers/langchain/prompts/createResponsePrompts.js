@@ -71,8 +71,8 @@ export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
         [INTENT_TYPES.EDIT_SCRIPT]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
                 basePrompt + "\n\nParse the edit request and return a structured command. You MUST return a JSON object with exactly these fields:\n" +
-                "- command: The type of edit (REPLACE_CHARACTER_NAME, REPLACE_TEXT, MODIFY_SCENE_HEADING, MODIFY_DIALOGUE)\n" +
-                "- target: What to edit (character name, specific text, etc.)\n" +
+                "- command: The type of event (EDIT, DELETE, ADD)\n" +
+                "- lineNumber: The line number to insert after, delete or edit\n" +
                 "- value: The new value to apply\n\n" +
                 "Example format:\n" + JSON.stringify(OUTPUT_FORMATS.EDIT_SCRIPT.example, null, 2) +
                 "\n\nScript content:\n{scriptContent}" + formatGuidelines

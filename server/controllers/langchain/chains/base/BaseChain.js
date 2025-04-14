@@ -1,92 +1,140 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { CHAIN_CONFIG, ERROR_TYPES, INTENT_TYPES, COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 import db from "../../../../db/index.js";
-
-// Internal questions generator class
-class QuestionGenerator {
-    constructor(model) {
-        this.model = model;
-    }
-
-    async generateQuestions(context, prompt) {
-        try {
-            const messages = [{
-                role: 'system',
-                content: `
-Generate 4 relevant follow-up questions or prompts that help the user explore their script or drive the story forward.
-
-Prompts should be a maximum of 15 words.
-
-The wording should be simple and easily readable.
-
-Avoid using the title of the script in the prompts.
-
-Phrase them as prompts for the user to click, when clicked the text will be sent to the LLM.
-
-Format each question as a JSON object with:
-- text: The actual question or prompt
-- intent: The type of operation (${Object.values(INTENT_TYPES).join(', ')})
-- description: A brief explanation of what this question will help with
-
-Return an array of exactly 4 prompts.
-`
-            }, {
-                role: 'user',
-                content: `Current script title: ${context.scriptTitle || 'Untitled'}
-Last operation: ${prompt}
-Generate relevant follow-up questions.`
-            }];
-
-            const response = await this.model.invoke(messages);
-            try {
-                return JSON.parse(response.content);
-            } catch {
-                // Return default questions if parsing fails
-                return [{
-                    text: "Would you like to analyze your script?",
-                    intent: INTENT_TYPES.ANALYZE_SCRIPT,
-                    description: "Get a comprehensive analysis of your script"
-                }];
-            }
-        } catch (error) {
-            console.error('Questions generation error:', error);
-            return [];
-        }
-    }
-}
+import { OpenAI } from 'openai';
+import { ChainHelper } from '../helpers/ChainHelper.js';
+import { QuestionGenerator } from './QuestionGenerator.js';
 
 export class BaseChain {
-    constructor(config = {}) {
-        // Initialize the model with configuration
-        this.model = new ChatOpenAI({
-            modelName: config.model || CHAIN_CONFIG.MODEL,
-            temperature: config.temperature || CHAIN_CONFIG.TEMPERATURE,
-            maxTokens: config.maxTokens || CHAIN_CONFIG.MAX_TOKENS,
-            ...config.modelConfig
-        });
+    constructor(config) {
+        if (!config || !config.type) {
+            throw new Error('Chain configuration must include type');
+        }
 
+        const { type, temperature = 0.7, modelConfig = {} } = config;
+        this.type = type;
+        this.temperature = temperature;
+
+        // Merge configurations once
         this.config = {
             ...CHAIN_CONFIG,
-            ...config
+            ...modelConfig,
+            temperature: temperature
         };
 
+        try {
+            this.openai = new OpenAI();
+        } catch (error) {
+            console.error('Failed to initialize OpenAI:', error);
+            throw new Error('OpenAI initialization failed');
+        }
+
         // Initialize question generator
-        this.questionGenerator = new QuestionGenerator(this.model);
+        this.questionGenerator = new QuestionGenerator(this.openai);
     }
 
-    // Helper to get chat history
-    async getChatHistory(context) {
-        if (!context.userId) return [];
-
+    /**
+     * Validate a single message object
+     * @private
+     */
+    validateMessage(msg, source = 'unknown') {
         try {
-            const history = await db.getChatHistory(context.userId);
-            return history.map(msg => ({
-                role: msg.type === 'user' ? 'user' : 'assistant',
-                content: msg.content
-            })).slice(-10); // Get last 10 messages
+            // Basic structure check
+            if (!msg || typeof msg !== 'object') {
+                console.warn(`Invalid message format from ${source}:`, msg);
+                return null;
+            }
+
+            // Role validation
+            const validRoles = ['user', 'assistant', 'system'];
+            if (!validRoles.includes(msg.role)) {
+                console.warn(`Invalid role "${msg.role}" from ${source}, defaulting to user`);
+                msg.role = 'user';
+            }
+
+            // Content validation
+            if (typeof msg.content !== 'string') {
+                if (msg.content === null || msg.content === undefined) {
+                    console.warn(`Empty content from ${source}, skipping message`);
+                    return null;
+                }
+                console.warn(`Non-string content from ${source}, converting to string`);
+                msg.content = String(msg.content);
+            }
+
+            // Trim content and check if empty
+            msg.content = msg.content.trim();
+            if (msg.content.length === 0) {
+                console.warn(`Empty content after trimming from ${source}, skipping message`);
+                return null;
+            }
+
+            return msg;
         } catch (error) {
-            console.error('Error fetching chat history:', error);
-            return [];
+            console.error(`Error validating message from ${source}:`, error);
+            return null;
+        }
+    }
+
+    async getChatHistory(context) {
+        try {
+            if (!context || !context.userId) {
+                console.log('No userId in context, skipping history');
+                return [];
+            }
+
+            console.log('Fetching chat history for user:', context.userId);
+
+            try {
+                // Get last 10 messages from chat history
+                const [results] = await db.query(
+                    'SELECT type as role, content FROM chat_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10', [context.userId]
+                );
+
+                // MySQL2 always returns an array of results
+                const rows = Array.isArray(results) ? results : [];
+
+                console.log('Raw chat history result:', {
+                    hasRows: rows.length > 0,
+                    rowCount: rows.length
+                });
+
+                // Validate each message from history
+                const validMessages = rows.reverse()
+                    .map(row => {
+                        if (!row || typeof row !== 'object') return null;
+
+                        // Handle both role and type fields
+                        const role = row.role || row.type || 'user';
+                        const content = typeof row.content === 'string' ? row.content : String(row.content || '');
+
+                        return this.validateMessage({
+                            role: role,
+                            content: content
+                        }, 'chat_history');
+                    })
+                    .filter(Boolean); // Remove null values
+
+                console.log('Chat history retrieved:', {
+                    requestedCount: 10,
+                    retrievedCount: rows.length,
+                    validCount: validMessages.length,
+                    invalidCount: rows.length - validMessages.length,
+                    firstMessage: validMessages[0] ? {
+                        role: validMessages[0].role,
+                        contentLength: validMessages[0].content.length
+                    } : null
+                });
+
+                return validMessages;
+
+            } catch (dbError) {
+                console.error('Database error fetching chat history:', dbError);
+                return [];
+            }
+        } catch (error) {
+            console.error('Error in getChatHistory:', error);
+            return []; // Return empty array on error
         }
     }
 
@@ -140,74 +188,261 @@ export class BaseChain {
         }
     }
 
-    async execute(messages, context = {}, shouldGenerateQuestions = true) {
+    /**
+     * Helper to extract metadata from various sources
+     * @private
+     */
+    extractMetadata(source, fields) {
+        const result = {};
+        for (const field of fields) {
+            result[field] = source[field] ||
+                (source.context && source.context[field]) ||
+                (source.metadata && source.metadata[field]);
+        }
+        return result;
+    }
+
+    /**
+     * Create standardized response object
+     * @private
+     */
+    createResponse(content, context, questions = null) {
+        const response = {
+            response: content,
+            type: this.type,
+            metadata: {
+                ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
+                timestamp: new Date().toISOString()
+            }
+        };
+
+        if (questions !== null) {
+            response.questions = Array.isArray(questions) ? questions : this.getDefaultQuestions();
+        }
+
+        return response;
+    }
+
+    async run(context, prompt) {
         try {
-            // Get chat history
-            const history = await this.getChatHistory(context);
+            console.log('BaseChain.run starting with context:',
+                this.extractMetadata(context, ['scriptId', 'scriptTitle', 'intent']));
 
-            // Combine history with current messages
-            const fullMessages = [
-                // System message always first
-                messages.find(m => m.role === 'system'),
-                // Then chat history
-                ...history,
-                // Then current user message
-                ...messages.filter(m => m.role !== 'system')
-            ].filter(Boolean); // Remove any undefined entries
+            // Build messages using the chain's specific logic
+            const messages = await this.buildMessages(context, prompt);
 
-            // Log the final OpenAI API Request Parameters
-            console.log('\n=== OpenAI API Request Parameters ===');
-            console.log('Model:', this.model.modelName);
-            console.log('Temperature:', this.model.temperature);
-            console.log('Max Tokens:', this.model.maxTokens);
-            console.log('Messages:', JSON.stringify(fullMessages, null, 2));
-            console.log('Additional Config:', JSON.stringify(this.model.config, null, 2));
-            console.log('=====================================\n');
+            // Get chain configuration
+            const chainConfig = context.chainConfig || {};
+            const shouldGenerateQuestions = chainConfig.shouldGenerateQuestions !== undefined ?
+                chainConfig.shouldGenerateQuestions : true;
 
-            // Get model response
-            const response = await this.model.invoke(fullMessages);
-            const content = response.content;
-
-            // Save the interaction to history if we have a userId
-            if (context.userId) {
-                // Save user message
-                await db.createChatHistory(
-                    context.userId,
-                    fullMessages[fullMessages.length - 1].content,
-                    'user'
-                );
-                // Save assistant response
-                await db.createChatHistory(
-                    context.userId,
-                    content,
-                    'assistant'
-                );
-            }
-
-            // Skip questions for default chain or if not requested
-            if (!shouldGenerateQuestions || this.config.type === INTENT_TYPES.EVERYTHING_ELSE) {
-                return content;
-            }
-
-            // Generate follow-up questions
-            const questions = await this.questionGenerator.generateQuestions(context, messages[messages.length - 1].content);
-
-            // Return response and questions at the top level
-            return {
-                response: content,
-                type: this.config.type || 'unknown_response',
-                questions: questions || [],
-                metadata: context.metadata || {}
+            // Ensure script metadata is preserved without duplication
+            const enrichedMetadata = {
+                ...context,
+                ...this.extractMetadata(context, ['scriptId', 'scriptTitle', 'userId']),
+                chainConfig,
+                modelConfig: this.config
             };
 
+            console.log('Executing with enriched metadata:',
+                this.extractMetadata(enrichedMetadata, ['scriptId', 'scriptTitle', 'intent']));
+
+            // Execute with full context and proper configuration
+            return this.execute(messages, enrichedMetadata, shouldGenerateQuestions);
         } catch (error) {
-            console.error('Chain execution error:', error);
-            throw new Error(ERROR_TYPES.CHAIN_EXECUTION_ERROR + ': ' + error.message);
+            console.error('Error in BaseChain.run:', error);
+            throw error;
         }
     }
 
-    // Abstract method that chains must implement
-    async run(input, context = {}) {
-        throw new Error('run() must be implemented by chain class');
+    async execute(messages, metadata = {}, shouldGenerateQuestions = true) {
+        try {
+            console.log('BaseChain.execute starting...');
+            const processedMessages = this.addCommonInstructions(messages);
+            console.log('Messages processed with common instructions');
+
+            // Extract context without duplication
+            const context = {
+                ...metadata,
+                ...this.extractMetadata(metadata, ['scriptId', 'scriptTitle', 'userId', 'intent'])
+            };
+
+            // Store original prompt for question generation
+            const lastMessage = messages[messages.length - 1];
+            const originalPrompt = lastMessage ? lastMessage.content : '';
+
+            console.log('Context prepared:', {
+                ...this.extractMetadata(context, ['scriptId', 'scriptTitle', 'intent']),
+                hasMetadata: !!metadata.metadata,
+                hasPrompt: !!originalPrompt
+            });
+
+            // Get chat history and combine with current messages
+            console.log('Building message chain...');
+            const allMessages = await Promise.race([
+                this.buildMessageChain(processedMessages, context),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Message chain build timeout')), 5000))
+            ]).catch(error => {
+                console.warn('Message chain build failed or timed out:', error);
+                return processedMessages;
+            });
+            console.log('Message chain built, preparing API call...', { messageCount: allMessages.length });
+
+            // Create chat completion with proper config handling
+            const chainConfig = context.chainConfig || {};
+            const modelConfig = chainConfig.modelConfig || {};
+
+            // Add timeout promise for OpenAI call
+            console.log('Making API call to OpenAI...');
+            const completionPromise = this.openai.chat.completions.create({
+                model: modelConfig.model || this.config.model || 'gpt-4-turbo-preview',
+                messages: allMessages,
+                temperature: this.temperature,
+                max_tokens: 1000,
+                ...this.modelConfig,
+                ...modelConfig
+            });
+
+            const completion = await Promise.race([
+                completionPromise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('OpenAI API timeout')), 30000))
+            ]).catch(error => {
+                console.error('OpenAI API error or timeout:', error);
+                throw new Error(`API call failed: ${error.message}`);
+            });
+
+            if (!completion) {
+                throw new Error('No completion received from OpenAI');
+            }
+
+            console.log('API call completed successfully');
+            const responseContent = completion.choices[0].message.content;
+
+            // Log this interaction to chat history if we have user context and history isn't disabled
+            if (context.userId && !context.disableHistory) {
+                console.log('Logging to chat history...');
+                await Promise.race([
+                    this.logToHistory(context.userId, allMessages[allMessages.length - 1], responseContent),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('History logging timeout')), 5000))
+                ]).catch(error => {
+                    console.warn('History logging failed or timed out:', error);
+                });
+            }
+
+            // If questions are disabled, return response directly
+            if (!shouldGenerateQuestions || chainConfig.shouldGenerateQuestions === false) {
+                return this.createResponse(responseContent, context);
+            }
+
+            // Generate questions for all intents when enabled
+            try {
+                console.log('Generating follow-up questions...');
+                const questions = await this.questionGenerator.generateQuestions(
+                    context,
+                    originalPrompt, // Pass the original prompt
+                    responseContent
+                );
+                console.log('Questions generated successfully');
+                return this.createResponse(responseContent, context, questions);
+            } catch (error) {
+                console.warn('Question generation failed, using defaults:', error);
+                return this.createResponse(responseContent, context, this.getDefaultQuestions());
+            }
+
+        } catch (error) {
+            console.error('Chain execution error:', error);
+            throw error;
+        }
+    }
+
+    async buildMessageChain(currentMessages, context) {
+        try {
+            // Ensure currentMessages is an array
+            if (!Array.isArray(currentMessages)) {
+                currentMessages = [currentMessages];
+            }
+
+            // For ANALYZE_SCRIPT, only use current messages
+            if (context.intent === 'ANALYZE_SCRIPT') {
+                return currentMessages.map(msg => this.validateMessage(msg, 'current_messages')).filter(Boolean);
+            }
+
+            // Get history if we have context and it's not disabled
+            const history = (context.userId && !context.disableHistory) ?
+                await this.getChatHistory(context) : [];
+
+            console.log('Retrieved chat history:', {
+                historyLength: history.length,
+                firstMessage: history[0] ? { role: history[0].role, hasContent: !!history[0].content } : null
+            });
+
+            // Validate all messages
+            const validHistory = history.map(msg => this.validateMessage(msg, 'history')).filter(Boolean);
+            const validCurrentMessages = currentMessages.map(msg => this.validateMessage(msg, 'current')).filter(Boolean);
+
+            // Combine in correct order: system -> history -> current (excluding system)
+            const systemMessages = validCurrentMessages.filter(m => m.role === 'system');
+            const nonSystemMessages = validCurrentMessages.filter(m => m.role !== 'system');
+
+            const finalMessages = [
+                ...systemMessages,
+                ...validHistory,
+                ...nonSystemMessages
+            ];
+
+            console.log('Final message chain built:', {
+                systemCount: systemMessages.length,
+                historyCount: validHistory.length,
+                nonSystemCount: nonSystemMessages.length,
+                totalCount: finalMessages.length
+            });
+
+            return finalMessages;
+        } catch (error) {
+            console.error('Error building message chain:', error);
+            // Fallback to just current messages if history fails
+            return currentMessages.map(msg => this.validateMessage(msg, 'fallback')).filter(Boolean);
+        }
+    }
+
+    async logToHistory(userId, lastUserMessage, assistantResponse) {
+        try {
+            // Using the correct column names from schema: type and content
+            await db.query(
+                'INSERT INTO chat_history (user_id, type, content) VALUES (?, ?, ?), (?, ?, ?)', [
+                    userId,
+                    'user',
+                    lastUserMessage.content,
+                    userId,
+                    'assistant',
+                    assistantResponse
+                ]
+            );
+        } catch (error) {
+            console.error('Error logging to chat history:', error);
+            // Non-blocking - continue even if logging fails
+        }
+    }
+
+    /**
+     * Build messages for the chain - Must be implemented by child classes
+     * @returns {Promise<Array>} Array of messages with system message first
+     */
+    async buildMessages(context, prompt) {
+        throw new Error('buildMessages() must be implemented by chain class');
+    }
+
+    /**
+     * Format the response - Can be overridden by child classes
+     */
+    async formatResponse(response) {
+        return response;
+    }
+
+    /**
+     * Get default questions if generation fails
+     */
+    getDefaultQuestions() {
+        return ChainHelper.getDefaultQuestions();
     }
 }

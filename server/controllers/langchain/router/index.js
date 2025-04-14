@@ -1,15 +1,21 @@
 import { INTENT_TYPES, ERROR_TYPES } from '../constants.js';
-import { chainFactory } from '../chains/ChainFactory.js';
 import { classifyIntent } from '../chains/system/classifyIntent.js';
-import { splitIntent } from '../chains/system/intentSplitter.js';
+import { chainRegistry } from '../chains/registry.js';
 import db from '../../../db/index.js';
+// Import ChainFactory to ensure it's initialized
+import '../chains/ChainFactory.js';
 
 /**
  * Handles routing of intents to appropriate chains
  */
-class IntentRouter {
+export class IntentRouter {
     constructor() {
-        this.chainFactory = chainFactory;
+        this.chainRegistry = chainRegistry;
+        // Verify chain initialization
+        if (!this.chainRegistry.isInitialized()) {
+            console.error('Chain registry not initialized during router construction');
+            throw new Error('Chain registry not properly initialized');
+        }
     }
 
     /**
@@ -54,32 +60,31 @@ class IntentRouter {
 
     /**
      * Route the request to the appropriate chain
-     * @param {Object} intentResult - Result from intent classification
+     * @param {Object} classification - Intent classification from the controller
      * @param {Object} context - Context object containing script info and content
      * @param {string} prompt - Original user prompt
      * @returns {Promise<Object>} Chain response
      */
-    async route(intentResult, context, prompt) {
+    async route(classification, context, prompt) {
         try {
-            if (!intentResult || !intentResult.intent) {
-                throw new Error(ERROR_TYPES.INVALID_INTENT);
+            console.log('=== Routing Request ===');
+
+            // Use the classification passed from the controller
+            const { intent } = classification;
+            console.log('Using intent:', intent);
+
+            // Add classification to context
+            context.classification = classification;
+
+            // Check if we can handle this intent
+            if (!await chainRegistry.canHandle(intent, context)) {
+                console.log(`Cannot handle intent: ${intent}, falling back to default`);
+                return await chainRegistry.execute(INTENT_TYPES.EVERYTHING_ELSE, context, prompt);
             }
 
-            if (!context || !context.scriptId) {
-                throw new Error(ERROR_TYPES.MISSING_REQUIRED + ': Script context is required');
-            }
-
-            console.log('\n=========================================');
-            console.log('Requested intent:', intentResult.intent);
-
-            // Get the appropriate chain
-            const chain = this.chainFactory.getChain(intentResult.intent);
-            if (!chain) {
-                throw new Error(ERROR_TYPES.ROUTING_ERROR + `: No chain found for intent ${intentResult.intent}`);
-            }
-
-            // Execute the chain with context
-            return await this.chainFactory.executeChain(chain, context, prompt);
+            // Execute the appropriate chain
+            console.log(`Executing chain for intent: ${intent}`);
+            return await chainRegistry.execute(intent, context, prompt);
 
         } catch (error) {
             console.error('Routing error:', error);
@@ -102,7 +107,7 @@ class IntentRouter {
                 const classification = await classifyIntent(intent.prompt);
 
                 // Route and execute
-                const result = await chainFactory.executeChain(
+                const result = await chainRegistry.execute(
                     classification.intent,
                     scriptContext || intent.prompt, {
                         prompt: intent.prompt,

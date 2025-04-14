@@ -3,7 +3,7 @@ import { promptManager } from '../../prompts/index.js';
 import { ERROR_TYPES } from '../../constants.js';
 import { ChainHelper } from '../helpers/ChainHelper.js';
 
-export class ScriptAnalyzerChain extends BaseChain {
+export class NarrativeAnalyzerChain extends BaseChain {
     constructor(config = {}) {
         super({
             ...config,
@@ -36,7 +36,7 @@ export class ScriptAnalyzerChain extends BaseChain {
     async saveAnalysisElements(scriptId, analysis) {
         return ChainHelper.saveElements(scriptId, [analysis], {
             type: 'analysis',
-            getSubtype: () => 'comprehensive',
+            getSubtype: () => 'narrative',
             processElement: (analysis) => ({
                 narrative: analysis.narrative_analysis,
                 characters: analysis.character_analysis,

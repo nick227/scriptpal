@@ -1,5 +1,5 @@
 import db from '../../../../db/index.js';
-import { ERROR_TYPES } from '../../constants.js';
+import { ERROR_TYPES, INTENT_TYPES } from '../../constants.js';
 
 export class ChainHelper {
     static preprocessScript(scriptContent, options = {}) {
@@ -245,5 +245,27 @@ export class ChainHelper {
         }
 
         return result;
+    }
+
+    static getDefaultQuestions() {
+        return [{
+            text: "Write the next story beat",
+            intent: INTENT_TYPES.WRITE_SCRIPT
+        }, {
+            text: "Brainstorm some ideas",
+            intent: INTENT_TYPES.GET_INSPIRATION
+        }, {
+            text: "Analyze your current script",
+            intent: INTENT_TYPES.ANALYZE_SCRIPT
+        }, {
+            text: "What is the story about?",
+            intent: INTENT_TYPES.SCRIPT_QUESTIONS
+        }, {
+            text: "Make the script funnier",
+            intent: INTENT_TYPES.EDIT_SCRIPT
+        }, {
+            text: "Start a new chapter",
+            intent: INTENT_TYPES.WRITE_SCRIPT
+        }];
     }
 }

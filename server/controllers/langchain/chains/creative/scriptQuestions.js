@@ -5,7 +5,6 @@ import { ChainHelper } from '../helpers/ChainHelper.js';
 import db from "../../../../db/index.js";
 
 // Import modular components
-import { validateQuestion, formatQuestion } from './script-questions/QuestionValidator.js';
 import { processScriptInput } from './script-questions/ScriptProcessor.js';
 import { formatResponse, getErrorResponse, createResponseObject } from './script-questions/ResponseFormatter.js';
 
@@ -101,8 +100,20 @@ FORMATTING RULES:
                 content: prompt
             }];
 
+            // Execute with preserved metadata
+            const enrichedContext = {
+                ...context,
+                scriptId: context.scriptId,
+                scriptTitle: scriptMetadata.title,
+                metadata: {
+                    ...scriptMetadata,
+                    scriptId: context.scriptId,
+                    scriptTitle: scriptMetadata.title
+                }
+            };
+
             // Get response from model
-            const response = await this.execute(formattedPrompt);
+            const response = await this.execute(formattedPrompt, enrichedContext);
 
             // Return clean HTML response
             return {
@@ -110,6 +121,8 @@ FORMATTING RULES:
                 type: 'script_question_answer',
                 metadata: {
                     ...scriptMetadata,
+                    scriptId: context.scriptId,
+                    scriptTitle: scriptMetadata.title,
                     responseLength: response.length,
                     truncated: false,
                     timestamp: new Date().toISOString()
@@ -122,6 +135,8 @@ FORMATTING RULES:
                 type: 'error_response',
                 metadata: {
                     error: error.message,
+                    scriptId: context.scriptId,
+                    scriptTitle: context.scriptTitle,
                     timestamp: new Date().toISOString()
                 }
             };

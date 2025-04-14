@@ -2,7 +2,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { INTENT_TYPES, INTENT_DESCRIPTIONS } from '../../constants.js';
-import { chainFactory } from '../ChainFactory.js';
+import { chainRegistry } from '../registry.js';
 
 // Create the model instance
 const model = new ChatOpenAI({
@@ -16,16 +16,31 @@ let intentDescriptions = '';
 
 // Function to get intent descriptions from registered intents
 function refreshIntentDescriptions() {
-    // Combine factory registered intents with system intents
-    const factoryIntents = chainFactory.getRegisteredIntents();
-    registeredIntents = [...new Set([...Object.values(INTENT_TYPES), ...factoryIntents])];
+    try {
+        // Combine registry registered intents with system intents
+        const registryIntents = chainRegistry.getRegisteredIntents();
+        if (!registryIntents || !Array.isArray(registryIntents)) {
+            console.error('Invalid registry intents:', registryIntents);
+            return;
+        }
 
-    intentDescriptions = '';
-    for (const intent of registeredIntents) {
-        const description = INTENT_DESCRIPTIONS[intent] || 'No description available';
-        intentDescriptions += `${intent}: ${description}\n`;
+        // Deduplicate and normalize intents
+        registeredIntents = [...new Set([...Object.values(INTENT_TYPES), ...registryIntents])]
+            .filter(intent => intent && typeof intent === 'string')
+            .map(intent => intent.toUpperCase());
+
+        // Build descriptions
+        intentDescriptions = registeredIntents
+            .map(intent => {
+                const description = INTENT_DESCRIPTIONS[intent] || 'No description available';
+                return `${intent}: ${description}`;
+            })
+            .join('\n');
+
+    } catch (error) {
+        console.error('Error refreshing intent descriptions:', error);
+        // Keep previous values on error
     }
-    console.log('Available intents:', registeredIntents);
 }
 
 // Consolidated prompt template that includes both system and user messages
@@ -40,10 +55,6 @@ Common command patterns and their intents:
 - Saving script elements or components -> SAVE_ELEMENT
 - Multiple operations in one request -> MULTI_INTENT
 - Writing script content -> WRITE_SCRIPT
-
-For SAVE_ELEMENT intents, you must identify:
-1. The type of element being saved (character, location, scene, plot_point, etc.)
-2. The content/value to be saved
 
 Available intents and their descriptions:
 {intents}
@@ -85,30 +96,42 @@ function processResponse(response) {
         // Clean and parse the response
         const cleanedResponse = response.replace(/```.*\n|\n```|```/g, '').trim();
         console.log('Cleaned response:', cleanedResponse);
-        const parsedResponse = JSON.parse(cleanedResponse);
-        console.log('Parsed intent response:', parsedResponse);
+
+        let parsedResponse;
+        try {
+            parsedResponse = JSON.parse(cleanedResponse);
+        } catch (parseError) {
+            console.error('Failed to parse response:', parseError);
+            return defaultResponse('Failed to parse classification response');
+        }
 
         // Make sure we have the latest registered intents
         refreshIntentDescriptions();
 
-        // Normalize the intent
-        const normalizedIntent = parsedResponse.intent.toUpperCase();
+        // Validate parsed response
+        if (!parsedResponse || typeof parsedResponse !== 'object') {
+            console.error('Invalid response format:', parsedResponse);
+            return defaultResponse('Invalid response format');
+        }
 
-        // Validate the intent
+        // Normalize and validate the intent
+        const normalizedIntent = (parsedResponse.intent || '').toUpperCase();
+        if (!normalizedIntent) {
+            console.error('Missing intent in response');
+            return defaultResponse('Missing intent in response');
+        }
+
+        // Validate the intent exists
         if (!registeredIntents.includes(normalizedIntent)) {
-            console.log('Invalid intent, defaulting to EVERYTHING_ELSE');
-            return {
-                intent: INTENT_TYPES.EVERYTHING_ELSE,
-                confidence: 0.5,
-                target: null,
-                value: null
-            };
+            console.log(`Invalid intent ${normalizedIntent}, defaulting to EVERYTHING_ELSE`);
+            return defaultResponse(`Invalid intent: ${normalizedIntent}`);
         }
 
         // For SAVE_ELEMENT, ensure we have target and value
         if (normalizedIntent === INTENT_TYPES.SAVE_ELEMENT) {
             if (!parsedResponse.target || !parsedResponse.value) {
-                throw new Error('Missing target or value for SAVE_ELEMENT intent');
+                console.error('Missing target or value for SAVE_ELEMENT intent');
+                return defaultResponse('Invalid SAVE_ELEMENT format');
             }
 
             return {
@@ -119,7 +142,7 @@ function processResponse(response) {
             };
         }
 
-        // For other intents
+        // For other intents, return normalized response
         return {
             intent: normalizedIntent,
             confidence: 1.0,
@@ -129,13 +152,19 @@ function processResponse(response) {
 
     } catch (error) {
         console.error('Intent classification error:', error);
-        return {
-            intent: INTENT_TYPES.EVERYTHING_ELSE,
-            confidence: 0.5,
-            target: null,
-            value: null
-        };
+        return defaultResponse(error.message);
     }
+}
+
+// Helper for consistent default responses
+function defaultResponse(reason = 'Unknown error') {
+    return {
+        intent: INTENT_TYPES.EVERYTHING_ELSE,
+        confidence: 0.5,
+        target: null,
+        value: null,
+        reason
+    };
 }
 
 // Create the chain
@@ -145,31 +174,32 @@ const chain = promptTemplate
     .pipe(processResponse);
 
 export async function classifyIntent(input) {
-    if (!input || typeof input !== 'string') {
-        console.error('Invalid input type provided to classifyIntent');
-        return {
-            intent: INTENT_TYPES.EVERYTHING_ELSE,
-            confidence: 0.5,
-            target: null,
-            value: null
-        };
+    // Input validation
+    if (!input) {
+        console.error('Empty input provided to classifyIntent');
+        return defaultResponse('Empty input');
     }
+
+    // Convert input to string if it's not already
+    const processedInput = typeof input === 'string' ? input : JSON.stringify(input);
 
     try {
         // Ensure we have up-to-date intent descriptions
         refreshIntentDescriptions();
 
-        return await chain.invoke({
-            text: input,
+        // Single classification attempt
+        const result = await chain.invoke({
+            text: processedInput,
             intents: intentDescriptions.trim()
         });
+
+        // Log the final classification result
+        console.log('Final Intent Classification:', result);
+
+        return result;
+
     } catch (error) {
         console.error('Intent classification error:', error);
-        return {
-            intent: INTENT_TYPES.EVERYTHING_ELSE,
-            confidence: 0.5,
-            target: null,
-            value: null
-        };
+        return defaultResponse(error.message);
     }
 }

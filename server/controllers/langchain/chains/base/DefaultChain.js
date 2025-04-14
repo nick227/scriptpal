@@ -1,91 +1,91 @@
 import { BaseChain } from './BaseChain.js';
 import { INTENT_TYPES } from '../../constants.js';
+import { ChainHelper } from '../helpers/ChainHelper.js';
 
 export class DefaultChain extends BaseChain {
-    constructor(config = {}) {
+    constructor() {
         super({
-            ...config,
-            temperature: 0.7
+            type: INTENT_TYPES.EVERYTHING_ELSE,
+            temperature: 0.5,
+            modelConfig: {
+                response_format: { type: "text" }
+            }
         });
     }
 
+    /**
+     * Build messages for the default chain
+     */
+    async buildMessages(context, prompt) {
+        const messages = [{
+            role: 'system',
+            content: `You are a helpful AI assistant for scriptwriting. 
+Your task is to provide general assistance and answer questions about scriptwriting.
+Keep responses focused on scriptwriting and storytelling.
+Be concise but informative.`
+        }, {
+            role: 'user',
+            content: prompt
+        }];
+
+        return this.addCommonInstructions(messages);
+    }
+
+    /**
+     * Format the response for the default chain
+     */
+    async formatResponse(response) {
+        return {
+            response: typeof response === 'string' ? response : response.response || response,
+            type: INTENT_TYPES.EVERYTHING_ELSE,
+            metadata: {
+                timestamp: new Date().toISOString()
+            }
+        };
+    }
+
+    /**
+     * Generate follow-up questions for the default chain
+     */
+    async generateQuestions(context, prompt) {
+        return ChainHelper.getDefaultQuestions();
+    }
+
+    /**
+     * Run method implementation
+     */
     async run(context, prompt) {
         try {
-            // Create messages array in the format expected by BaseChain
-            const messages = [{
-                    role: 'system',
-                    content: 'You are a helpful script writing assistant. Respond conversationally while staying focused on script writing.'
-                },
-                {
-                    role: 'user',
-                    content: `${prompt}`
-                }
-            ];
+            // Build messages using the chain's specific logic
+            const messages = await this.buildMessages(context, prompt);
 
-            // Execute the chain without schema validation (it returns a string)
+            // Execute without generating questions (we'll handle them separately)
             const response = await this.execute(messages, {
-                scriptTitle: context.scriptTitle || 'Untitled',
-                metadata: {
-                    type: 'general_assistance',
-                    timestamp: new Date().toISOString(),
-                    prompt: prompt
+                context,
+                chainConfig: {
+                    shouldGenerateQuestions: false // Prevent circular question generation
                 }
             });
 
-            // If execute returned a string (no questions generated), wrap it
-            if (typeof response === 'string') {
-                return {
-                    response: response,
-                    type: 'general_assistance',
-                    questions: [{
-                            text: "Analyze Your Script",
-                            intent: INTENT_TYPES.ANALYZE_SCRIPT,
-                            description: "Get a comprehensive analysis of your script"
-                        },
-                        {
-                            text: "List Scenes",
-                            intent: INTENT_TYPES.LIST_SCENES,
-                            description: "Break down your script into scenes"
-                        },
-                        {
-                            text: "Get Creative Ideas",
-                            intent: INTENT_TYPES.GET_INSPIRATION,
-                            description: "Generate new ideas for your script"
-                        },
-                        {
-                            text: "What is the story about?",
-                            intent: INTENT_TYPES.ANALYZE_SCRIPT,
-                            description: "Get a insightful description of the story"
-                        }
-                    ],
-                    metadata: {
-                        type: 'general_assistance',
-                        timestamp: new Date().toISOString(),
-                        prompt: prompt
-                    }
-                };
-            }
+            // Format the response
+            const formattedResponse = await this.formatResponse(response);
 
-            // Return the response from execute which already has the correct format
-            return response;
-
-        } catch (error) {
-            console.error('DefaultChain execution error:', error);
-
-            // Provide a graceful fallback response
+            // Add default questions
             return {
-                response: "I'm here to help with your script writing. Would you like to analyze your script, work on scenes, or get some creative inspiration?",
-                type: 'fallback_response',
-                questions: [{
-                    text: "View Script Writing Features",
-                    intent: "view_tutorial",
-                    description: "Learn about available features"
-                }],
+                ...formattedResponse,
+                questions: ChainHelper.getDefaultQuestions()
+            };
+        } catch (error) {
+            console.error('Default chain execution error:', error);
+            // Return a basic response on error
+            return {
+                response: "I'm here to help with your script. What would you like to do?",
+                type: INTENT_TYPES.EVERYTHING_ELSE,
                 metadata: {
                     error: error.message,
-                    timestamp: new Date().toISOString(),
-                    type: 'error'
-                }
+                    timestamp: new Date().toISOString()
+                },
+                questions: ChainHelper.getDefaultQuestions()
             };
         }
     }

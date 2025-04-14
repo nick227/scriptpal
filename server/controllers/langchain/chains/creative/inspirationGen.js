@@ -93,14 +93,20 @@ export class InspirationChain extends BaseChain {
 
     async run(input, context = {}) {
         try {
+            console.log('Starting InspirationChain.run...');
             const { scriptContent, scriptMetadata } = await this.extractContext(input);
+            console.log('Context extracted:', { hasContent: !!scriptContent, title: scriptMetadata.title });
 
             // Get the template from promptManager
+            console.log('Getting template...');
             const template = promptManager.getTemplate(INTENT_TYPES.GET_INSPIRATION);
             if (!template) {
+                console.log('No template found, using fallback...');
                 // Fallback to basic prompt if template not found
                 const messages = this.formatFallbackPrompt(scriptMetadata, scriptContent, scriptMetadata.elements);
+                console.log('Executing with fallback prompt...');
                 return this.execute(messages, {
+                    scriptId: scriptMetadata.id,
                     scriptTitle: scriptMetadata.title,
                     metadata: {
                         scriptId: scriptMetadata.id,
@@ -111,6 +117,7 @@ export class InspirationChain extends BaseChain {
             }
 
             // Format the prompt using the template
+            console.log('Formatting prompt with template...');
             const messages = await template.format({
                 title: scriptMetadata.title,
                 script: scriptContent,
@@ -121,8 +128,10 @@ export class InspirationChain extends BaseChain {
             });
 
             // Add common instructions and execute with context
+            console.log('Adding common instructions and executing...');
             const formattedMessages = this.addCommonInstructions(messages);
             return this.execute(formattedMessages, {
+                scriptId: scriptMetadata.id,
                 scriptTitle: scriptMetadata.title,
                 metadata: {
                     scriptId: scriptMetadata.id,

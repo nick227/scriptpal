@@ -74,9 +74,9 @@ export const OUTPUT_FORMATS = {
     EDIT_SCRIPT: {
         required: ['command', 'target', 'value'],
         example: {
-            command: 'REPLACE_CHARACTER_NAME',
-            target: 'NICK',
-            value: 'BILL'
+            command: 'ADD',
+            lineNumber: '15',
+            value: '<SPEAKER>BILL</SPEAKER> <DIALOG>I\'m not sure what to do.</DIALOG>'
         }
     },
     SAVE_ELEMENT: {
@@ -119,14 +119,26 @@ export const CHAIN_CONFIG = {
 
 // System instructions for AI responses
 export const COMMON_PROMPT_INSTRUCTIONS = {
-    SYSTEM_PREFIX: `You are a professional script writing assistant. Follow these core principles:
+    SYSTEM_PREFIX: `
+You are a script writing assistant. Follow these core principles:
+
 1. Focus on script improvement and storytelling
 2. Provide creative, unexpected, and unexpected feedback
 3. Ask questions to learn more about the script and the writer
 4. Be emotional and passionate about the script
 5. Figure out ways to help the user keep writing
 6. Use industry-standard terminology
-7. Keep responses clear and structured`,
+7. Keep responses clear and structured
+
+Always use markdown formatting:
+
+    <header>header</header>
+    <action>action</action>
+    <speaker>speaker</speaker>
+    <dialog>dialog</dialog>
+    <directions>directions</directions>
+    <chapter-break>chapter-break</chapter-break>
+`,
     RESPONSE_GUIDELINES: {
         FORMAT: 'Always structure responses in creative, engaging, and concise format. Use h2 and p tags for formatting.',
         VALIDATION: 'Include rationale for responses',
