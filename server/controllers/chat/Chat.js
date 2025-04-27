@@ -60,7 +60,7 @@ export class Chat {
 
             // Get script details if scriptId exists
             const script = this.scriptId ?
-                await this.scriptManager.getScript(this.scriptId) : { content: '', title: '', updated_at: null, version: 1, status: 'active' };
+                await this.scriptManager.getScript(this.scriptId) : { content: '', title: '', updated_at: null, version_number: 1, status: 'active' };
 
             // Log script details for debugging
             console.log('Script Details:', {

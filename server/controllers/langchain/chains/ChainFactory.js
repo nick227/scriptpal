@@ -8,51 +8,37 @@ import { BeatListChain } from './creative/beatLister.js';
 import { InspirationChain } from './creative/inspirationGen.js';
 import { ScriptQuestionsChain } from './creative/scriptQuestions.js';
 import { DefaultChain } from './base/DefaultChain.js';
-import { WriteScriptChain } from './creative/WriteScript.js';
+import { WriteScriptChain } from './edit/WriteScript.js';
+import { EditScriptChain } from './edit/EditScript.js';
+import { SaveElementChain } from './save/SaveElementChain.js';
 
 // Register all chains with their configurations
 try {
     console.log('Starting chain registration...');
 
     // Core writing chain
-    chainRegistry.register(INTENT_TYPES.WRITE_SCRIPT, WriteScriptChain, {
-        requiresAuth: true,
-        shouldGenerateQuestions: false, // Custom buttons handled in chain
-        modelConfig: {
-            temperature: 0.7,
-            response_format: { type: "text" }
-        },
-        condition: (context) => !!context.scriptId // Only run if we have a scriptId
-    });
+    chainRegistry.registerChain(INTENT_TYPES.WRITE_SCRIPT, WriteScriptChain);
+
+    // Edit Script Chain
+    chainRegistry.registerChain(INTENT_TYPES.EDIT_SCRIPT, EditScriptChain);
+
+    // Save Element Chain
+    chainRegistry.registerChain(INTENT_TYPES.SAVE_ELEMENT, SaveElementChain);
 
     // Analysis chains
-    chainRegistry.register(INTENT_TYPES.SCRIPT_QUESTIONS, ScriptQuestionsChain, {
-        requiresAuth: true,
-        modelConfig: { temperature: 0.3 }
-    });
-
-    chainRegistry.register(INTENT_TYPES.ANALYZE_SCRIPT, ScriptAnalyzerChain, {
-        requiresAuth: true,
-        shouldGenerateQuestions: false,
-        modelConfig: {
-            temperature: 0.2,
-            response_format: { type: "text" }
-        }
-    });
+    chainRegistry.registerChain(INTENT_TYPES.SCRIPT_QUESTIONS, ScriptQuestionsChain);
+    chainRegistry.registerChain(INTENT_TYPES.ANALYZE_SCRIPT, ScriptAnalyzerChain);
 
     // Creative chains
-    chainRegistry.register(INTENT_TYPES.GET_INSPIRATION, InspirationChain, {
-        modelConfig: { temperature: 0.8 }
-    });
+    chainRegistry.registerChain(INTENT_TYPES.GET_INSPIRATION, InspirationChain);
 
     // Default chain for unhandled intents - Must be registered last
-    chainRegistry.register(INTENT_TYPES.EVERYTHING_ELSE, DefaultChain, {
-        shouldGenerateQuestions: true, // Enable questions for better UX
-        modelConfig: { temperature: 0.5 }
-    });
+    chainRegistry.registerChain(INTENT_TYPES.EVERYTHING_ELSE, DefaultChain);
 
-    // Complete registration and validate
-    chainRegistry.completeRegistration();
+    // Verify initialization
+    if (!chainRegistry.isInitialized()) {
+        throw new Error('Chain registry failed to initialize properly');
+    }
 
     console.log('Chain registration completed successfully');
     console.log('Registry status:', chainRegistry.getStatus());

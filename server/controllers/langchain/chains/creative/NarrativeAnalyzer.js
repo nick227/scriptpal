@@ -18,7 +18,7 @@ export class NarrativeAnalyzerChain extends BaseChain {
                 'character_analysis',
                 'theme_analysis',
                 'pacing_analysis',
-                'dialogue_analysis',
+                'dialog_analysis',
                 'recommendations'
             ],
             defaultValues: {
@@ -26,7 +26,7 @@ export class NarrativeAnalyzerChain extends BaseChain {
                 character_analysis: 'Analysis of character development and arcs',
                 theme_analysis: 'Analysis of thematic elements',
                 pacing_analysis: 'Analysis of story pacing and flow',
-                dialogue_analysis: 'Analysis of dialogue effectiveness',
+                dialog_analysis: 'Analysis of dialog effectiveness',
                 recommendations: []
             },
             requireRationale: true
@@ -42,7 +42,7 @@ export class NarrativeAnalyzerChain extends BaseChain {
                 characters: analysis.character_analysis,
                 themes: analysis.theme_analysis,
                 pacing: analysis.pacing_analysis,
-                dialogue: analysis.dialogue_analysis,
+                dialog: analysis.dialog_analysis,
                 recommendations: Array.isArray(analysis.recommendations) ?
                     analysis.recommendations : [analysis.recommendations]
             })

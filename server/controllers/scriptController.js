@@ -48,7 +48,7 @@ const scriptController = {
             id: req.params.id,
             bodyKeys: Object.keys(req.body),
             contentLength: req.body.content ? req.body.content.length : 0,
-            version: req.body.version_number
+            version_number: req.body.version_number
         });
 
         try {
@@ -106,10 +106,10 @@ const scriptController = {
                 return res.status(400).json({ error: 'Content must be a string' });
             }
 
-            // Validate version number format
+            // Validate version_number number format
             if (version_number !== undefined && version_number !== null) {
                 if (typeof version_number !== 'string' || !version_number.match(/^\d+\.\d+$/)) {
-                    console.warn('Update rejected: invalid version number format:', version_number);
+                    console.warn('Update rejected: invalid version_number number format:', version_number);
                     return res.status(400).json({ error: 'Version number must be in format "major.minor"' });
                 }
             }

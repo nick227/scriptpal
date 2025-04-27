@@ -18,7 +18,7 @@ export class ChainHandler {
             scriptTitle: script.title,
             scriptMetadata: {
                 lastUpdated: script.updated_at,
-                version: script.version,
+                version_number: script.version_number,
                 status: script.status
             },
             chainConfig: {

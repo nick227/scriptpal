@@ -9,7 +9,7 @@ You are an experienced script analyst and story editor. Analyze the following sc
 SCRIPT METADATA:
 Title: {title}
 Current Status: {status}
-Version: {version}
+Version: {version_number}
 
 CONTENT:
 {content}
@@ -32,5 +32,5 @@ Return a JSON response following this format:
         "themes": ["Theme development recommendations"]
     }}
 }}`,
-    inputVariables: ["title", "status", "version", "content", "focusAreas"]
+    inputVariables: ["title", "status", "version_number", "content", "focusAreas"]
 }); 

@@ -16,12 +16,12 @@
     "author": "nrios",
     "license": "ISC",
     "dependencies": {
-        "@langchain/core": "^0.1.48",
+        "@langchain/core": "^0.1.63",
         "@langchain/openai": "^0.0.14",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "express": "^4.18.3",
-        "langchain": "^0.1.21",
+        "langchain": "^0.1.37",
         "mysql2": "^3.9.2"
     },
     "devDependencies": {

@@ -38,7 +38,12 @@ export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
          */
         [INTENT_TYPES.WRITE_SCRIPT]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nWrite script content for the user. Keep responses concise and direct.\n\nScript title: {scriptTitle}\n\nScript content:\n{scriptContent}" + formatGuidelines
+                basePrompt + "\n\nParse the request and return a structured command. Typically this will be a series of add commands. You MUST return a JSON object with array of objects with these fields:\n" +
+                "- command: The type of event (ADD)\n" +
+                "- lineNumber: The line number to insert after\n" +
+                "- value: The new complete string value to apply\n\n" +
+                "Example format:\n" + JSON.stringify(OUTPUT_FORMATS.EDIT_SCRIPT.example, null, 2) +
+                "\n\nScript content:\n{scriptContent}" + formatGuidelines
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ]),
@@ -70,7 +75,7 @@ export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
          */
         [INTENT_TYPES.EDIT_SCRIPT]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nParse the edit request and return a structured command. You MUST return a JSON object with exactly these fields:\n" +
+                basePrompt + "\n\nParse the edit request and return a structured command. You MUST return a JSON object with array of objects with these fields:\n" +
                 "- command: The type of event (EDIT, DELETE, ADD)\n" +
                 "- lineNumber: The line number to insert after, delete or edit\n" +
                 "- value: The new value to apply\n\n" +
@@ -92,7 +97,7 @@ export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
         [INTENT_TYPES.SAVE_ELEMENT]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
                 basePrompt + "\n\nParse the save request and return a structured command. You MUST return a JSON object with exactly these fields:\n" +
-                "- target: The type of element (CHARACTER, SCENE, DIALOGUE, PLOT_POINT)\n" +
+                "- target: The type of element (CHARACTER, SCENE, DIALOG, PLOT_POINT)\n" +
                 "- value: The data to save\n\n" +
                 "Example format:\n" + JSON.stringify(OUTPUT_FORMATS.SAVE_ELEMENT.example, null, 2) +
                 "\n\nScript content:\n{scriptContent}" + formatGuidelines
@@ -138,11 +143,12 @@ export const createResponsePrompts = (scriptContent = "", scriptTitle = "") => {
          * Input: General script-related query
          * Output: Focused guidance on script writing
          * Variables:
+         * - scriptTitle: Title of the current script
          * - input: User's request
          */
         [INTENT_TYPES.EVERYTHING_ELSE]: ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate(
-                basePrompt + "\n\nProvide general script writing assistance while keeping responses focused and relevant." + formatGuidelines
+                basePrompt + "\n\nProvide general script writing assistance while keeping responses focused and relevant.\n\nScript title: {scriptTitle}" + formatGuidelines
             ),
             HumanMessagePromptTemplate.fromTemplate("{input}")
         ]),

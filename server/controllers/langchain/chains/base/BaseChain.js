@@ -86,9 +86,9 @@ export class BaseChain {
             console.log('Fetching chat history for user:', context.userId);
 
             try {
-                // Get last 10 messages from chat history
+                // Get last 3 messages from chat history
                 const [results] = await db.query(
-                    'SELECT type as role, content FROM chat_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10', [context.userId]
+                    'SELECT type as role, content FROM chat_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 3', [context.userId]
                 );
 
                 // MySQL2 always returns an array of results
@@ -116,14 +116,9 @@ export class BaseChain {
                     .filter(Boolean); // Remove null values
 
                 console.log('Chat history retrieved:', {
-                    requestedCount: 10,
+                    requestedCount: 3,
                     retrievedCount: rows.length,
-                    validCount: validMessages.length,
-                    invalidCount: rows.length - validMessages.length,
-                    firstMessage: validMessages[0] ? {
-                        role: validMessages[0].role,
-                        contentLength: validMessages[0].content.length
-                    } : null
+                    validCount: validMessages.length
                 });
 
                 return validMessages;
@@ -298,7 +293,7 @@ export class BaseChain {
                 model: modelConfig.model || this.config.model || 'gpt-4-turbo-preview',
                 messages: allMessages,
                 temperature: this.temperature,
-                max_tokens: 1000,
+                max_tokens: 4000,
                 ...this.modelConfig,
                 ...modelConfig
             });
@@ -372,8 +367,7 @@ export class BaseChain {
                 await this.getChatHistory(context) : [];
 
             console.log('Retrieved chat history:', {
-                historyLength: history.length,
-                firstMessage: history[0] ? { role: history[0].role, hasContent: !!history[0].content } : null
+                historyLength: history.length
             });
 
             // Validate all messages

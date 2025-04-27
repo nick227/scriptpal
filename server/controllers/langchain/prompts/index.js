@@ -55,7 +55,14 @@ class PromptManager {
     getTemplate(name) {
         return this.templates.get(name);
     }
-}
 
+    getPrompt(name) {
+        const template = this.getTemplate(name);
+        if (!template) {
+            throw new Error(`Template ${name} not found`);
+        }
+        return template.template;
+    }
+}
 // Export singleton instance
 export const promptManager = new PromptManager();

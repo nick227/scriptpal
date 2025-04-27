@@ -23,7 +23,7 @@ export class ChatHistoryManager {
         }
     }
 
-    async getHistory(limit = 10) {
+    async getHistory(limit = 3) {
         try {
             return await db.getChatHistory(this.userId, limit);
         } catch (error) {

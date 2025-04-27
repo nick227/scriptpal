@@ -14,7 +14,7 @@ Current Content:
 WRITING GUIDELINES:
 1. Follow standard script formatting
 2. Maintain consistent tone and style
-3. Use proper script elements (scene headings, action, speaker, dialogue)
+3. Use proper script elements (scene headings, action, speaker, dialog)
 
 Write the script content exactly as requested by the user. Return only the script content, no explanations or additional text.`,
     inputVariables: ["scriptTitle", "currentContent"]

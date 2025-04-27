@@ -45,42 +45,34 @@ function refreshIntentDescriptions() {
 
 // Consolidated prompt template that includes both system and user messages
 const template = `You are an intent classifier for a script writing assistant.
-Your job is to classify the user's command and extract relevant information.
+Your job is to classify the user's command.
 
-Common command patterns and their intents:
-- Editing commands (change, replace, modify text/names/elements) -> EDIT_SCRIPT
-- Script discussion (questions, feedback, analysis, scene lists, beat breakdowns) -> SCRIPT_QUESTIONS
-- Creative requests (brainstorming, ideas, inspiration, writer's block) -> GET_INSPIRATION
-- Requests for complete script analysis -> ANALYZE_SCRIPT
-- Saving script elements or components -> SAVE_ELEMENT
-- Multiple operations in one request -> MULTI_INTENT
-- Writing script content -> WRITE_SCRIPT
+Possible intents:
+1. Editing or adding to the current script (write, modify script) -> EDIT_SCRIPT
+2. Script discussion (questions, feedback, analysis, scene lists, beat breakdowns) -> SCRIPT_QUESTIONS
+3. Saving script elements or components -> SAVE_ELEMENT
+4. Anything else -> EVERYTHING_ELSE
 
-Available intents and their descriptions:
-{intents}
+User prompt: 
+{text}
 
-User input: {text}
+-------------------------------------
 
-Return a JSON object with the following structure for SAVE_ELEMENT:
-  "intent": "SAVE_ELEMENT",
-  "target": "element_type",
-  "value": object or string
+ALWAYS return a JSON object with intent only.
 
-For other intents, return just:
-  "intent": "INTENT_TYPE"
-
-Example responses:
 For edit commands:
 {{"intent": "EDIT_SCRIPT"}}
 
 For questions:
 {{"intent": "SCRIPT_QUESTIONS"}}
 
-For saving a character:
-{{"intent": "SAVE_ELEMENT", "target": "character", "value": {{"name": "John", "traits": ["brave"]}}}}
+For saving a story elements:
+{{"intent": "SAVE_ELEMENT"}}
 
-For saving a location:
-{{"intent": "SAVE_ELEMENT", "target": "location", "value": {{"name": "Police Station", "description": "A busy precinct"}}}}`
+For anything else:
+{{"intent": "EVERYTHING_ELSE"}}
+
+`
 
 const promptTemplate = new PromptTemplate({
     template: template,

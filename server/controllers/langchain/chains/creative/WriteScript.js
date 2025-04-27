@@ -57,19 +57,7 @@ export class WriteScriptChain extends BaseChain {
             // Return the final response with custom questions
             return {
                 response: formattedResponse,
-                questions: [{
-                    text: "Continue writing from here",
-                    intent: INTENT_TYPES.WRITE_SCRIPT,
-                    description: "Continue the current writing flow"
-                }, {
-                    text: "Analyze what I've written",
-                    intent: INTENT_TYPES.ANALYZE_SCRIPT,
-                    description: "Get feedback on the current content"
-                }, {
-                    text: "Save this version",
-                    intent: INTENT_TYPES.SAVE_SCRIPT,
-                    description: "Save the current version"
-                }]
+                questions: []
             };
 
         } catch (error) {

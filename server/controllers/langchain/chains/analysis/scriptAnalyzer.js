@@ -125,7 +125,7 @@ export class ScriptAnalyzerChain extends BaseChain {
 
 1. Story ideas: Identify structural ideas and pacing fixes
 2. Character Development: Suggest character arcs and motivations
-3. Dialogue: Assess authenticity and subtext in conversations
+3. Dialog: Assess authenticity and subtext in conversations
 4. Actions: Suggest what can happen next ideas
 5. Theme: Examine thematic consistency and impact
 

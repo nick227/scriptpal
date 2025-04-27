@@ -59,36 +59,31 @@ export class IntentRouter {
     }
 
     /**
-     * Route the request to the appropriate chain
-     * @param {Object} classification - Intent classification from the controller
-     * @param {Object} context - Context object containing script info and content
-     * @param {string} prompt - Original user prompt
-     * @returns {Promise<Object>} Chain response
+     * Route the request to appropriate chain
      */
-    async route(classification, context, prompt) {
+    async route(intentResult, context, prompt) {
         try {
-            console.log('=== Routing Request ===');
+            const { intent } = intentResult;
 
-            // Use the classification passed from the controller
-            const { intent } = classification;
-            console.log('Using intent:', intent);
-
-            // Add classification to context
-            context.classification = classification;
-
-            // Check if we can handle this intent
-            if (!await chainRegistry.canHandle(intent, context)) {
-                console.log(`Cannot handle intent: ${intent}, falling back to default`);
-                return await chainRegistry.execute(INTENT_TYPES.EVERYTHING_ELSE, context, prompt);
+            // Get the chain class
+            const ChainClass = this.chainRegistry.getChain(intent);
+            if (!ChainClass) {
+                console.log(`No chain found for intent ${intent}, falling back to default`);
+                const DefaultChainClass = this.chainRegistry.getChain(INTENT_TYPES.EVERYTHING_ELSE);
+                if (!DefaultChainClass) {
+                    throw new Error('Default chain not registered');
+                }
+                const defaultChain = new DefaultChainClass();
+                return await defaultChain.run(context, prompt);
             }
 
-            // Execute the appropriate chain
-            console.log(`Executing chain for intent: ${intent}`);
-            return await chainRegistry.execute(intent, context, prompt);
+            // Create chain instance and run
+            const chain = new ChainClass();
+            return await chain.run(context, prompt);
 
         } catch (error) {
-            console.error('Routing error:', error);
-            throw new Error(ERROR_TYPES.ROUTING_ERROR);
+            console.error('Router error:', error);
+            throw error;
         }
     }
 

@@ -51,16 +51,55 @@ const queryQueue = new QueryQueue();
 // Database wrapper
 const db = {
     /**
-     * Get a script by ID
+     * Get a script by ID (latest version_number by default)
      * @param {number} scriptId - The ID of the script to fetch
+     * @param {number} [version_number] - Optional specific version_number to fetch
      * @returns {Promise<Object>} The script object
      */
-    async getScript(scriptId) {
+    async getScript(scriptId, version_number = null) {
+        try {
+            console.log('Getting script:', { scriptId, version_number });
+
+            if (version_number) {
+                // Get specific version_number
+                const [rows] = await pool.query(
+                    'SELECT * FROM scripts WHERE id = ? AND version_number = ?', [scriptId, version_number]
+                );
+                console.log('Found script with version_number:', {
+                    found: rows && rows[0] ? true : false,
+                    id: scriptId,
+                    version_number
+                });
+                return rows[0];
+            }
+
+            // Get latest version_number
+            const [rows] = await pool.query(
+                'SELECT * FROM scripts WHERE id = ? ORDER BY version_number DESC LIMIT 1', [scriptId]
+            );
+            console.log('Found latest script:', {
+                found: rows && rows[0] ? true : false,
+                id: scriptId,
+                version_number: rows && rows[0] ? rows[0].version_number : null
+            });
+            return rows[0];
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Get all versions of a script
+     * @param {number} scriptId - The ID of the script
+     * @returns {Promise<Array>} Array of script versions
+     */
+    async getScriptVersions(scriptId) {
         try {
             const [rows] = await pool.query(
-                'SELECT * FROM scripts WHERE id = ?', [scriptId]
+                'SELECT * FROM scripts WHERE id = ? ORDER BY version_number DESC', [scriptId]
             );
-            return rows[0];
+            return rows;
         } catch (error) {
             console.error('Database error:', error);
             throw error;
@@ -126,24 +165,21 @@ const db = {
     },
 
     /**
-     * Get script profile including basic info and elements
+     * Get script profile including basic info and elements (latest version_number)
      * @param {number} scriptId - The ID of the script
      * @returns {Promise<Object>} Script profile
      */
     async getScriptProfile(scriptId) {
         try {
-            const [script] = await pool.query(
-                'SELECT * FROM scripts WHERE id = ?', [scriptId]
-            );
-
-            if (!script[0]) return null;
+            const script = await db.getScript(scriptId);
+            if (!script) return null;
 
             const [elements] = await pool.query(
                 'SELECT * FROM script_elements WHERE script_id = ?', [scriptId]
             );
 
             return {
-                ...script[0],
+                ...script,
                 elements
             };
         } catch (error) {
@@ -197,60 +233,88 @@ const db = {
     },
 
     // Script methods
-    createScript: async(script) => {
+    /**
+     * Create a new script (version_number 1)
+     * @param {Object} script - Script data
+     * @returns {Promise<Object>} Created script
+     */
+    async createScript(script) {
         const result = await db.query(
-            'INSERT INTO scripts (user_id, title, status, version_number, content) VALUES (?, ?, ?, ?, ?)', [script.user_id, script.title, script.status || 'draft', script.version_number || 1, script.content || '']
+            'INSERT INTO scripts (user_id, title, status, version_number, content) VALUES (?, ?, ?, 1, ?)', [script.user_id, script.title, script.status || 'draft', script.content || '']
         );
-        return { id: result.insertId, ...script };
+        return { id: result.insertId, version_number: 1, ...script };
     },
 
-    updateScript: async(id, script) => {
-        if (!id) throw new Error('Script ID is required');
-        if (!script.title) throw new Error('Script title is required');
+    /**
+     * Update a script by creating a new version_number
+     * @param {number} id - Script ID to update
+     * @param {Object} script - Updated script data
+     * @returns {Promise<Object>} Updated script
+     */
+    async updateScript(id, script) {
+        try {
+            // Get the current latest version_number
+            const [currentVersions] = await pool.query(
+                'SELECT * FROM scripts WHERE id = ? ORDER BY version_number DESC LIMIT 1', [id]
+            );
 
-        // Build update fields and values dynamically
-        const updateFields = [];
-        const values = [];
+            if (!currentVersions || currentVersions.length === 0) {
+                throw new Error('Script not found');
+            }
 
-        if (script.title !== undefined) {
-            updateFields.push('title = ?');
-            values.push(script.title);
+            const currentScript = currentVersions[0];
+            const newVersion = currentScript.version_number + 1;
+
+            // Insert new version_number with updated content using ON DUPLICATE KEY UPDATE
+            const [result] = await pool.query(
+                `INSERT INTO scripts (id, version_number, title, status, content, user_id) 
+                 VALUES (?, ?, ?, ?, ?, ?) 
+                 ON DUPLICATE KEY UPDATE
+                 title = VALUES(title),
+                 status = VALUES(status),
+                 content = VALUES(content)`, [
+                    id,
+                    newVersion,
+                    script.title || currentScript.title,
+                    script.status || currentScript.status,
+                    script.content || currentScript.content,
+                    currentScript.user_id
+                ]
+            );
+
+            if (result.affectedRows === 0) {
+                throw new Error('Failed to create new version_number');
+            }
+
+            // Return the new version_number
+            const [newScript] = await pool.query(
+                'SELECT * FROM scripts WHERE id = ? AND version_number = ?', [id, newVersion]
+            );
+
+            return newScript[0];
+        } catch (error) {
+            console.error('Database error:', error);
+            throw error;
         }
-
-        if (script.status !== undefined) {
-            updateFields.push('status = ?');
-            values.push(script.status);
-        }
-
-        if (script.version_number !== undefined) {
-            updateFields.push('version_number = ?');
-            values.push(script.version_number);
-        }
-
-        if (script.content !== undefined) {
-            updateFields.push('content = ?');
-            values.push(typeof script.content === 'string' ? script.content : JSON.stringify(script.content));
-        }
-
-        // Add id to values array for WHERE clause
-        values.push(id);
-
-        const result = await db.query(
-            `UPDATE scripts SET ${updateFields.join(', ')} WHERE id = ?`,
-            values
-        );
-
-        if (result.affectedRows === 0) {
-            throw new Error('Script not found or no changes made');
-        }
-
-        // Return updated script data
-        const updatedScript = await db.getScript(id);
-        return updatedScript;
     },
 
-    getAllScriptsByUser: async(user_id) => {
-        return await db.query('SELECT * FROM scripts WHERE user_id = ?', [user_id]);
+    /**
+     * Get all scripts by user (latest versions only)
+     * @param {number} user_id - User ID
+     * @returns {Promise<Array>} Array of latest script versions
+     */
+    async getAllScriptsByUser(user_id) {
+        return await db.query(
+            `SELECT DISTINCT s.* 
+             FROM scripts s
+             INNER JOIN (
+                 SELECT id, MAX(version_number) as max_version 
+                 FROM scripts 
+                 WHERE user_id = ? 
+                 GROUP BY id
+             ) latest 
+             ON s.id = latest.id AND s.version_number = latest.max_version`, [user_id]
+        );
     },
 
     // Story Elements methods

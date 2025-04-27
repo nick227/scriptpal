@@ -15,7 +15,7 @@ QUESTION:
 
 ANALYSIS GUIDELINES:
 1. Character Questions
-   - Focus on explicit character actions, dialogue, and development
+   - Focus on explicit character actions, dialog, and development
    - Note any character relationships or conflicts shown
    - Identify character motivations when clearly demonstrated
 
@@ -27,7 +27,7 @@ ANALYSIS GUIDELINES:
 3. Theme Questions
    - Point to recurring ideas or motifs
    - Identify explicit thematic elements
-   - Connect themes to specific scenes or dialogue
+   - Connect themes to specific scenes or dialog
 
 4. Structure Questions
    - Analyze scene organization and flow

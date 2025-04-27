@@ -249,9 +249,6 @@ export class ChainHelper {
 
     static getDefaultQuestions() {
         return [{
-            text: "Write the next story beat",
-            intent: INTENT_TYPES.WRITE_SCRIPT
-        }, {
             text: "Brainstorm some ideas",
             intent: INTENT_TYPES.GET_INSPIRATION
         }, {

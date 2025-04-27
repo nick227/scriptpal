@@ -1,7 +1,4 @@
-import { classifyIntent } from "./langchain/chains/system/classifyIntent.js";
-import { router } from "./langchain/router/index.js";
-import { aiSystemEventHandler } from "./langchain/handlers/AISystemEventHandler.js";
-import { FUNCTION_DEFINITIONS, INTENT_TYPES, ERROR_TYPES } from "./langchain/constants.js";
+import { ERROR_TYPES } from "./langchain/constants.js";
 import { Chat } from "./chat/Chat.js";
 import db from "../db/index.js";
 
@@ -40,7 +37,6 @@ const chatController = {
         try {
             const userId = req.user.id;
             const history = await db.getChatHistory(userId);
-            console.log('history', history);
             res.status(200).json(history);
         } catch (error) {
             console.error("Error getting chat history:", error);
@@ -66,6 +62,8 @@ const chatController = {
             // 2. Create and execute chat
             const chat = new Chat(req.user.id, scriptId);
             const result = await chat.processMessage(req.body.prompt);
+            console.log('result::::::::::::::::::::::::::::::');
+            console.log(result);
 
             // 3. Return standardized response
             res.status(200).json(result);

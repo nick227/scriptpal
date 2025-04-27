@@ -16,7 +16,7 @@ export class ScriptManager {
                 content: script.content || '',
                 title: script.title || 'Untitled Script',
                 updated_at: script.updated_at || null,
-                version: script.version || 1,
+                version_number: script.version_number || 1,
                 status: script.status || 'active'
             };
         } catch (error) {
