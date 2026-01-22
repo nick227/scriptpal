@@ -1,32 +1,46 @@
 import { LAYOUTS } from '../constants.js';
+import { loadRawFromStorage, saveRawToStorage } from '../managers/PersistenceManager.js';
 
 /**
  * Manages view layout and persistence
  */
 export class ViewManager {
-    constructor(elements) {
+    /**
+     *
+     * @param elements
+     */
+    constructor (elements) {
         this.elements = elements;
     }
 
-    setupCurrentView() {
-        const currentView = localStorage.getItem('scriptpal-view') || LAYOUTS.VERTICAL;
+    /**
+     *
+     */
+    setupCurrentView () {
+        const currentView = loadRawFromStorage('scriptpal-view') || LAYOUTS.VERTICAL;
         document.body.classList.add(currentView);
     }
 
-    saveCurrentView() {
+    /**
+     *
+     */
+    saveCurrentView () {
         const currentView = document.body.classList.contains(LAYOUTS.HORIZONTAL) ?
             LAYOUTS.HORIZONTAL :
             LAYOUTS.VERTICAL;
-        localStorage.setItem('scriptpal-view', currentView);
+        saveRawToStorage('scriptpal-view', currentView);
     }
 
-    toggleView() {
+    /**
+     *
+     */
+    toggleView () {
         // Remove both classes first to ensure clean state
         document.body.classList.remove(LAYOUTS.HORIZONTAL);
         document.body.classList.remove(LAYOUTS.VERTICAL);
 
         // Add the new layout class
-        const currentView = localStorage.getItem('scriptpal-view') || LAYOUTS.VERTICAL;
+        const currentView = loadRawFromStorage('scriptpal-view') || LAYOUTS.VERTICAL;
         const newView = currentView === LAYOUTS.VERTICAL ? LAYOUTS.HORIZONTAL : LAYOUTS.VERTICAL;
         document.body.classList.add(newView);
 

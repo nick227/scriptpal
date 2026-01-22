@@ -1,8 +1,15 @@
+import { debugLog } from '../core/logger.js';
+
 /**
  * Handles UI notifications (errors and success messages)
  */
 export class NotificationManager {
-    static show(message, type = 'error') {
+    /**
+     *
+     * @param message
+     * @param type
+     */
+    static show (message, type = 'error') {
         const element = document.createElement('div');
         element.className = `${type}-message`;
         element.textContent = message;
@@ -13,25 +20,41 @@ export class NotificationManager {
         }, type === 'error' ? 5000 : 3000);
     }
 
-    static showError(message) {
+    /**
+     *
+     * @param message
+     */
+    static showError (message) {
         console.error('Error:', message);
         // You can add more sophisticated notification UI here
         alert(message);
     }
 
-    static showSuccess(message) {
-        console.log('Success:', message);
+    /**
+     *
+     * @param message
+     */
+    static showSuccess (message) {
+        debugLog('Success:', message);
         // You can add more sophisticated notification UI here
         alert(message);
     }
 
-    static showWarning(message) {
+    /**
+     *
+     * @param message
+     */
+    static showWarning (message) {
         console.warn('Warning:', message);
         // You can add more sophisticated notification UI here
         alert(message);
     }
 
-    static showInfo(message) {
+    /**
+     *
+     * @param message
+     */
+    static showInfo (message) {
         console.info('Info:', message);
         // You can add more sophisticated notification UI here
         alert(message);

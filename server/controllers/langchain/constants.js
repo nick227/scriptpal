@@ -4,10 +4,10 @@
 
 // Core function definitions for system operations
 export const FUNCTION_DEFINITIONS = {
-    SAVE_SCRIPT: "save_script",
-    SAVE_ELEMENT: "save_element",
-    CHANGE_SCRIPT_TITLE: "change_script_title",
-    SHARE_SCRIPT: "share_script"
+  SAVE_SCRIPT: 'save_script',
+  SAVE_ELEMENT: 'save_element',
+  CHANGE_SCRIPT_TITLE: 'change_script_title',
+  SHARE_SCRIPT: 'share_script'
 };
 
 //=============================================================================
@@ -16,35 +16,50 @@ export const FUNCTION_DEFINITIONS = {
 
 // Core intent types for request classification
 export const INTENT_TYPES = {
-    // Core Script Analysis
-    SCRIPT_QUESTIONS: 'SCRIPT_QUESTIONS',
-    //ANALYZE_SCRIPT: 'ANALYZE_SCRIPT',
+  // Core Script Analysis
+  SCRIPT_QUESTIONS: 'SCRIPT_QUESTIONS',
+  ANALYZE_SCRIPT: 'ANALYZE_SCRIPT',
 
-    // Creative Support
-    //GET_INSPIRATION: 'GET_INSPIRATION',
-    GET_QUESTIONS: 'GET_QUESTIONS',
-    //WRITE_SCRIPT: 'WRITE_SCRIPT',
+  // Creative Support
+  GET_INSPIRATION: 'GET_INSPIRATION',
+  GET_QUESTIONS: 'GET_QUESTIONS',
+  WRITE_SCRIPT: 'WRITE_SCRIPT',
 
-    // Script Operations
-    EDIT_SCRIPT: 'EDIT_SCRIPT',
-    SAVE_ELEMENT: 'SAVE_ELEMENT',
+  // Script Operations
+  EDIT_SCRIPT: 'EDIT_SCRIPT',
+  SAVE_ELEMENT: 'SAVE_ELEMENT',
 
-    // Meta Intents
-    //MULTI_INTENT: 'MULTI_INTENT',
-    EVERYTHING_ELSE: 'EVERYTHING_ELSE'
+  // Meta Intents
+  MULTI_INTENT: 'MULTI_INTENT',
+  EVERYTHING_ELSE: 'EVERYTHING_ELSE'
+};
+
+// Intent confidence thresholds
+export const INTENT_CONFIDENCE = {
+  // Minimum confidence to proceed with intent execution
+  THRESHOLD: 0.7,
+  
+  // High confidence - proceed without question
+  HIGH: 0.85,
+  
+  // Medium confidence - proceed but monitor
+  MEDIUM: 0.7,
+  
+  // Low confidence - ask for clarification
+  LOW: 0.5
 };
 
 // Detailed descriptions for each intent type
 export const INTENT_DESCRIPTIONS = {
-    SCRIPT_QUESTIONS: 'Answer questions, provide feedback, and discuss any aspect of the script including analysis, scenes, beats, characters, and general feedback',
-    ANALYZE_SCRIPT: 'Perform complete script analysis including structure, characters, plot, themes, and potential improvements',
-    GET_INSPIRATION: 'Generate creative ideas, help with brainstorming, and break writer\'s block',
-    GET_QUESTIONS: 'Generate relevant follow-up questions to help explore and improve the script',
-    EDIT_SCRIPT: 'Make direct changes to the script content or structure',
-    SAVE_ELEMENT: 'Save or update script components and maintain script consistency',
-    MULTI_INTENT: 'Handle multiple script-related operations in a single request',
-    EVERYTHING_ELSE: 'Handle general script-related queries or conversations',
-    WRITE_SCRIPT: 'Write script content for the user'
+  SCRIPT_QUESTIONS: 'Answer questions, provide feedback, and discuss any aspect of the script including analysis, scenes, beats, characters, and general feedback',
+  ANALYZE_SCRIPT: 'Perform complete script analysis including structure, characters, plot, themes, and potential improvements',
+  GET_INSPIRATION: 'Generate creative ideas, help with brainstorming, and break writer\'s block',
+  GET_QUESTIONS: 'Generate relevant follow-up questions to help explore and improve the script',
+  EDIT_SCRIPT: 'Make direct changes to the script content or structure',
+  SAVE_ELEMENT: 'Save or update script components and maintain script consistency',
+  MULTI_INTENT: 'Handle multiple script-related operations in a single request',
+  EVERYTHING_ELSE: 'Handle general script-related queries or conversations',
+  WRITE_SCRIPT: 'Write script content for the user'
 };
 
 //=============================================================================
@@ -53,16 +68,8 @@ export const INTENT_DESCRIPTIONS = {
 
 // Available edit commands for script modifications
 export const EDIT_COMMANDS = {
-    SAVE_ELEMENT: 'SAVE_ELEMENT',
-    REPLACE_TEXT: 'REPLACE_TEXT'
-};
-
-// Valid targets for save operations
-export const SAVE_TARGETS = {
-    CHARACTER: 'CHARACTER',
-    SCENE: 'SCENE',
-    DIALOG: 'DIALOG',
-    PLOT_POINT: 'PLOT_POINT'
+  SAVE_ELEMENT: 'SAVE_ELEMENT',
+  REPLACE_TEXT: 'REPLACE_TEXT'
 };
 
 //=============================================================================
@@ -71,33 +78,33 @@ export const SAVE_TARGETS = {
 
 // Structured output formats for different operations
 export const OUTPUT_FORMATS = {
-    EDIT_SCRIPT: {
-        required: ['command', 'target', 'value'],
-        example: {
-            command: 'ADD',
-            lineNumber: '15',
-            value: '<SPEAKER>BILL</SPEAKER> <DIALOG>I\'m not sure what to do.</DIALOG>'
-        }
-    },
-    SAVE_ELEMENT: {
-        required: ['target', 'value'],
-        example: {
-            target: 'CHARACTER',
-            value: {
-                name: 'JOHN',
-                description: 'A determined detective',
-                traits: ['intelligent', 'persistent']
-            }
-        }
+  EDIT_SCRIPT: {
+    required: ['command', 'target', 'value'],
+    example: {
+      command: 'ADD',
+      lineNumber: '15',
+      value: '<SPEAKER>BILL</SPEAKER> <DIALOG>I\'m not sure what to do.</DIALOG>'
     }
+  },
+  SAVE_ELEMENT: {
+    required: ['target', 'value'],
+    example: {
+      target: 'CHARACTER',
+      value: {
+        name: 'JOHN',
+        description: 'A determined detective',
+        traits: ['intelligent', 'persistent']
+      }
+    }
+  }
 };
 
 // Validation rules for content length and structure
 export const VALIDATION_RULES = {
-    MAX_SCENE_LENGTH: 1000,
-    MAX_BEAT_LENGTH: 500,
-    MAX_IDEAS: 5,
-    REQUIRED_FIELDS_THRESHOLD: 0.8
+  MAX_SCENE_LENGTH: 1000,
+  MAX_BEAT_LENGTH: 500,
+  MAX_IDEAS: 5,
+  REQUIRED_FIELDS_THRESHOLD: 0.8
 };
 
 //=============================================================================
@@ -106,20 +113,32 @@ export const VALIDATION_RULES = {
 
 // Configuration for AI chain operations
 export const TOKEN_LIMITS = {
-    DEFAULT: 2000,
-    ANALYSIS: 4000, // Comprehensive analysis needs more tokens
+  DEFAULT: 2000,
+  ANALYSIS: 4000 // Comprehensive analysis needs more tokens
 };
 
 export const CHAIN_CONFIG = {
-    MODEL: "gpt-3.5-turbo",
-    TEMPERATURE: 0.3,
-    MAX_TOKENS: TOKEN_LIMITS.DEFAULT,
-    RESPONSE_FORMAT: 'json'
+  MODEL: 'gpt-3.5-turbo',
+  TEMPERATURE: 0.3,
+  MAX_TOKENS: TOKEN_LIMITS.DEFAULT,
+  RESPONSE_FORMAT: 'json'
 };
+
+// Valid script format types - must match frontend constants
+export const VALID_FORMATS = Object.freeze({
+  HEADER: 'header',
+  ACTION: 'action',
+  SPEAKER: 'speaker',
+  DIALOG: 'dialog',
+  DIRECTIONS: 'directions',
+  CHAPTER_BREAK: 'chapter-break'
+});
+
+export const VALID_FORMAT_VALUES = Object.freeze(Object.values(VALID_FORMATS));
 
 // System instructions for AI responses
 export const COMMON_PROMPT_INSTRUCTIONS = {
-    SYSTEM_PREFIX: `
+  SYSTEM_PREFIX: `
 You are a script writing assistant. Follow these core principles:
 
 1. Focus on script improvement and storytelling
@@ -139,11 +158,11 @@ Always use markdown formatting:
     <directions>directions</directions>
     <chapter-break>chapter-break</chapter-break>
 `,
-    RESPONSE_GUIDELINES: {
-        FORMAT: 'Always structure responses in creative, engaging, and concise format. Use h2 and p tags for formatting.',
-        VALIDATION: 'Include rationale for responses',
-        CONTEXT: 'Reference specific script elements when possible'
-    }
+  RESPONSE_GUIDELINES: {
+    FORMAT: 'Always structure responses in creative, engaging, and concise format. Use h2 and p tags for formatting.',
+    VALIDATION: 'Include rationale for responses',
+    CONTEXT: 'Reference specific script elements when possible'
+  }
 };
 
 //=============================================================================
@@ -152,9 +171,9 @@ Always use markdown formatting:
 
 // Error type definitions for system operations
 export const ERROR_TYPES = {
-    INVALID_INTENT: 'INVALID_INTENT',
-    INVALID_FORMAT: 'INVALID_FORMAT',
-    MISSING_REQUIRED: 'MISSING_REQUIRED',
-    CHAIN_ERROR: 'CHAIN_ERROR',
-    ROUTING_ERROR: 'ROUTING_ERROR'
+  INVALID_INTENT: 'INVALID_INTENT',
+  INVALID_FORMAT: 'INVALID_FORMAT',
+  MISSING_REQUIRED: 'MISSING_REQUIRED',
+  CHAIN_ERROR: 'CHAIN_ERROR',
+  ROUTING_ERROR: 'ROUTING_ERROR'
 };

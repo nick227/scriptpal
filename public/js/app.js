@@ -1,141 +1,106 @@
-import { ScriptPalAPI } from './api.js';
-import { ScriptPalChat } from './chat.js';
-import { ScriptPalUI } from './ui.js';
-import { ScriptPalUser } from './user.js';
-import { ScriptPalScript } from './script.js';
-import { EditorWidget } from './widgets/editor/EditorWidget.js';
-import { UI_ELEMENTS } from './constants.js';
-import { RendererFactory } from './renderers.js';
+/**
+ * App - Simplified main application using clean architecture
+ * Under 300 lines, focused on orchestrating the application
+ */
+import { CommandBus } from './application/Commands/CommandBus.js';
+import { QueryBus } from './application/Queries/QueryBus.js';
+import { AppController } from './core/AppController.js';
+import { ChatController } from './presentation/Chat/ChatController.js';
+import { EditorController } from './presentation/Editor/EditorController.js';
 
-export class ScriptPal {
-    constructor() {
-        // Wait for DOM to be ready before initializing
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.init().catch(error => {
-                console.error('ScriptPal initialization failed:', error);
-            }));
-        } else {
-            this.init().catch(error => {
-                console.error('ScriptPal initialization failed:', error);
-            });
-        }
+/**
+ *
+ */
+export class App {
+    /**
+     *
+     */
+    constructor () {
+        this.appController = new AppController();
+        this.commandBus = new CommandBus();
+        this.queryBus = new QueryBus();
+        this.isInitialized = false;
     }
 
-    async init() {
+    /**
+     * Initialize the application
+     */
+    async init () {
+        if (this.isInitialized) return;
+
+        const startTime = performance.now();
+
         try {
-            // Initialize core components
-            this.api = new ScriptPalAPI();
-            this.user = new ScriptPalUser(this.api);
+            await this.setupCoreSystems();
+            await this.setupControllers();
 
-            // Check authentication first
-            const isAuthenticated = await this.user.checkSession();
-            const currentUser = this.user.getCurrentUser();
+            const endTime = performance.now();
 
-            // Create UI first to get managers
-            this.ui = new ScriptPalUI(null, this.user, null);
-            await this.ui.initialize(currentUser);
-
-            // Initialize authenticated components
-            if (isAuthenticated && currentUser) {
-                // Get chat history
-                const chatHistory = await this.api.getChatHistory();
-                console.log('chatHistory:::', chatHistory);
-
-                // Create chat and script instances
-                this.chat = new ScriptPalChat(this.api, this.user);
-                this.script = new ScriptPalScript(this.api, this.user, this.chat);
-
-                // Set managers before initialization
-                this.script.setManagers(this.ui.stateManager, this.ui.eventBus);
-                await this.script.initialize();
-
-                // Get editor container element
-                const editorElements = {
-                    editorContainer: document.querySelector(UI_ELEMENTS.EDITOR_CONTAINER),
-                    minimapContainer: document.querySelector(UI_ELEMENTS.MINIMAP_CONTAINER)
-                };
-
-                // Validate required elements
-                if (!editorElements.editorContainer) {
-                    throw new Error('Editor container element not found in DOM');
-                }
-
-                // Create and initialize editor widget
-                this.editor = new EditorWidget(editorElements);
-
-                // Initialize editor with dependencies
-                await this.editor.initialize(this.api, this.user, this.script)
-                    .catch(error => {
-                        console.error('Failed to initialize editor:', error);
-                        throw new Error(`Editor initialization failed: ${error.message}`);
-                    });
-
-                // Update UI with authenticated components first
-                await this.ui.updateComponents(this.chat, this.script, this.editor);
-
-                // Initialize chat (without history)
-                await this.chat.initialize();
-
-                // Now that chat manager is ready, load the history
-                await this.chat.loadHistory(chatHistory);
-
-            } else {
-                // Create empty chat and script for unauthenticated state
-                this.chat = new ScriptPalChat(this.api, this.user);
-                this.script = new ScriptPalScript(this.api, this.user, this.chat);
-                // Set managers before initialization
-                this.script.setManagers(this.ui.stateManager, this.ui.eventBus);
-                await this.script.initialize();
-            }
-
-
+            this.isInitialized = true;
         } catch (error) {
-            console.error('Initialization failed:', error);
-            throw new Error(`Failed to initialize ScriptPal: ${error.message}`);
+            console.error('ƒ?O Failed to initialize ScriptPal:', error);
+            throw error;
         }
     }
 
-    // Format buttons with keyboard shortcuts
-    createFormatButtons() {
-        Object.entries(this.formats).forEach(([key, value]) => {
-            const button = this.createElement('button', 'format-button', key.toLowerCase());
-            button.dataset.format = value;
-            button.title = `Format as ${key.toLowerCase()}`;
-            this.toolbar.appendChild(button);
-        });
+    /**
+     * Setup core systems
+     */
+    async setupCoreSystems () {
+        this.registerCommandHandlers();
+        this.registerQueryHandlers();
     }
 
-    // Handle button clicks
-    handleToolbarClick(e) {
-        const button = e.target.closest('button');
-        if (!button) return;
+    /**
+     * Setup controllers
+     */
+    async setupControllers () {
 
-        if (button.classList.contains('undo-button')) {
-            if (this.undoHandler) this.undoHandler();
-        } else if (button.classList.contains('redo-button')) {
-            if (this.redoHandler) this.redoHandler();
-        } else if (button.dataset.format) {
-            const handler = this.formatHandlers.get(button.dataset.format);
-            if (handler) handler();
+        const editorController = new EditorController();
+        const chatController = new ChatController();
+
+        this.appController.addController('editor', editorController);
+        this.appController.addController('chat', chatController);
+
+        this.appController.setActiveView('editor');
+
+    }
+
+    /**
+     * Register command handlers
+     */
+    registerCommandHandlers () {
+    }
+
+    /**
+     * Register query handlers
+     */
+    registerQueryHandlers () {
+    }
+
+    /**
+     * Execute a command
+     * @param command
+     */
+    async executeCommand (command) {
+        return await this.commandBus.execute(command);
+    }
+
+    /**
+     * Execute a query
+     * @param query
+     */
+    async executeQuery (query) {
+        return await this.queryBus.execute(query);
+    }
+
+    /**
+     * Destroy the application
+     */
+    destroy () {
+        if (this.appController) {
+            this.appController.destroy();
         }
-    }
-
-    loadInitialContent() {
-        if (this.script && this.script.getCurrentContent()) {
-            const content = this.script.getCurrentContent();
-            this.content.setContent(content);
-            console.log('Content set:', content);
-            this.autosave.setLastSavedContent(content);
-        }
-    }
-
-    destroy() {
-        [this.toolbar, this.content, this.history, this.autosave]
-        .filter(Boolean)
-            .forEach(component => component.destroy());
-        // ...
+        this.isInitialized = false;
     }
 }
-
-// Export the class for use in other files
-export default ScriptPal;

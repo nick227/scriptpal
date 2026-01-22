@@ -2,12 +2,20 @@
  * Base class for all event handlers with common event management
  */
 export class BaseEvents {
-    constructor(handlers) {
+    /**
+     *
+     * @param handlers
+     */
+    constructor (handlers) {
         this.handlers = handlers;
         this.listeners = new Map();
     }
 
-    initialize(elements) {
+    /**
+     *
+     * @param elements
+     */
+    initialize (elements) {
         if (!elements) {
             throw new Error('Elements required for initialization');
         }
@@ -15,11 +23,20 @@ export class BaseEvents {
         this.setupEvents();
     }
 
-    setupEvents() {
+    /**
+     *
+     */
+    setupEvents () {
         // Override in child classes
     }
 
-    addEventListener(element, event, handler) {
+    /**
+     *
+     * @param element
+     * @param event
+     * @param handler
+     */
+    addEventListener (element, event, handler) {
         if (!element) return;
 
         if (!this.listeners.has(element)) {
@@ -31,7 +48,10 @@ export class BaseEvents {
         element.addEventListener(event, handler);
     }
 
-    cleanup() {
+    /**
+     *
+     */
+    cleanup () {
         this.listeners.forEach((elementListeners, element) => {
             elementListeners.forEach(({ event, handler }) => {
                 element.removeEventListener(event, handler);
@@ -40,7 +60,11 @@ export class BaseEvents {
         this.listeners.clear();
     }
 
-    getEventType(type) {
+    /**
+     *
+     * @param type
+     */
+    getEventType (type) {
         const eventTypes = {
             auth: 'submit',
             chat: 'click',

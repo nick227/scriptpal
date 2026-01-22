@@ -1,0 +1,85 @@
+export default {
+  // Test environment
+  testEnvironment: 'jsdom',
+  
+  // Module file extensions
+  moduleFileExtensions: ['js', 'json'],
+  
+  // Transform files using Babel for ES modules
+  transform: {
+    '^.+\\.js$': 'babel-jest'
+  },
+  
+  // Test file patterns
+  testMatch: [
+    '**/__tests__/**/*.js',
+    '**/?(*.)+(spec|test).js'
+  ],
+  
+  // Module name mapping for ES modules
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/js/$1',
+    '^@core/(.*)$': '<rootDir>/js/core/$1',
+    '^@classes/(.*)$': '<rootDir>/js/classes/$1',
+    '^@widgets/(.*)$': '<rootDir>/js/widgets/$1',
+    '^@managers/(.*)$': '<rootDir>/js/managers/$1',
+    '^@ui/(.*)$': '<rootDir>/js/ui/$1',
+    '^@services/(.*)$': '<rootDir>/js/services/$1'
+  },
+  
+  // Setup files
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  
+  // Coverage configuration
+  collectCoverageFrom: [
+    'js/**/*.js',
+    '!js/**/*.test.js',
+    '!js/**/*.spec.js',
+    '!js/__tests__/**',
+    '!js/node_modules/**'
+  ],
+  
+  // Coverage thresholds
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70
+    }
+  },
+  
+  // Coverage reporters
+  coverageReporters: ['text', 'lcov', 'html'],
+  
+  // Test timeout
+  testTimeout: 10000,
+  
+  // Worker configuration to prevent crashes
+  maxWorkers: 1,
+  workerIdleMemoryLimit: '512MB',
+  
+  // Clear mocks between tests
+  clearMocks: true,
+  
+  // Restore mocks between tests
+  restoreMocks: true,
+  
+  // Verbose output
+  verbose: true,
+  
+  // Ignore patterns
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/build/'
+  ],
+  
+  // Module directories
+  moduleDirectories: ['node_modules', 'js'],
+  
+  // Global variables
+  globals: {
+    'process.env.NODE_ENV': 'test'
+  }
+};

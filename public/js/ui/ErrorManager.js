@@ -1,14 +1,30 @@
+/**
+ *
+ */
 export class ErrorManager {
-    static handleError(error, context) {
+    /**
+     *
+     * @param error
+     * @param context
+     */
+    static handleError (error, context) {
         console.error(`Error in ${context}:`, error);
         NotificationManager.showError(ERROR_MESSAGES[context.toUpperCase()]);
     }
 
-    static handleApiError(error) {
+    /**
+     *
+     * @param error
+     */
+    static handleApiError (error) {
         this.handleError(error, 'api');
     }
 
-    static handleAuthError(error) {
+    /**
+     *
+     * @param error
+     */
+    static handleAuthError (error) {
         this.handleError(error, 'auth');
     }
 }

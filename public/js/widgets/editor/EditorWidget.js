@@ -1,595 +1,940 @@
-import { BaseWidget } from '../BaseWidget.js';
-import { EditorToolbar } from './EditorToolbar.js';
+import { UI_ELEMENTS } from '../../constants.js';
+import { EventEmitter } from '../../core/EventEmitter.js';
+import { EventManager } from '../../core/EventManager.js';
+
+import { AICommandManager } from './ai/AICommandManager.js';
+import { AILineInsertionManager } from './ai/AILineInsertionManager.js';
+import { ChapterManager } from './chapters/ChapterManager.js';
+import { EDITOR_EVENTS } from './constants.js';
+// ContentManager functionality now consolidated into EditorContent.js
+import { ScriptContextManager } from './context/ScriptContextManager.js';
 import { EditorContent } from './EditorContent.js';
-import { EditorHistory } from './EditorHistory.js';
-import { EditorAutosave } from './EditorAutosave.js';
-import { Minimap } from './Minimap.js';
-import { ChapterManager } from './ChapterManager.js';
-import { AICommandManager } from './AICommandManager.js';
-import { EditorStateManager } from './EditorStateManager.js';
-import { StateManager } from '../../core/StateManager.js';
-import { MAX_LINES_PER_PAGE } from './constants.js';
-export class EditorWidget extends BaseWidget {
-    constructor(elements) {
-        if (!elements || !elements.editorContainer) {
-            throw new Error('Editor container element is required');
-        }
-        super(elements);
-        this.requiredElements = ['editorContainer'];
+import { EditorToolbar } from './EditorToolbar.js';
+import { EditorDOMHandler } from './handlers/EditorDOMHandler.js';
+import { EditorHistory } from './history/EditorHistory.js';
+import { LineFormatter } from './LineFormatter.js';
+// Minimap functionality now consolidated into EditorToolbar.js
+import { PageManager } from './page/PageManager.js';
+import { EditorSaveService } from './save/EditorSaveService.js';
+import { EditorStateManager } from './state/EditorStateManager.js';
+import { TitlePageManager } from './title/TitlePageManager.js';
+
+
+/**
+ *
+ */
+export class EditorWidget extends EventEmitter {
+    /**
+     *
+     * @param options
+     */
+    constructor (options = {}) {
+        super();
+
+        // Store container references
+        this.container = options.container;
+        this.toolbarContainer = options.toolbar || options.container.querySelector(UI_ELEMENTS.EDITOR_TOOLBAR);
+
+        this.statusBar = options.statusBar;
 
         // Core dependencies
         this.api = null;
         this.user = null;
-        this.script = null;
+        this.scriptStore = null;
+        this.eventManager = null;
 
-        // Initialize state manager
-        this.state = new EditorStateManager();
+        // Initialize components directly
+        this.components = new Map();
+        this.componentDefinitions = [];
+        this.initializeComponentDefinitions();
 
-        // Component instances
-        this.toolbar = null;
-        this.content = null;
-        this.history = null;
-        this.autosave = null;
-        this.minimap = null;
-        this.chapterManager = null;
-        this.aiCommandManager = null;
-
-        // Component dependencies
-        this.dependencies = {
-            toolbar: ['editorContainer'],
-            content: ['editorContainer'],
-            history: [],
-            autosave: ['script'],
-            minimap: ['minimapContainer'],
-            chapterManager: [],
-            aiCommandManager: []
+        // Initialize callback storage
+        this.callbacks = {
+            onChange: null,
+            onCursorMove: null,
+            onFormat: null
         };
+
+        this._eventHubCleanup = null;
+        this.saveStateSubscriptions = new Map();
     }
 
-    validateElements() {
-        super.validateElements();
-        if (!this.elements.editorContainer) {
-            throw new Error('Editor container element is required');
-        }
-        // Make minimap optional
-        this.hasMinimapSupport = Boolean(this.elements.minimapContainer);
-    }
+    /**
+     * Initialize component definitions (consolidated from EditorComponentManager)
+     */
+    initializeComponentDefinitions () {
+        this.componentDefinitions = [
+            {
+                name: 'globalStateManager',
+                required: false,
+                init: async () => {
+                    return this.stateManager;
+                },
+                deps: []
+            },
+            {
+                name: 'stateManager',
+                required: true,
+                init: async () => {
+                    const editorStateManager = new EditorStateManager();
+                    await editorStateManager.initialize();
+                    return editorStateManager;
+                },
+                deps: []
+            },
+            {
+                name: 'pageManager',
+                required: true,
+                init: async () => {
+                    let editorArea = this.container.querySelector('.editor-area');
+                    if (!editorArea) {
+                        editorArea = document.createElement('div');
+                        editorArea.className = 'editor-area';
+                        this.container.appendChild(editorArea);
+                    }
+                    const pageManager = new PageManager(editorArea);
+                    await pageManager.initialize();
+                    return pageManager;
+                },
+                deps: ['stateManager']
+            },
+            {
+                name: 'domHandler',
+                required: true,
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    const pageManager = this.getComponent('pageManager');
 
-    async initialize(api, user, script) {
-        try {
-            // 1. Validate core dependencies
-            if (!api) throw new Error('API instance is required');
-            this.validateElements();
+                    if (!stateManager || !pageManager) {
+                        throw new Error('Required dependencies not available for domHandler');
+                    }
 
-            // 2. Set core dependencies
-            this.api = api;
-            this.user = user;
-            this.script = script;
-
-            // 3. Initialize state
-            this.state.setReady(false);
-            await super.initialize();
-
-            // 4. Initialize components in dependency order
-            await this.initializeComponents();
-
-            // 5. Set up relationships after all components are initialized
-            await this.setupComponentRelationships();
-
-            // 6. Subscribe to script changes
-            // TODO: Uncomment this when we have a script manager
-            //this.subscribeToScriptChanges();
-
-            // 7. Load content last
-            await this.loadInitialContent();
-
-            // 8. Mark as ready
-            this.state.setReady(true);
-            return true;
-
-        } catch (error) {
-            console.error('Failed to initialize editor:', error);
-            this.state.setState('error', error);
-            throw new Error(`Editor initialization failed: ${error.message}`);
-        }
-    }
-
-    async initializeComponents() {
-        try {
-            // Track initialization status
-            const initStatus = new Map();
-
-            // 1. Core state managers (no UI dependencies)
-            await this.initializeStateManagers()
-                .then(() => initStatus.set('stateManagers', true))
-                .catch(error => {
-                    initStatus.set('stateManagers', false);
-                    throw error;
-                });
-
-            // 2. UI Components (require DOM)
-            await this.initializeUIComponents()
-                .then(() => initStatus.set('uiComponents', true))
-                .catch(error => {
-                    initStatus.set('uiComponents', false);
-                    throw error;
-                });
-
-            // 3. Optional UI Components
-            await this.initializeOptionalComponents()
-                .then(() => initStatus.set('optionalComponents', true))
-                .catch(error => {
-                    console.warn('Optional components failed:', error);
-                    initStatus.set('optionalComponents', false);
-                });
-
-            // 4. Data-dependent components
-            await this.initializeDataComponents()
-                .then(() => initStatus.set('dataComponents', true))
-                .catch(error => {
-                    console.warn('Data components failed:', error);
-                    initStatus.set('dataComponents', false);
-                });
-
-            // Validate critical components
-            if (!initStatus.get('stateManagers') || !initStatus.get('uiComponents')) {
-                throw new Error('Critical components failed to initialize');
-            }
-
-            // 5. Set up component relationships
-            await this.setupComponentDependencies();
-
-            return true;
-        } catch (error) {
-            console.error('Failed to initialize editor components:', error);
-            throw error;
-        }
-    }
-
-    async initializeStateManagers() {
-        const stateManagers = [
-            { instance: new EditorHistory(this.state), key: 'history' },
-            { instance: new ChapterManager(this.state), key: 'chapterManager' },
-            { instance: new AICommandManager(this.state), key: 'aiCommandManager' }
-        ];
-
-        await Promise.all(stateManagers.map(async({ instance, key }) => {
-            try {
-                await instance.initialize();
-                this[key] = instance;
-            } catch (error) {
-                throw new Error(`Failed to initialize ${key}: ${error.message}`);
-            }
-        }));
-    }
-
-    async initializeUIComponents() {
-        try {
-            // Creates EditorContent first
-            this.content = new EditorContent({
-                editorContainer: this.elements.editorContainer,
-                stateManager: this.state
-            });
-
-            // Creates EditorToolbar and passes EditorContent
-            this.toolbar = new EditorToolbar({
-                editorContainer: this.elements.editorContainer,
-                stateManager: this.state,
-                editorContent: this.content // Passes the EditorContent instance
-            });
-
-            // Initializes both in parallel
-            await Promise.all([
-                this.toolbar.initialize(),
-                this.content.initialize()
-            ]);
-        } catch (error) {
-            throw new Error(`Failed to initialize UI components: ${error.message}`);
-        }
-    }
-
-    async initializeOptionalComponents() {
-        if (this.hasMinimapSupport) {
-            try {
-                this.minimap = new Minimap({
-                    minimapContainer: this.elements.minimapContainer
-                });
-                await this.minimap.initialize();
-            } catch (error) {
-                console.warn('Failed to initialize minimap:', error);
-                this.minimap = null;
-                this.hasMinimapSupport = false;
-            }
-        }
-    }
-
-    async initializeDataComponents() {
-        if (this.script) {
-            try {
-                // Get the actual script data from the script manager's state
-                const currentScript = this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-
-                if (!currentScript) {
-                    console.warn('No current script data available for autosave');
-                    return;
-                }
-
-                // Validate script manager has required methods
-                if (typeof this.script.saveContent !== 'function') {
-                    console.error('Script manager missing saveContent method');
-                    return;
-                }
-
-                // Create autosave with content manager and toolbar
-                this.autosave = new EditorAutosave(this.content.contentManager, this.toolbar);
-                await this.autosave.initialize(this.script);
-
-            } catch (error) {
-                console.error('Failed to initialize autosave:', error);
-                this.autosave = null;
-            }
-        } else {
-            console.warn('No script provided for autosave initialization');
-        }
-    }
-
-    setupComponentDependencies() {
-        if (!this.content || !this.aiCommandManager) {
-            throw new Error('Required components not initialized');
-        }
-
-        this.aiCommandManager.setContent(this.content);
-        if (this.chapterManager) {
-            this.aiCommandManager.setChapterManager(this.chapterManager);
-        }
-    }
-
-    async setupComponentRelationships() {
-        const relationships = [{
+                    const domHandler = new EditorDOMHandler({
+                        container: this.container,
+                        stateManager: stateManager,
+                        pageManager: pageManager
+                    });
+                    await domHandler.initialize();
+                    return domHandler;
+                },
+                deps: ['stateManager', 'pageManager']
+            },
+            {
+                name: 'lineFormatter',
+                required: true,
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    if (!stateManager) {
+                        throw new Error('Required dependencies not available for lineFormatter');
+                    }
+                    return new LineFormatter(stateManager);
+                },
+                deps: ['stateManager']
+            },
+            {
                 name: 'content',
                 required: true,
-                setup: async() => {
-                    if (!this.content) throw new Error('Content component not initialized');
-                    await this.setupContentHandling();
-                }
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    const pageManager = this.getComponent('pageManager');
+                    const lineFormatter = this.getComponent('lineFormatter');
+                    const domHandler = this.getComponent('domHandler');
+
+                    if (!stateManager || !pageManager || !lineFormatter || !domHandler) {
+                        throw new Error('Required dependencies not available for content');
+                    }
+
+                    const content = new EditorContent({
+                        container: this.container,
+                        stateManager: stateManager,
+                        pageManager: pageManager,
+                        lineFormatter: lineFormatter,
+                        domHandler: domHandler
+                    });
+                    await content.initialize();
+                    return content;
+                },
+                deps: ['stateManager', 'pageManager', 'lineFormatter', 'domHandler']
             },
             {
                 name: 'toolbar',
                 required: true,
-                setup: async() => {
-                    if (!this.toolbar) throw new Error('Toolbar component not initialized');
-                    await this.setupToolbarHandling();
-                }
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    const pageManager = this.getComponent('pageManager');
+
+                    if (!stateManager || !pageManager) {
+                        throw new Error('Required dependencies not available for toolbar');
+                    }
+
+                    const toolbar = new EditorToolbar({
+                        container: this.toolbarContainer,
+                        stateManager: stateManager,
+                        pageManager: pageManager
+                    });
+                    await toolbar.initialize();
+                    return toolbar;
+                },
+                deps: ['stateManager', 'pageManager']
+            },
+            {
+                name: 'saveService',
+                required: true,
+                init: async () => {
+                    const content = this.getComponent('content');
+                    const toolbar = this.getComponent('toolbar');
+
+                    if (!content || !toolbar) {
+                        throw new Error('Required dependencies not available for saveService');
+                    }
+
+                    return new EditorSaveService({
+                        content: content,
+                        toolbar: toolbar,
+                        api: this.api,
+                        scriptStore: this.scriptStore
+                    });
+                },
+                deps: ['content', 'toolbar']
             },
             {
                 name: 'history',
                 required: true,
-                setup: async() => {
-                    if (!this.history) throw new Error('History component not initialized');
-                    await this.setupHistoryHandling();
-                }
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    if (!stateManager) {
+                        throw new Error('Required dependencies not available for history');
+                    }
+                    return new EditorHistory(stateManager);
+                },
+                deps: ['stateManager']
             },
             {
-                name: 'minimap',
+                name: 'titlePageManager',
                 required: false,
-                setup: async() => {
-                    if (this.hasMinimapSupport && this.minimap) {
-                        await this.setupMinimapHandling();
+                init: async () => {
+                    const { stateManager, eventManager, api, scriptStore, container } = this;
+                    const editorArea = container.querySelector(UI_ELEMENTS.EDITOR_AREA);
+
+                    if (!stateManager || !eventManager || !api || !editorArea) {
+                        throw new Error('Required dependencies not available for titlePageManager');
                     }
-                }
+                    const titlePageManager = new TitlePageManager({
+                        container: editorArea,
+                        stateManager: stateManager,
+                        eventManager: eventManager,
+                        api: api,
+                        scriptStore: scriptStore
+                    });
+                    await titlePageManager.initialize();
+                    return titlePageManager;
+                },
+                deps: ['stateManager']
             },
             {
-                name: 'chapters',
+                name: 'chapterManager',
                 required: false,
-                setup: async() => {
-                    if (this.chapterManager) {
-                        await this.setupChapterHandling();
+                init: async () => {
+                    const content = this.getComponent('content');
+                    if (!content) {
+                        throw new Error('Required dependencies not available for chapterManager');
                     }
-                }
+                    return new ChapterManager(content);
+                },
+                deps: ['content']
+            },
+            {
+                name: 'aiCommandManager',
+                required: false,
+                init: async () => {
+                    const content = this.getComponent('content');
+                    if (!content) {
+                        throw new Error('Required dependencies not available for aiCommandManager');
+                    }
+                    return new AICommandManager(content);
+                },
+                deps: ['content']
+            },
+            {
+                name: 'aiLineInsertionManager',
+                required: false,
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    const { eventManager } = this;
+                    const content = this.getComponent('content');
+                    const aiCommandManager = this.getComponent('aiCommandManager');
+
+                    if (!stateManager || !eventManager || !content || !aiCommandManager) {
+                        throw new Error('Required dependencies not available for aiLineInsertionManager');
+                    }
+
+                    return new AILineInsertionManager({
+                        stateManager: stateManager,
+                        eventManager: eventManager,
+                        contentManager: content,
+                        aiCommandManager: aiCommandManager
+                    });
+                },
+                deps: ['stateManager', 'content', 'aiCommandManager']
+            },
+            {
+                name: 'stateController',
+                required: true,
+                init: async () => {
+                    const stateManager = this.getComponent('stateManager');
+                    const { eventManager } = this;
+                    const content = this.getComponent('content');
+                    const pageManager = this.getComponent('pageManager');
+                    const chapterManager = this.getComponent('chapterManager');
+
+                    if (!stateManager || !eventManager) {
+                        throw new Error('Required dependencies not available for stateController');
+                    }
+
+                    return new ScriptContextManager({
+                        stateManager: stateManager,
+                        eventManager: eventManager,
+                        contentManager: content,
+                        pageManager: pageManager,
+                        chapterManager: chapterManager
+                    });
+                },
+                deps: ['stateManager', 'content', 'pageManager']
             }
         ];
+    }
 
-        try {
-            // Setup required relationships first
-            for (const rel of relationships.filter(r => r.required)) {
-                try {
-                    await rel.setup();
-                } catch (error) {
-                    throw new Error(`Failed to setup required ${rel.name} relationship: ${error.message}`);
+    /**
+     * Get a component by name
+     * @param name
+     */
+    getComponent (name) {
+        return this.components.get(name);
+    }
+
+    /**
+     * Get the state controller component
+     */
+    get stateController () {
+        return this.getComponent('stateController');
+    }
+
+    /**
+     * Sort components by dependency order using topological sort
+     */
+    sortComponentsByDependencies () {
+        const sorted = [];
+        const visited = new Set();
+        const visiting = new Set();
+
+        const visit = (definition) => {
+            if (visiting.has(definition.name)) {
+                throw new Error(`Circular dependency detected: ${definition.name}`);
+            }
+            if (visited.has(definition.name)) {
+                return;
+            }
+
+            visiting.add(definition.name);
+
+            // Visit dependencies first
+            for (const depName of definition.deps) {
+                const dep = this.componentDefinitions.find(d => d.name === depName);
+                if (dep) {
+                    visit(dep);
                 }
             }
 
-            // Setup optional relationships
-            for (const rel of relationships.filter(r => !r.required)) {
-                try {
-                    await rel.setup();
-                } catch (error) {
-                    console.warn(`Failed to setup optional ${rel.name} relationship:`, error);
+            visiting.delete(definition.name);
+            visited.add(definition.name);
+            sorted.push(definition);
+        };
+
+        for (const definition of this.componentDefinitions) {
+            if (!visited.has(definition.name)) {
+                visit(definition);
+            }
+        }
+
+        return sorted;
+    }
+
+    /**
+     * Initialize all components with dependency resolution and phased loading
+     */
+    async initializeComponents () {
+        const startTime = performance.now();
+
+        // Sort components by dependency order to avoid retries
+        const sortedDefinitions = this.sortComponentsByDependencies();
+
+        // Phase 1: Critical components (required for basic functionality)
+        const criticalComponents = sortedDefinitions.filter(def => def.required);
+        await this.initializeComponentPhase(criticalComponents, 'Critical');
+
+        // Phase 2: Optional components (deferred for performance)
+        const optionalComponents = sortedDefinitions.filter(def => !def.required);
+
+        // Defer optional components to next tick for better performance
+        if (optionalComponents.length > 0) {
+            setTimeout(async () => {
+                await this.initializeComponentPhase(optionalComponents, 'Optional');
+            }, 0);
+        }
+
+        const endTime = performance.now();
+
+        // Verify all required components are initialized
+        this.checkRequiredComponents();
+    }
+
+    /**
+     * Initialize a phase of components with progress tracking
+     * @param components
+     * @param phaseName
+     */
+    async initializeComponentPhase (components, phaseName) {
+        const phaseStartTime = performance.now();
+        let initialized = 0;
+        let skipped = 0;
+        let failed = 0;
+
+        for (const definition of components) {
+            if (this.components.has(definition.name)) {
+                skipped++;
+                continue; // Already initialized
+            }
+
+            try {
+                const componentStartTime = performance.now();
+
+                const component = await definition.init();
+                this.components.set(definition.name, component);
+
+                const componentEndTime = performance.now();
+                initialized++;
+            } catch (error) {
+                console.error(`[EditorWidget] ❌ ${phaseName}: Failed to initialize ${definition.name}:`, error);
+                failed++;
+                if (definition.required) {
+                    throw error;
                 }
             }
-
-        } catch (error) {
-            console.error('Failed to setup component relationships:', error);
-            throw error;
-        }
-    }
-
-    setupContentHandling() {
-        if (!this.content) {
-            throw new Error('Content component not initialized');
         }
 
-        // Handle content changes
-        this.content.onChange((content) => {
-            // Update state
-            this.state.setContent(content);
-            this.state.setPageCount(this.content.pageManager.getPageCount());
-
-            // Save state immediately for history
-            const currentState = this.state.getCurrentState();
-            this.history.saveState(currentState);
-        });
-
-        // Handle format changes
-        this.content.onFormatChange((format) => {
-            this.state.setCurrentFormat(format);
-            this.toolbar.updateActiveFormat(format);
-        });
-
-        // Handle page changes
-        this.content.onPageChange((pageCount) => {
-            // Get actual page count from PageOperations
-            const actualPageCount = this.content.pageManager.getPageCount();
-            this.state.setPageCount(actualPageCount);
-            this.toolbar.updatePageCount(actualPageCount);
-            if (this.minimap) {
-                this.minimap.updateViewport(this.content.getCurrentPage(), actualPageCount);
-            }
-        });
-
-        // Handle undo/redo using EditorContent event types
-        this.content.on(EditorContent.EVENTS.UNDO, () => {
-            const state = this.history.undo();
-            if (state && this.validateState(state)) {
-                this.applyState(state);
-            }
-        });
-
-        this.content.on(EditorContent.EVENTS.REDO, () => {
-            const state = this.history.redo();
-            if (state && this.validateState(state)) {
-                this.applyState(state);
-            }
-        });
+        const phaseEndTime = performance.now();
     }
 
-    setupToolbarHandling() {
-        if (!this.toolbar || !this.content) {
-            console.warn('Cannot setup toolbar handling - missing toolbar or content');
+    /**
+     * Check if all required components are initialized
+     */
+    checkRequiredComponents () {
+        const requiredComponents = this.componentDefinitions.filter(def => def.required);
+        const missingRequired = requiredComponents.filter(def => !this.components.has(def.name));
+
+        if (missingRequired.length > 0) {
+            throw new Error(`Missing required components: ${missingRequired.map(def => def.name).join(', ')}`);
+        }
+
+    }
+
+    /**
+     * Setup component relationships (consolidated from EditorComponentManager)
+     */
+    async setupComponentRelationships () {
+
+        // Set up content-toolbar relationship
+        const content = this.getComponent('content');
+        const toolbar = this.getComponent('toolbar');
+        const history = this.getComponent('history');
+        const pageManager = this.getComponent('pageManager');
+
+        if (content && toolbar) {
+            if (typeof toolbar.setEditorArea === 'function') {
+                toolbar.setEditorArea(content.editorArea);
+            }
+            this.setupEditorEventHub(content, toolbar);
+        }
+
+        if (content && history) {
+            content.setHistory(history);
+            if (typeof history.setContent === 'function') {
+                history.setContent(content);
+            }
+            if (pageManager && typeof history.setPageManager === 'function') {
+                history.setPageManager(pageManager);
+            }
+        }
+
+        if (toolbar && history) {
+            if (typeof toolbar.onUndo === 'function') {
+                toolbar.onUndo(() => history.undo());
+            }
+            if (typeof toolbar.onRedo === 'function') {
+                toolbar.onRedo(() => history.redo());
+            }
+        }
+
+        // Set up other component relationships as needed
+    }
+
+    /**
+     * Centralized wiring between editor components
+     * @param content
+     * @param toolbar
+     */
+    setupEditorEventHub (content, toolbar) {
+        if (this._eventHubCleanup) {
+            this._eventHubCleanup();
+        }
+
+        const editorArea = content?.editorArea;
+        if (!editorArea || !toolbar) {
+            this._eventHubCleanup = null;
             return;
         }
 
-        // Handle format selection
-        this.toolbar.onFormatSelected((format) => {
-            this.content.setLineFormat(format);
-        });
-
-        // Handle undo/redo
-        this.toolbar.onUndo(() => {
-            this.content.emit(EditorContent.EVENTS.UNDO);
-        });
-
-        this.toolbar.onRedo(() => {
-            this.content.emit(EditorContent.EVENTS.REDO);
-        });
-
-        // Handle save
-        this.toolbar.onSave(async() => {
-            if (!this.autosave) {
-                console.warn('Autosave not initialized');
-                return;
+        const handleScroll = (event) => {
+            if (typeof toolbar.handleScroll === 'function') {
+                toolbar.handleScroll(event);
             }
-            try {
-                await this.autosave.saveContent();
-            } catch (error) {
-                console.error('Manual save failed:', error);
+            if (typeof toolbar.updateMinimapPosition === 'function') {
+                toolbar.updateMinimapPosition();
             }
-        });
+        };
 
-        // Subscribe to format changes from content
-        this.content.on(EditorContent.EVENTS.FORMAT_CHANGE, (format) => {
-            this.toolbar.updateActiveFormat(format);
+        const handleSelection = () => {
+            if (typeof toolbar.updateMinimapPosition === 'function') {
+                toolbar.updateMinimapPosition();
+            }
+        };
+
+        editorArea.addEventListener('scroll', handleScroll);
+        document.addEventListener('selectionchange', handleSelection);
+
+        const minimapContainer = this.container.querySelector('.minimap-container');
+        if (minimapContainer && typeof toolbar.initializeMinimap === 'function') {
+            toolbar.initializeMinimap(minimapContainer, editorArea);
+            toolbar.createMinimap();
+        }
+
+        this._eventHubCleanup = () => {
+            editorArea.removeEventListener('scroll', handleScroll);
+            document.removeEventListener('selectionchange', handleSelection);
+        };
+    }
+
+    /**
+     * Setup event handling (consolidated from EditorEventCoordinator)
+     */
+    setupEventHandling () {
+
+        // Setup basic event listeners
+        const content = this.getComponent('content');
+        const toolbar = this.getComponent('toolbar');
+
+        if (content) {
+            // Content change events
+            content.on('contentChanged', (data) => {
+                this.emit('contentChanged', data);
+                if (this.callbacks.onChange) {
+                    this.callbacks.onChange(data);
+                }
+            });
+
+            // Cursor move events
+            content.on('cursorMoved', (data) => {
+                this.emit('cursorMoved', data);
+                if (this.callbacks.onCursorMove) {
+                    this.callbacks.onCursorMove(data);
+                }
+            });
+        }
+
+        if (toolbar && typeof toolbar.on === 'function') {
+            // Format change events
+            toolbar.on('formatChanged', (data) => {
+                this.emit('formatChanged', data);
+                if (this.callbacks.onFormat) {
+                    this.callbacks.onFormat(data);
+                }
+            });
+        }
+
+        if (toolbar && typeof toolbar.onFormatSelected === 'function' && content) {
+            toolbar.onFormatSelected((format) => {
+                content.setCurrentLineFormat(format);
+            });
+        }
+
+    }
+
+    /**
+     * Subscribe to script save state events from ScriptStore
+     */
+    setupSaveStateSubscriptions () {
+        if (!this.eventManager) {
+            return;
+        }
+        const stateMap = {
+            SAVE_DIRTY: 'dirty',
+            SAVE_SAVING: 'saving',
+            SAVE_SAVED: 'saved',
+            SAVE_ERROR: 'error'
+        };
+
+        Object.entries(stateMap).forEach(([eventKey, state]) => {
+            const eventName = EventManager.EVENTS.SCRIPT[eventKey];
+            if (!eventName) return;
+            const unsubscribe = this.eventManager.subscribe(eventName, () => {
+                this.updateToolbarSaveState(state);
+            });
+            this.saveStateSubscriptions.set(eventName, unsubscribe);
         });
     }
 
-    validateState(state) {
-        if (!state) return false;
+    /**
+     * Update the toolbar's save state (if available)
+     * @param {string} state
+     */
+    updateToolbarSaveState (state) {
+        const toolbar = this.getComponent('toolbar');
+        if (toolbar && typeof toolbar.setSaveState === 'function') {
+            toolbar.setSaveState(state);
+        }
+    }
 
-        // Validate required state properties
-        const requiredProps = ['content', 'pageCount', 'currentFormat', 'currentPage'];
-        const hasAllProps = requiredProps.every(prop => state.hasOwnProperty(prop));
-        if (!hasAllProps) return false;
+    /**
+     * Load initial content (consolidated from EditorStateController)
+     * @param scriptStore
+     */
+    async loadInitialContent (scriptStore) {
 
-        // Validate content
-        if (typeof state.content !== 'string') return false;
+        const content = this.getComponent('content');
+        const stateManager = this.getComponent('stateManager');
 
-        // Validate numeric properties
-        if (!Number.isInteger(state.pageCount) || state.pageCount < 0) return false;
-        if (!Number.isInteger(state.currentPage) || state.currentPage < 0) return false;
+        if (content && stateManager) {
+            const currentScript = scriptStore.getCurrentScript();
+            if (currentScript && currentScript.content !== undefined && currentScript.content !== null) {
+                await content.updateContent(currentScript.content, {
+                    isEdit: false,
+                    preserveState: false,
+                    source: 'initial_load',
+                    focus: true
+                });
+                if (typeof stateManager.setCurrentScript === 'function') {
+                    stateManager.setCurrentScript(currentScript);
+                }
+            }
+        }
+    }
 
-        // Validate format
-        if (!this.content || !this.content.lineFormatter.isValidFormat(state.currentFormat)) {
+    /**
+     *
+     */
+    validateElements () {
+        if (!this.container || !(this.container instanceof HTMLElement)) {
+            throw new Error('Editor container element is required and must be an HTMLElement');
+        }
+
+        // Validate toolbar container exists
+        if (!this.toolbarContainer || !(this.toolbarContainer instanceof HTMLElement)) {
+            throw new Error('Editor toolbar element is required and must be an HTMLElement');
+        }
+
+        // Make minimap optional
+        this.hasMinimapSupport = Boolean(this.container.querySelector('.minimap-container'));
+        return true;
+    }
+
+    /**
+     *
+     * @param api
+     * @param user
+     * @param scriptStore
+     * @param stateManager
+     */
+    async initialize (api, user, scriptStore, stateManager = null) {
+        try {
+            // Validate core dependencies
+            if (!api) {
+                throw new Error('API is required for editor initialization');
+            }
+            if (!user) {
+                throw new Error('User is required for editor initialization');
+            }
+            if (!scriptStore) {
+                throw new Error('ScriptStore is required for editor initialization');
+            }
+
+            // Store core dependencies
+            this.api = api;
+            this.user = user;
+            this.scriptStore = scriptStore;
+            this.stateManager = stateManager;
+
+            // Validate required elements
+            if (!this.validateElements()) {
+                throw new Error('Required elements not found');
+            }
+
+            // Initialize event manager first
+            this.eventManager = new EventManager();
+
+            // Initialize components directly
+            await this.initializeComponents();
+
+            // Setup component relationships
+            await this.setupComponentRelationships();
+
+            // Setup event handling
+            this.setupEventHandling();
+            this.setupSaveStateSubscriptions();
+
+            // Load initial content if script is already selected
+            const currentScript = this.scriptStore.getCurrentScript();
+            if (currentScript && currentScript.content) {
+                await this.loadInitialContent(this.scriptStore);
+            }
+
+            // Set editor as ready
+            const editorStateManager = this.getComponent('stateManager');
+            if (editorStateManager && typeof editorStateManager.setReady === 'function') {
+                editorStateManager.setReady(true);
+            }
+            this.emit(EDITOR_EVENTS.EDITOR_AREA_READY);
+
+            return true;
+        } catch (error) {
+            console.error('Failed to initialize editor:', error);
+            const editorStateManager = this.getComponent('stateManager');
+            if (editorStateManager) {
+                editorStateManager.setError(error);
+            }
             return false;
+        }
+    }
+
+    /**
+     *
+     */
+    async reloadCurrentScript () {
+        const currentScript = this.scriptStore.getCurrentScript();
+        if (currentScript && currentScript.content) {
+            await this.loadInitialContent(this.scriptStore);
+            this.emit(EDITOR_EVENTS.EDITOR_AREA_READY);
+            return true;
+        }
+        return false;
+    }
+
+    // Public API methods
+    /**
+     *
+     */
+    getCurrentState () {
+        return this.stateController.getCurrentState();
+    }
+
+    /**
+     *
+     * @param state
+     */
+    validateState (state) {
+        return this.stateController.validateState(state);
+    }
+
+    /**
+     *
+     * @param state
+     */
+    applyState (state) {
+        return this.stateController.applyState(state);
+    }
+
+    // Event callback setters
+    /**
+     *
+     * @param callback
+     */
+    onContentChange (callback) {
+        this.callbacks.onChange = callback;
+    }
+
+    /**
+     *
+     * @param callback
+     */
+    onCursorMove (callback) {
+        this.callbacks.onCursorMove = callback;
+    }
+
+    /**
+     *
+     * @param callback
+     */
+    onFormatChange (callback) {
+        this.callbacks.onFormat = callback;
+    }
+
+    /**
+     *
+     */
+    destroy () {
+        if (this._eventHubCleanup) {
+            this._eventHubCleanup();
+            this._eventHubCleanup = null;
+        }
+
+        // Clean up components in reverse order
+        const componentNames = Array.from(this.components.keys()).reverse();
+
+        for (const name of componentNames) {
+            const component = this.components.get(name);
+            if (component && typeof component.destroy === 'function') {
+                try {
+                    component.destroy();
+                } catch (error) {
+                    console.error(`[EditorWidget] Error destroying component ${name}:`, error);
+                }
+            }
+        }
+
+        // Clear component references
+        this.components.clear();
+        this.componentDefinitions = [];
+
+        // Clear event handlers
+        if (this._eventHandlers) {
+            this._eventHandlers = null;
+        }
+
+        // Clear other references
+        this.api = null;
+        this.user = null;
+        this.scriptStore = null;
+        this.eventManager = null;
+
+        // Clean up event listeners
+        this.removeAllListeners();
+        // Remove save state subscriptions
+        this.saveStateSubscriptions.forEach(unsub => {
+            if (typeof unsub === 'function') {
+                unsub();
+            }
+        });
+        this.saveStateSubscriptions.clear();
+    }
+
+    /**
+     *
+     * @param scriptData
+     */
+    async updateScriptContent (scriptData) {
+        try {
+            if (!scriptData || scriptData.content === null || scriptData.content === undefined) {
+                throw new Error('Invalid script data');
+            }
+
+            // Get content component
+            const contentComponent = this.getComponent('content');
+            if (!contentComponent) {
+                throw new Error('Content component not found');
+            }
+
+            // Update with new content string
+            await contentComponent.updateContent(scriptData.content, {
+                source: 'edit',
+                isEdit: true,
+                preserveState: true
+            });
+
+            // Update save service with content string
+
+            return true;
+        } catch (error) {
+            console.error('[EDITOR] Content update failed:', error);
+            this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, {
+                error: error.message,
+                type: 'edit',
+                recoverable: true
+            });
+            return false;
+        }
+    }
+
+    /**
+     * Load script content into the editor.
+     * @param {object} options
+     * @param {object} options.script
+     * @param {string} [options.source]
+     * @param {boolean} [options.resetHistory]
+     */
+    async loadScript ({ script, source = 'selection', resetHistory = false } = {}) {
+        const contentComponent = this.getComponent('content');
+        if (!contentComponent) {
+            throw new Error('Content component not found');
+        }
+
+        const history = resetHistory ? this.getComponent('history') : null;
+        if (history && typeof history.clear === 'function') {
+            history.clear();
+        }
+
+        const contentValue = script && script.content !== undefined && script.content !== null
+            ? script.content
+            : '';
+
+        await contentComponent.updateContent(contentValue, {
+            isEdit: false,
+            preserveState: false,
+            source,
+            focus: true
+        });
+
+        if (history && history.stateManager && typeof history.stateManager.getCurrentState === 'function') {
+            history.saveState(history.stateManager.getCurrentState(), true);
         }
 
         return true;
     }
 
-    applyState(state) {
+    /**
+     * Apply command-based edits to the editor content.
+     * @param {Array} commands
+     * @returns {Promise<boolean>}
+     */
+    async applyCommands (commands = []) {
         try {
-            // Batch DOM updates
-            requestAnimationFrame(() => {
-                // Update content first
-                this.content.setContent(state.content, true);
-
-                // Update format
-                this.state.setCurrentFormat(state.currentFormat);
-                this.toolbar.updateActiveFormat(state.currentFormat);
-
-                // Update page state
-                this.toolbar.updatePageCount(state.pageCount);
-                this.state.setHistoryState(
-                    this.history.canUndo(),
-                    this.history.canRedo()
-                );
-
-                // Update minimap if available
-                if (this.hasMinimapSupport && this.minimap) {
-                    this.minimap.updateViewport(state.currentPage, state.pageCount);
-                }
-
-                // Mark content as clean after state application
-                this.state.markDirty(false);
-            });
-        } catch (error) {
-            console.error('Failed to apply editor state:', error);
-            this.state.setState('error', error);
-        }
-    }
-
-    getCurrentState() {
-        return {
-            content: this.state.getContent(),
-            pageCount: this.state.getPageCount(),
-            currentFormat: this.state.getCurrentFormat(),
-            currentPage: this.state.getCurrentPage(),
-            timestamp: Date.now()
-        };
-    }
-
-    setupHistoryHandling() {
-        this.history.onStateChange(() => {
-            this.toolbar.updateHistoryState(
-                this.history.canUndo(),
-                this.history.canRedo()
-            );
-        });
-    }
-
-    setupMinimapHandling() {
-        // Skip minimap setup if not available
-        if (!this.hasMinimapSupport || !this.minimap) return;
-
-        // Handle page selection from minimap
-        this.minimap.onPageSelect((pageNumber) => {
-            this.content.scrollToPage(pageNumber);
-        });
-
-        // Handle chapter selection from minimap
-        this.minimap.onChapterSelect((chapter) => {
-            this.content.scrollToPage(chapter.pageNumber);
-        });
-    }
-
-    setupChapterHandling() {
-        try {
-            // Update to use the new method name
-            this.toolbar.onChapterBreakCreate(() => {
-                const currentLine = this.state.getCurrentLine();
-                if (!currentLine) {
-                    console.warn('No current line selected for chapter break');
-                    return;
-                }
-
-                const currentChapterNumber = this.state.getNumberOfChapters();
-
-                // Create and insert the break line after current line
-                const breakLine = this.content.lineFormatter.createFormattedLine('break');
-                breakLine.textContent = '* * *'; // Or whatever break marker you want
-
-                // Insert after current line
-                currentLine.insertAdjacentElement('afterend', breakLine);
-
-                // Notify content manager of the change
-                this.content.contentManager.debouncedContentUpdate();
-            });
-        } catch (error) {
-            console.error('Failed to setup optional chapters relationship:', error);
-            throw error;
-        }
-    }
-
-    async loadInitialContent() {
-        try {
-            // Get the current script from state
-            const currentScript = this.script && this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-
-            if (!currentScript) {
-                console.warn('EditorWidget: No current script found');
-                return false;
+            const contentComponent = this.getComponent('content');
+            if (!contentComponent) {
+                throw new Error('Content component not found');
             }
 
-            // Parse the content if it exists
-            if (currentScript.content) {
-                await this.content.setContent(currentScript.content);
-                return true;
+            const result = await contentComponent.applyCommands(commands, {
+                source: 'ai_commands'
+            });
+            if (!result || !result.success) {
+                throw new Error('Command apply failed');
             }
 
-            console.warn('EditorWidget: No content in current script');
-            return false;
+
+            const history = this.getComponent('history');
+            if (history && typeof history.pushCommandBatch === 'function') {
+                history.pushCommandBatch(commands, result.inverseCommands || [], {
+                    source: 'ai_commands'
+                });
+            }
+
+            return true;
         } catch (error) {
-            console.error('Error loading initial content:', error);
-            return false;
-        }
-    }
-
-    // Add AI command execution method
-    async executeAICommand(command) {
-        if (!this.aiCommandManager) {
-            throw new Error('AI Command Manager not initialized');
-        }
-        return this.aiCommandManager.executeCommand(command);
-    }
-
-    destroy() {
-        // Destroy components in reverse initialization order
-        const components = [
-            this.autosave,
-            this.minimap,
-            this.content,
-            this.toolbar,
-            this.history,
-            this.chapterManager,
-            this.aiCommandManager
-        ];
-        components.filter(Boolean).forEach(component => component.destroy());
-
-        // Clear state
-        this.state.reset();
-
-        // Clear references
-        this.toolbar = null;
-        this.content = null;
-        this.history = null;
-        this.autosave = null;
-        this.minimap = null;
-        this.chapterManager = null;
-        this.aiCommandManager = null;
-        this.api = null;
-        this.user = null;
-        this.script = null;
-
-        super.destroy();
-    }
-
-    subscribeToScriptChanges() {
-        if (this.script && this.script.stateManager) {
-            this.script.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, async(script) => {
-                if (script && script.content !== undefined) {
-                    console.info('EditorWidget: Current script changed, loading new content:', script);
-                    await this.loadInitialContent();
-                }
+            console.error('[EDITOR] Command apply failed:', error);
+            this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, {
+                error: error.message,
+                type: 'edit',
+                recoverable: true
             });
+            return false;
         }
     }
 }

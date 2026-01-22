@@ -1,195 +1,234 @@
-export class StateManager {
-    constructor() {
-        // Initialize with default state
-        this.state = new Map([
-            ['loading', false],
-            ['editorLoading', false],
-            ['chatLoading', false],
-            ['authLoading', false],
-            ['authenticated', false],
-            ['currentView', null],
-            ['error', null],
-            ['user', null],
-            ['currentScript', null],
-            ['scripts', []]
-        ]);
+/**
+ * State key definitions as a frozen enum
+ * Prevents typos and ensures consistency across the application
+ */
+export const STATE_KEYS = Object.freeze({
+    // Authentication state
+    AUTHENTICATED: 'authenticated',
+    USER: 'user',
 
-        this.subscribers = new Map();
-        this.subscriptions = new Map();
-        this.validators = {
-            loading: (value) => typeof value === 'boolean',
-            editorLoading: (value) => typeof value === 'boolean',
-            chatLoading: (value) => typeof value === 'boolean',
-            authLoading: (value) => typeof value === 'boolean',
-            authenticated: (value) => typeof value === 'boolean',
-            currentView: (value) => typeof value === 'string' || value === null,
-            error: (value) => value instanceof Error || value === null,
-            user: (value) => typeof value === 'object' || value === null,
-            currentScript: (value) => value === null || (typeof value === 'object' && value !== undefined),
-            scripts: (value) => Array.isArray(value)
-        };
+    // Loading states
+    LOADING: 'loading',
+    EDITOR_LOADING: 'editorLoading',
+    CHAT_LOADING: 'chatLoading',
+    AUTH_LOADING: 'authLoading',
+
+    // Application state
+    CURRENT_VIEW: 'currentView',
+    READY: 'ready',
+    ERROR: 'error',
+
+    // Script state
+    CURRENT_SCRIPT: 'currentScript',
+    CURRENT_SCRIPT_ID: 'currentScriptId',
+    SCRIPTS: 'scripts',
+
+    // Chat state
+    CHAT_HISTORY: 'chatHistory',
+
+    // UI state
+    UI_STATE: 'uiState',
+
+    // Editor state
+    CONTENT: 'content',
+    CURRENT_LINE: 'currentLine',
+    CURRENT_FORMAT: 'currentFormat',
+    PAGE_COUNT: 'pageCount',
+    CURRENT_PAGE: 'currentPage',
+    HISTORY_STATE: 'historyState',
+    IS_FROM_EDIT: 'isFromEdit',
+    CAN_UNDO: 'canUndo',
+    CAN_REDO: 'canRedo',
+    IS_DIRTY: 'isDirty'
+});
+
+/**
+ * State value schemas for validation
+ */
+export const STATE_SCHEMAS = Object.freeze({
+    [STATE_KEYS.AUTHENTICATED]: { type: 'boolean', default: false },
+    [STATE_KEYS.USER]: { type: 'object', default: null, nullable: true },
+    [STATE_KEYS.LOADING]: { type: 'boolean', default: false },
+    [STATE_KEYS.EDITOR_LOADING]: { type: 'boolean', default: false },
+    [STATE_KEYS.CHAT_LOADING]: { type: 'boolean', default: false },
+    [STATE_KEYS.AUTH_LOADING]: { type: 'boolean', default: false },
+    [STATE_KEYS.CURRENT_VIEW]: { type: 'string', default: null, nullable: true },
+    [STATE_KEYS.READY]: { type: 'boolean', default: false },
+    [STATE_KEYS.ERROR]: { type: 'object', default: null, nullable: true },
+    [STATE_KEYS.CURRENT_SCRIPT]: { type: 'object', default: null, nullable: true },
+    [STATE_KEYS.CURRENT_SCRIPT_ID]: { type: 'number', default: null, nullable: true },
+    [STATE_KEYS.SCRIPTS]: { type: 'array', default: [] },
+    [STATE_KEYS.CHAT_HISTORY]: { type: 'array', default: [] },
+    [STATE_KEYS.UI_STATE]: { type: 'object', default: null, nullable: true },
+    [STATE_KEYS.CONTENT]: { type: 'string', default: '' },
+    [STATE_KEYS.CURRENT_LINE]: { type: 'object', default: null, nullable: true },
+    [STATE_KEYS.CURRENT_FORMAT]: { type: 'string', default: 'action' },
+    [STATE_KEYS.PAGE_COUNT]: { type: 'number', default: 0 },
+    [STATE_KEYS.CURRENT_PAGE]: { type: 'number', default: 1 },
+    [STATE_KEYS.HISTORY_STATE]: { type: 'object', default: { canUndo: false, canRedo: false } },
+    [STATE_KEYS.IS_FROM_EDIT]: { type: 'boolean', default: false },
+    [STATE_KEYS.CAN_UNDO]: { type: 'boolean', default: false },
+    [STATE_KEYS.CAN_REDO]: { type: 'boolean', default: false },
+    [STATE_KEYS.IS_DIRTY]: { type: 'boolean', default: false }
+});
+
+/**
+ *
+ */
+export class StateManager {
+    // Use the frozen enum
+    static KEYS = STATE_KEYS;
+
+    /**
+     *
+     */
+    constructor () {
+        this.state = new Map();
+        this.listeners = new Map();
+
+        // Initialize all state keys with their default values
+        this.initializeDefaultState();
     }
 
-    setState(key, value) {
-        // Validate key exists
-        if (!this.state.has(key)) {
-            console.warn(`Attempting to set unknown state key: ${key}`);
-            return;
+    /**
+     * Initialize state with default values from schemas
+     */
+    initializeDefaultState () {
+        Object.entries(STATE_SCHEMAS).forEach(([key, schema]) => {
+            this.state.set(key, schema.default);
+            this.listeners.set(key, new Set());
+        });
+    }
+
+    /**
+     * Validate a value against its schema
+     * @param {string} key - State key
+     * @param {*} value - Value to validate
+     * @returns {boolean} - True if valid
+     */
+    validateValue (key, value) {
+        const schema = STATE_SCHEMAS[key];
+        if (!schema) {
+            throw new Error(`Unknown state key: ${key}`);
         }
 
-        // Handle undefined values
-        if (value === undefined) {
-            value = null;
+        // Check if value is null and nullable is allowed
+        if (value === null) {
+            return schema.nullable === true;
         }
 
-        // Validate value if validator exists
-        if (this.validators[key] && !this.validators[key](value)) {
-            console.warn(`Invalid value for state key ${key}:`, value);
-            return;
+        // Type validation
+        const actualType = Array.isArray(value) ? 'array' : typeof value;
+        return actualType === schema.type;
+    }
+
+    /**
+     * Get the expected type for a state key
+     * @param {string} key - State key
+     * @returns {string} - Expected type
+     */
+    getExpectedType (key) {
+        const schema = STATE_SCHEMAS[key];
+        if (!schema) {
+            throw new Error(`Unknown state key: ${key}`);
+        }
+        return schema.type;
+    }
+
+
+    /**
+     *
+     * @param key
+     * @param value
+     */
+    setState (key, value) {
+        // Validate key exists in schema
+        if (!STATE_SCHEMAS.hasOwnProperty(key)) {
+            throw new Error(`Invalid state key: ${key}. Valid keys are: ${Object.keys(STATE_SCHEMAS).join(', ')}`);
+        }
+
+        // Validate value against schema
+        if (!this.validateValue(key, value)) {
+            const expectedType = this.getExpectedType(key);
+            const actualType = Array.isArray(value) ? 'array' : typeof value;
+            throw new Error(`Invalid value type for state key '${key}': expected ${expectedType}, got ${actualType}`);
         }
 
         const oldValue = this.state.get(key);
-        this.state.set(key, value);
-
-        // Notify subscribers if value changed
         if (oldValue !== value) {
-            this.notifySubscribers(key, value);
+            this.state.set(key, value);
+            this.notifyListeners(key, value, oldValue);
         }
     }
 
-    getState(key) {
-        if (!this.state.has(key)) {
-            console.warn(`Attempting to get unknown state key: ${key}`);
-            return null;
+    /**
+     *
+     * @param key
+     */
+    getState (key) {
+        // Validate key exists in schema
+        if (!STATE_SCHEMAS.hasOwnProperty(key)) {
+            throw new Error(`Invalid state key: ${key}. Valid keys are: ${Object.keys(STATE_SCHEMAS).join(', ')}`);
         }
+
         return this.state.get(key);
     }
 
-    // Convenience getters
-    isLoading() {
-        return this.state.get('loading');
-    }
-
-    isAuthenticated() {
-        return this.state.get('authenticated');
-    }
-
-    getCurrentUser() {
-        return this.state.get('user');
-    }
-
-    getCurrentScript() {
-        return this.state.get('currentScript');
-    }
-
-    getError() {
-        return this.state.get('error');
-    }
-
-    clearError() {
-        this.setState('error', null);
-    }
-
-    // Subscription management
-    subscribe(key, callback, context = null) {
-        if (!this.state.has(key)) {
-            console.warn(`Attempting to subscribe to unknown state key: ${key}`);
-            return;
+    /**
+     *
+     * @param key
+     * @param listener
+     */
+    subscribe (key, listener) {
+        // Validate key exists in schema
+        if (!STATE_SCHEMAS.hasOwnProperty(key)) {
+            throw new Error(`Invalid state key: ${key}. Valid keys are: ${Object.keys(STATE_SCHEMAS).join(', ')}`);
         }
 
-        if (typeof callback !== 'function') {
-            console.warn('Invalid callback provided to subscribe');
-            return;
-        }
-
-        if (!this.subscribers.has(key)) {
-            this.subscribers.set(key, new Set());
-        }
-        this.subscribers.get(key).add(callback);
-
-        // Track subscription for cleanup
-        if (context) {
-            if (!this.subscriptions.has(context)) {
-                this.subscriptions.set(context, new Set());
-            }
-            this.subscriptions.get(context).add({ key, callback });
-        }
-
-        // Return unsubscribe function
-        return () => this.unsubscribe(key, callback);
-    }
-
-    unsubscribe(key, callback) {
-        if (!this.state.has(key)) {
-            console.warn(`Attempting to unsubscribe from unknown state key: ${key}`);
-            return;
-        }
-
-        const subscribers = this.subscribers.get(key);
-        if (subscribers) {
-            subscribers.delete(callback);
+        this.listeners.get(key).add(listener);
+        try {
+            listener(this.state.get(key));
+        } catch (error) {
+            console.error(`Error in state listener for ${key}:`, error);
         }
     }
 
-    unsubscribeAll(context) {
-        const subscriptions = this.subscriptions.get(context);
-        if (subscriptions) {
-            subscriptions.forEach(({ key, callback }) => {
-                this.unsubscribe(key, callback);
-            });
-            this.subscriptions.delete(context);
+    /**
+     *
+     * @param key
+     * @param listener
+     */
+    unsubscribe (key, listener) {
+        if (this.listeners.has(key)) {
+            this.listeners.get(key).delete(listener);
         }
     }
 
-    notifySubscribers(key, value) {
-        const subscribers = this.subscribers.get(key);
-        if (subscribers) {
-            subscribers.forEach(callback => {
+    /**
+     *
+     * @param key
+     * @param newValue
+     * @param oldValue
+     */
+    notifyListeners (key, newValue, oldValue) {
+        if (this.listeners.has(key)) {
+            for (const listener of this.listeners.get(key)) {
                 try {
-                    callback(value);
+                    listener(newValue, oldValue);
                 } catch (error) {
                     console.error(`Error in state listener for ${key}:`, error);
                 }
-            });
+            }
         }
     }
 
-    reset() {
-        // Reset to default state
-        this.state = new Map([
-            ['loading', false],
-            ['editorLoading', false],
-            ['chatLoading', false],
-            ['authLoading', false],
-            ['authenticated', false],
-            ['currentView', null],
-            ['error', null],
-            ['user', null],
-            ['currentScript', null],
-            ['scripts', []]
-        ]);
-        this.subscribers.clear();
-        this.subscriptions.clear();
+    /**
+     *
+     */
+    reset () {
+        for (const [key] of this.state) {
+            this.state.set(key, null);
+        }
+        this.notifyListeners('reset', null, null);
     }
-
-    // Helper method to check if state is in a valid state
-    isValid() {
-        return Array.from(this.state.entries()).every(([key, value]) =>
-            !this.validators[key] || this.validators[key](value)
-        );
-    }
-
-    // Common state keys
-    static KEYS = {
-        AUTHENTICATED: 'authenticated',
-        USER: 'user',
-        CURRENT_VIEW: 'currentView',
-        LOADING: 'loading',
-        EDITOR_LOADING: 'editorLoading',
-        CHAT_LOADING: 'chatLoading',
-        AUTH_LOADING: 'authLoading',
-        ERROR: 'error',
-        CURRENT_SCRIPT: 'currentScript',
-        SCRIPTS: 'scripts'
-    };
 }

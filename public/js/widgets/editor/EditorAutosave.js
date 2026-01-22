@@ -1,88 +1,114 @@
 import { StateManager } from '../../core/StateManager.js';
+import { debugLog } from '../../core/logger.js';
 
+/**
+ *
+ */
 export class EditorAutosave {
-    constructor(contentManager, toolbar) {
-        this.contentManager = contentManager;
-        this.toolbar = toolbar;
-        this.script = null;
+    /**
+     *
+     * @param options
+     */
+    constructor (options) {
+        if (!options.content) throw new Error('Content manager is required');
+        if (!options.saveHandler) throw new Error('Save handler is required');
+
+        this.content = options.content;
+        this.saveHandler = options.saveHandler;
+        this.lastSavedContent = '';
         this.saveTimeout = null;
         this.SAVE_DELAY = 2000; // 2 seconds
-        this.boundHandleContentChange = this.handleContentChange.bind(this);
-    }
+        this.isEnabled = true;
 
-    initialize(script) {
-        this.script = script;
         this.setupAutosave();
     }
 
-    setupAutosave() {
-        // Set up new handler
-        if (this.contentManager) {
-            this.contentManager.on('contentChanged', this.boundHandleContentChange);
+    /**
+     *
+     */
+    setupAutosave () {
+        // Listen for content changes
+        if (this.content.onChange) {
+            this.content.onChange(() => {
+                if (!this.isEnabled) return;
+                this.debouncedSave();
+            });
         }
     }
 
-    handleContentChange() {
+    /**
+     *
+     */
+    debouncedSave () {
         if (this.saveTimeout) {
             clearTimeout(this.saveTimeout);
         }
 
-        this.saveTimeout = setTimeout(() => {
-            this.saveContent();
+        this.saveTimeout = setTimeout(async () => {
+            await this.saveContent();
         }, this.SAVE_DELAY);
     }
 
-    async saveContent() {
-        if (!this.script) {
-            console.warn('No script to save');
-            return;
-        }
-
+    /**
+     *
+     */
+    async saveContent () {
         try {
-            // Get content as XML string
-            const content = this.contentManager.getContent();
+            const currentContent = this.content.getContent();
 
-            // Update save status
-            if (this.toolbar) {
-                this.toolbar.setSaveState('saving');
+            // Skip if content hasn't changed
+            if (currentContent === this.lastSavedContent) {
+                debugLog('[AUTOSAVE] Content unchanged, skipping save');
+                return;
             }
 
-            // Get current script data
-            const currentScript = this.script.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-            if (!currentScript || !currentScript.title) {
-                throw new Error('Current script title is required');
-            }
+            debugLog('[AUTOSAVE] Saving content...');
+            const success = await this.saveHandler(currentContent);
 
-            // Save content with title
-            await this.script.saveContent(content, currentScript.title);
-            console.log('Autosave successful');
-            console.log(currentScript);
-            console.log(content);
-            console.log('--------^^^^-------^^^^----------^^^^-------');
-
-            // Update save status
-            if (this.toolbar) {
-                this.toolbar.setSaveState('saved');
-                setTimeout(() => this.toolbar.setSaveState('idle'), 2000);
+            if (success) {
+                this.lastSavedContent = currentContent;
+                debugLog('[AUTOSAVE] Content saved successfully');
             }
         } catch (error) {
-            console.error('Autosave failed:', error);
-            if (this.toolbar) {
-                this.toolbar.setSaveState('error');
-                setTimeout(() => this.toolbar.setSaveState('idle'), 2000);
-            }
+            console.error('[AUTOSAVE] Save failed:', error);
         }
     }
 
-    destroy() {
+    /**
+     *
+     * @param content
+     */
+    setLastSavedContent (content) {
+        if (content === undefined || content === null) {
+            console.warn('[AUTOSAVE] Invalid content provided to setLastSavedContent');
+            return;
+        }
+        debugLog('[AUTOSAVE] Setting last saved content');
+        this.lastSavedContent = content;
+    }
+
+    /**
+     *
+     */
+    enable () {
+        this.isEnabled = true;
+    }
+
+    /**
+     *
+     */
+    disable () {
+        this.isEnabled = false;
+    }
+
+    /**
+     *
+     */
+    destroy () {
         if (this.saveTimeout) {
             clearTimeout(this.saveTimeout);
         }
-        if (this.contentManager) {
-            this.contentManager.off('contentChanged', this.boundHandleContentChange);
-        }
-        this.contentManager = null;
-        this.toolbar = null;
-        this.script = null;
+        this.content = null;
+        this.saveHandler = null;
     }
 }

@@ -1,8 +1,8 @@
-import { PromptTemplate } from "@langchain/core/prompts";
+import { PromptTemplate } from '@langchain/core/prompts';
 import { COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 
 export const scriptQuestionsTemplate = new PromptTemplate({
-    template: `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}
+  template: `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}
 
 You are a script analysis assistant specializing in answering specific questions about scripts.
 Your role is to provide precise, evidence-based answers using only the content provided in the script.
@@ -46,5 +46,5 @@ IMPORTANT:
 - If information is ambiguous, acknowledge the uncertainty
 - If asked about missing elements, clearly state they're not in the script
 - Don't make assumptions or add interpretations without textual support`,
-    inputVariables: ["script", "question"]
-}); 
+  inputVariables: ['script', 'question']
+});

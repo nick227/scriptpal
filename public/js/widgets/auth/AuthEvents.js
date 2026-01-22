@@ -1,7 +1,13 @@
 import { BaseEvents } from '../../core/BaseEvents.js';
 
+/**
+ *
+ */
 export class AuthEvents extends BaseEvents {
-    setupEvents() {
+    /**
+     *
+     */
+    setupEvents () {
         const { loginForm, registerForm, logoutButton } = this.elements;
 
         // Handle login form submission

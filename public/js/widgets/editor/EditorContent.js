@@ -1,714 +1,1028 @@
-import { BaseWidget } from '../BaseWidget.js';
-import { LineFormatter } from './LineFormatter.js';
-import { PageManager } from './PageManager.js';
-import { Autocomplete } from './Autocomplete.js';
-import { EventManager } from '../../core/EventManager.js';
-import { ContentManager } from './content/ContentManager.js';
-import { DOMManager } from './content/DOMManager.js';
-import { ContentEvents } from './content/ContentEvents.js';
+// Event types
+import { EventEmitter } from '../../core/EventEmitter.js';
+import { debugLog } from '../../core/logger.js';
 
-export class EditorContent extends BaseWidget {
-    static EVENTS = {
-        CHANGE: 'EDITOR:CHANGE',
-        FORMAT_CHANGE: 'EDITOR:FORMAT_CHANGE',
-        PAGE_CHANGE: 'EDITOR:PAGE_CHANGE',
-        LINE_CHANGE: 'EDITOR:LINE_CHANGE',
-        LINE_ADDED: 'EDITOR:LINE_ADDED',
-        UNDO: 'EDITOR:UNDO',
-        REDO: 'EDITOR:REDO',
-        ERROR: 'EDITOR:ERROR',
-        AUTOCOMPLETE: 'EDITOR:AUTOCOMPLETE',
-        EDITOR_AREA_READY: 'EDITOR:EDITOR_AREA_READY'
-    };
+// Autocomplete functionality now consolidated into EditorToolbar.js
+import { EDITOR_EVENTS } from './constants.js';
+import { KeyboardManager } from './keyboard/KeyboardManager.js';
+import { ScriptDocument } from './model/ScriptDocument.js';
 
-    constructor(options) {
-        if (!options || !options.editorContainer) {
-            throw new Error('Editor container element is required');
-        }
-        if (!options.stateManager) {
-            throw new Error('StateManager is required for EditorContent');
-        }
+/**
+ *
+ */
+export class EditorContent extends EventEmitter {
+    /**
+     *
+     * @param options
+     */
+    constructor (options) {
+        super();
 
-        super({ editorContainer: options.editorContainer });
-
-        // Store state manager reference
+        this.container = options.container;
         this.stateManager = options.stateManager;
+        this.pageManager = options.pageManager;
+        this.contentManager = null; // ContentManager functionality consolidated into this class
+        this.lineFormatter = options.lineFormatter;
+        this.domHandler = options.domHandler;
+        this.document = new ScriptDocument();
 
-        // Initialize event system
-        this._eventManager = new EventManager();
-
-        // Add selection tracking
-        this.selectedLines = new Set();
-        this.selectionStart = null;
-
-        // Initialize managers
-        this.domManager = new DOMManager({
-            container: options.editorContainer,
-            stateManager: this.stateManager
+        debugLog('[EditorContent] Dependencies:', {
+            container: !!this.container,
+            stateManager: !!this.stateManager,
+            pageManager: !!this.pageManager,
+            contentManager: !!this.contentManager,
+            lineFormatter: !!this.lineFormatter,
+            domHandler: !!this.domHandler
         });
+
+        // Validate required dependencies
+        if (!this.domHandler) {
+            throw new Error('EditorContent: domHandler is required');
+        }
+        if (!this.lineFormatter) {
+            throw new Error('EditorContent: lineFormatter is required');
+        }
 
         // Initialize components
-        this.lineFormatter = new LineFormatter(this.stateManager);
-        this.pageManager = new PageManager(options.editorContainer);
-        this.autocomplete = new Autocomplete(this.stateManager);
+        // Autocomplete functionality now handled by EditorToolbar
 
-        // Initialize content events
-        this.contentEvents = new ContentEvents({
+        // Initialize content management
+        this._contentUpdateTimeout = null;
+        this._contentChangeTimeout = null;
+
+        // Add content management methods
+        this.debouncedContentUpdate = this._debouncedContentUpdate.bind(this);
+        this.autocomplete = null;
+        this.keyboardManager = new KeyboardManager({
             stateManager: this.stateManager,
-            lineFormatter: this.lineFormatter,
             pageManager: this.pageManager,
-            emitChange: () => {
-                const content = this.getContent();
-                this.emit(EditorContent.EVENTS.CHANGE, content);
-            }
+            contentManager: this,
+            lineFormatter: this.lineFormatter,
+            autocomplete: this.autocomplete,
+            saveService: null, // Will be set later via setSaveService
+            history: null // Will be set later via setHistory
         });
-
-        // Subscribe to content events
-        this.contentEvents.on('formatChange', (format) => {
-            this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
-        });
-
-        this.contentEvents.on('selectionClear', () => {
-            this.clearSelection();
-        });
-
-        // Bind event handlers
-        this._boundHandlers = {
-            keydown: this.handleKeydown.bind(this),
-            input: this.handleInput.bind(this),
-            import: this.handleImport.bind(this),
-            click: this.handleClick.bind(this),
-            selectionChange: this.handleSelectionChange.bind(this),
-            paste: this.handlePaste.bind(this)
+        this.perfStats = {
+            serializeCount: 0,
+            serializeTotalMs: 0,
+            renderCount: 0,
+            renderTotalMs: 0
         };
+
+        // Store callbacks
+        this.callbacks = {
+            onChange: options.onChange,
+            onCursorMove: options.onCursorMove,
+            onFormat: options.onFormat
+        };
+
+        // Bind methods
+        this.handleContentChange = this.handleContentChange.bind(this);
+        this.scheduleContentChange = this.scheduleContentChange.bind(this);
+        this.handleKeydown = this.handleKeydown.bind(this);
+        this.handleClick = this.handleClick.bind(this);
+
+        // Format changes are now command-based via document updates
     }
 
-    async initialize() {
+    /**
+     *
+     */
+    async initialize () {
         try {
-            // Initialize DOM
-            const editorArea = await this.domManager.initialize();
-            this.editorArea = editorArea;
+            const startTime = performance.now();
 
-            // Emit editor area ready event with the correct event name
-            this.emit(EditorContent.EVENTS.EDITOR_AREA_READY, editorArea);
+            // Phase 1: Critical setup
+            await this.initializeCriticalPhase();
 
-            // Set up autocomplete
-            this.autocomplete.setEditorArea(editorArea);
+            // Phase 2: Event system setup
+            await this.initializeEventPhase();
 
-            // Initialize page manager with editor area
-            this.pageManager.setEditorArea(editorArea);
-            await this.pageManager.initialize();
+            // Phase 3: Optional features (deferred)
+            this.deferOptionalFeatures();
 
-            // Set up cursor update handler
-            this.pageManager.onCursorUpdate(this._handleCursorUpdate.bind(this));
-
-            // Set up page change handler
-            this.pageManager.onPageChange((pageCount) => {
-                this.emit(EditorContent.EVENTS.PAGE_CHANGE, pageCount);
-            });
-
-            // Set up the keydown handler in LineFormatter
-            this.lineFormatter.setKeydownHandler(this._boundHandlers.keydown);
-
-            // Initialize content manager
-            this.contentManager = new ContentManager({
-                editorArea,
-                stateManager: this.stateManager,
-                lineFormatter: this.lineFormatter,
-                pageManager: this.pageManager,
-                handleInput: this._boundHandlers.input,
-                handleImport: this._boundHandlers.import,
-                handleSelectionChange: this._boundHandlers.selectionChange
-            });
-
-            // Set up event listeners
-            this.setupEventListeners();
-
-            // Create initial line if no content
-            const lines = this.editorArea.querySelectorAll('.script-line');
-            if (lines.length === 0) {
-                const initialLine = this.lineFormatter.createFormattedLine('header');
-                initialLine.contentEditable = 'true';
-
-                // Initialize page manager if not already done
-                if (!this.pageManager.hasPages()) {
-                    await this.pageManager.initialize();
-                }
-
-                // Add the initial line
-                await this.pageManager.addLine(initialLine);
-
-                // Set up initial state
-                this.stateManager.setCurrentLine(initialLine);
-                this.stateManager.setCurrentFormat('header');
-
-                // Focus the line
-                initialLine.focus();
-
-                // Emit initial content
-                const content = this.getContent();
-                this.emit(EditorContent.EVENTS.CHANGE, content);
-            }
-
-            // Add event listener for page tracker
-            this.setupPageTracker();
-
+            const endTime = performance.now();
             return true;
         } catch (error) {
-            console.error('EditorContent: Initialization failed:', error);
-            throw error;
-        }
-    }
-
-    setupEventListeners() {
-        if (!this.editorArea) return;
-
-        // Remove any existing listeners
-        this.removeEventListeners();
-
-        // Editor area level listeners for non-keydown events
-        this.editorArea.addEventListener('input', this._boundHandlers.input);
-        this.editorArea.addEventListener('import', this._boundHandlers.import);
-        this.editorArea.addEventListener('click', this._boundHandlers.click);
-        this.editorArea.addEventListener('paste', this._boundHandlers.paste);
-
-        // Keep editor area non-editable
-        this.editorArea.contentEditable = 'false';
-
-        // Selection change at document level
-        document.addEventListener('selectionchange', this._boundHandlers.selectionChange);
-    }
-
-    setupPageTracker() {
-        setTimeout(() => {
-            this.pageManager.operations.pageTracker.initialize();
-        }, 1000);
-    }
-
-    handleClick(event) {
-        const scriptLine = event.target.closest('.script-line');
-        if (!scriptLine) {
-            // Only clear selection if clicking outside script lines completely
-            if (!event.target.closest('.editor-area')) {
-                this.clearSelection();
-            }
-            return;
-        }
-
-        // Don't interfere with text selection
-        const selection = window.getSelection();
-        if (selection.toString() && !event.shiftKey) {
-            return;
-        }
-
-        const notFirstLine = scriptLine.previousElementSibling !== null;
-
-        if (event.shiftKey && this.selectionStart && notFirstLine) {
-            // Get all lines between start and current
-            const lines = Array.from(this.editorArea.querySelectorAll('.script-line'));
-            const startIdx = lines.indexOf(this.selectionStart);
-            const currentIdx = lines.indexOf(scriptLine);
-
-            if (startIdx > -1 && currentIdx > -1) {
-                // Clear only the previous shift-click selection
-                this.selectedLines.forEach(line => {
-                    if (line !== this.selectionStart && !lines.slice(
-                            Math.min(startIdx, currentIdx),
-                            Math.max(startIdx, currentIdx) + 1
-                        ).includes(line)) {
-                        line.classList.remove('selected');
-                        this.selectedLines.delete(line);
-                    }
-                });
-
-                // Select all lines in the range
-                const [from, to] = startIdx < currentIdx ? [startIdx, currentIdx] : [currentIdx, startIdx];
-                for (let i = from; i <= to; i++) {
-                    this.selectLine(lines[i]);
-                }
-            }
-        } else if (!event.shiftKey && !selection.toString()) {
-            // Only clear selection if not dragging to select text
-            this.clearSelection();
-            this.selectionStart = scriptLine;
-        }
-
-        // Update state and format only if not in the middle of text selection
-        if (!selection.toString() || event.shiftKey) {
-            this.stateManager.setCurrentLine(scriptLine);
-            const format = this.lineFormatter.getFormatForLine(scriptLine);
-            this.stateManager.setCurrentFormat(format);
-            this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
-        }
-    }
-
-    handleKeydown(event) {
-        const scriptLine = event.target.closest('.script-line');
-        if (!scriptLine) return;
-
-        // Update current line in state manager
-        this.stateManager.setCurrentLine(scriptLine);
-
-        // Try autocomplete only for Tab
-        if (event.key === 'Tab') {
-            const autocompleteResult = this.autocomplete.handleKeydown(event);
-            if (autocompleteResult) {
-                this.emit(EditorContent.EVENTS.AUTOCOMPLETE, autocompleteResult);
-                return;
-            }
-        }
-
-        // Handle shift+arrow keys for format cycling
-        if (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-            event.preventDefault();
-            event.stopPropagation();
-            this.contentEvents.handleFormatCycle(scriptLine, event.key === 'ArrowUp' ? 'up' : 'down');
-            return;
-        }
-
-        // Handle previous and next line if they exist
-        if (!event.shiftKey && event.key === 'ArrowUp' && scriptLine.previousElementSibling) {
-            this.stateManager.setCurrentLine(scriptLine.previousElementSibling);
-            this.emit(EditorContent.EVENTS.LINE_CHANGE, scriptLine.previousElementSibling);
-            scriptLine.previousElementSibling.focus();
-        }
-        if (!event.shiftKey && event.key === 'ArrowDown' && scriptLine.nextElementSibling) {
-            this.stateManager.setCurrentLine(scriptLine.nextElementSibling);
-            this.emit(EditorContent.EVENTS.LINE_CHANGE, scriptLine.nextElementSibling);
-            scriptLine.nextElementSibling.focus();
-        }
-
-        // Handle multi-line deletion
-        if ((event.key === 'Delete' || event.key === 'Backspace') && this.selectedLines.size > 0) {
-            event.preventDefault();
-            this.contentEvents.handleMultiLineDelete(Array.from(this.selectedLines), this.editorArea);
-            return;
-        }
-
-        // Handle single line deletion
-        if (event.key === 'Backspace' || event.key === 'Delete') {
-            const selection = window.getSelection();
-            if (!selection || !selection.rangeCount) return;
-
-            const range = selection.getRangeAt(0);
-            const line = range.startContainer.nodeType === 3 ?
-                range.startContainer.parentElement :
-                range.startContainer;
-
-            if (this.contentEvents.handleLineDelete(line, event)) {
-                return;
-            }
-        }
-
-        // Handle enter key
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            const currentFormat = this.lineFormatter.getFormatForLine(scriptLine);
-            const nextFormat = this.lineFormatter.getNextFlowFormat(currentFormat);
-
-            this.contentEvents.handleEnterKey(scriptLine, window.getSelection(), nextFormat);
+            console.error('[EditorContent] ❌ Initialization failed:', error);
             return false;
         }
     }
 
-    handleInput(event) {
-        if (event.inputType === 'insertCompositionText') return;
+    /**
+     * Initialize critical components for basic functionality
+     */
+    async initializeCriticalPhase () {
+        const phaseStartTime = performance.now();
 
-        const currentLine = event.target.closest('.script-line');
-        if (!currentLine) return;
+        // Validate domHandler is available
+        if (!this.domHandler) {
+            throw new Error('DOM handler is not available');
+        }
 
-        // Store current selection before any operations
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
+        // Initialize DOM handler
+        await this.domHandler.initialize();
 
-        const range = selection.getRangeAt(0);
-        const offset = range.startOffset;
-        const container = range.startContainer;
+        // Get editor area
+        this.editorArea = this.container.querySelector('.editor-area');
+        debugLog('[EditorContent] Looking for editor area:', {
+            container: this.container,
+            editorArea: this.editorArea,
+            containerHTML: this.container.innerHTML.substring(0, 200) + '...'
+        });
 
-        // Get current content and emit change event
-        const content = this.getContent();
-        this.emit(EditorContent.EVENTS.CHANGE, content);
+        if (!this.editorArea) {
+            console.error('[EditorContent] Editor area not found in container');
+            throw new Error('Editor area not found');
+        }
 
-        // Trigger content manager update
-        this.contentManager.debouncedContentUpdate();
+    }
 
-        // Only restore cursor if we lost focus
-        if (document.activeElement !== currentLine) {
-            currentLine.focus();
+    /**
+     * Initialize event system
+     */
+    async initializeEventPhase () {
+        const phaseStartTime = performance.now();
 
-            // Find the same text node or create a new range at the end
-            const newRange = document.createRange();
-            let targetNode = container;
-            let targetOffset = offset;
+        // Initialize keyboard manager
+        this.keyboardManager.initialize(this.editorArea);
 
-            // If original node no longer exists, find an appropriate text node
-            if (!currentLine.contains(container)) {
-                targetNode = currentLine.firstChild || currentLine;
-                targetOffset = Math.min(offset, (targetNode.length || 0));
+        // Set up event listeners
+        this.setupEventListeners();
+
+    }
+
+    /**
+     * Defer optional features for performance
+     */
+    deferOptionalFeatures () {
+        // Defer autocomplete initialization
+        setTimeout(() => {
+            if (this.autocomplete && typeof this.autocomplete.setEditorArea === 'function') {
+                this.autocomplete.setEditorArea(this.editorArea);
             }
-
-            try {
-                newRange.setStart(targetNode, targetOffset);
-                newRange.setEnd(targetNode, targetOffset);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
-            } catch (e) {
-                console.warn('Failed to restore cursor position:', e);
-                // Fallback: move cursor to end
-                newRange.selectNodeContents(currentLine);
-                newRange.collapse(false);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
-            }
-        }
+        }, 100);
     }
 
-    handleImport(event) {
-        event.preventDefault();
-        const text = event.clipboardData.getData('text/plain');
-        if (!text) return;
-
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
-
-        const range = selection.getRangeAt(0);
-        const fragment = document.createTextNode(text);
-        range.deleteContents();
-        range.insertNode(fragment);
-        range.collapse(false);
-
-        // Emit change event after import
-        const content = this.getContent();
-        this.emit(EditorContent.EVENTS.CHANGE, content);
-
-        this.contentManager.debouncedContentUpdate();
-    }
-
-    handleSelectionChange() {
-        const selection = window.getSelection();
-        if (!selection || !selection.rangeCount) return;
-
-        const range = selection.getRangeAt(0);
-        if (!range) return;
-
-        // Don't update state if user is selecting text
-        if (selection.toString()) {
-            return;
-        }
-
-        let selectedLine = null;
-        const container = range.commonAncestorContainer;
-
-        if (container instanceof Element) {
-            selectedLine = container.closest('.script-line');
-        } else if (container.parentElement) {
-            selectedLine = container.parentElement.closest('.script-line');
-        }
-
-        if (selectedLine) {
-            this.stateManager.setCurrentLine(selectedLine);
-            const format = this.lineFormatter.getFormatForLine(selectedLine);
-            this.stateManager.setCurrentFormat(format);
-            this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
-        }
-    }
-
-    handlePaste(event) {
-        try {
-            // Prevent the default paste behavior
-            event.preventDefault();
-
-            // Get plain text from clipboard
-            const text = event.clipboardData.getData('text/plain');
-            if (!text) return;
-
-            // Get current selection and validate
-            const selection = window.getSelection();
-            if (!selection.rangeCount) return;
-
-            const range = selection.getRangeAt(0);
-
-            // Find the script line and validate
-            const scriptLine = range.startContainer.nodeType === Node.TEXT_NODE ?
-                range.startContainer.parentElement.closest('.script-line') :
-                range.startContainer.closest('.script-line');
-
-            if (!scriptLine) {
-                console.warn('Paste attempted outside of script line');
-                return;
-            }
-
-            // Store current format
-            const currentFormat = this.lineFormatter.getFormatForLine(scriptLine);
-
-            // Clean and sanitize the text
-            const cleanText = this.sanitizePastedText(text);
-
-            // Handle multi-line paste
-            if (cleanText.includes('\n')) {
-                this.handleMultiLinePaste(cleanText, scriptLine, currentFormat);
-                return;
-            }
-
-            // Create a text node with the sanitized text
-            const textNode = document.createTextNode(cleanText);
-
-            // Delete any selected content and insert the clean text
-            range.deleteContents();
-            range.insertNode(textNode);
-
-            // Move cursor to end of inserted text
-            range.setStartAfter(textNode);
-            range.setEndAfter(textNode);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            // Ensure the line format is maintained
-            this.lineFormatter.setLineFormat(scriptLine, currentFormat);
-
-            // Update state and emit changes
-            this.stateManager.setCurrentLine(scriptLine);
-            this.stateManager.setCurrentFormat(currentFormat);
-
-            // Emit change event
-            const content = this.getContent();
-            this.emit(EditorContent.EVENTS.CHANGE, content);
-
-            // Update content
-            this.contentManager.debouncedContentUpdate();
-        } catch (error) {
-            console.error('Error handling paste:', error);
-            this.emit(EditorContent.EVENTS.ERROR, {
-                context: 'paste',
-                error: error.message || 'Failed to paste content'
-            });
-        }
-    }
-
-    sanitizePastedText(text) {
-        return text
-            // Remove any zero-width spaces or other invisible characters
-            .replace(/[\u200B-\u200D\uFEFF]/g, '')
-            // Remove any repeated spaces
-            .replace(/\s+/g, ' ')
-            // Remove leading/trailing whitespace
-            .trim();
-    }
-
-    handleMultiLinePaste(text, currentLine, currentFormat) {
-        try {
-            // Split text into lines and filter out empty lines
-            const lines = text.split('\n')
-                .map(line => line.trim())
-                .filter(line => line.length > 0);
-
-            if (lines.length === 0) return;
-
-            // Handle first line - insert into current line
-            currentLine.textContent = currentLine.textContent || '';
-            const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
-            const startOffset = range.startOffset;
-
-            // Split current line content and insert first pasted line
-            const beforeText = currentLine.textContent.slice(0, startOffset);
-            const afterText = currentLine.textContent.slice(range.endOffset);
-            currentLine.textContent = beforeText + lines[0] + afterText;
-
-            // Create and insert remaining lines
-            let lastInsertedLine = currentLine;
-            for (let i = 1; i < lines.length; i++) {
-                const newLine = this.lineFormatter.createFormattedLine(currentFormat);
-                newLine.textContent = lines[i];
-
-                // Insert after the last line we created
-                const added = this.pageManager.addLine(newLine, lastInsertedLine.nextSibling);
-                if (added) {
-                    lastInsertedLine = newLine;
+    /**
+     *
+     */
+    setupEventListeners () {
+        // Store event handlers for cleanup
+        this._eventHandlers = {
+            cursorMove: (position) => {
+                this.emit(EDITOR_EVENTS.CURSOR_MOVE, position);
+                if (this.callbacks.onCursorMove) {
+                    this.callbacks.onCursorMove(position);
+                }
+            },
+            formatChange: (format) => {
+                this.emit(EDITOR_EVENTS.FORMAT_CHANGE, format);
+                if (this.callbacks.onFormat) {
+                    this.callbacks.onFormat(format);
+                }
+            },
+            focusOut: (event) => {
+                const { target } = event;
+                if (target.classList.contains('script-line')) {
+                    this.emit(EDITOR_EVENTS.FOCUS_OUT, event);
+                }
+            },
+            input: (event) => {
+                if (event.target.classList.contains('script-line')) {
+                    this.syncLineContentFromDOM(event.target);
+                    this.scheduleContentChange();
+                }
+            },
+            keydown: (event) => {
+                if (event.target.classList.contains('script-line')) {
+                    this.handleKeydown(event);
+                }
+            },
+            click: (event) => {
+                if (event.target.classList.contains('script-line')) {
+                    this.handleClick(event);
                 }
             }
+        };
 
-            // Focus the last line and move cursor to end
-            if (lastInsertedLine) {
-                lastInsertedLine.focus();
-                const newRange = document.createRange();
-                const textNode = lastInsertedLine.firstChild || lastInsertedLine;
-                newRange.setStartAfter(textNode);
-                newRange.setEndAfter(textNode);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
-            }
+        // Set up cursor move events
+        this.domHandler.on(EDITOR_EVENTS.CURSOR_MOVE, this._eventHandlers.cursorMove);
 
-            // Update state
-            this.stateManager.setCurrentLine(lastInsertedLine);
-            this.stateManager.setCurrentFormat(currentFormat);
+        // Set up format change events
+        this.domHandler.on(EDITOR_EVENTS.FORMAT_CHANGE, this._eventHandlers.formatChange);
 
-            // Emit change event
-            const content = this.getContent();
-            this.emit(EditorContent.EVENTS.CHANGE, content);
-            this.contentManager.debouncedContentUpdate();
-        } catch (error) {
-            console.error('Error handling multi-line paste:', error);
-            this.emit(EditorContent.EVENTS.ERROR, {
-                context: 'multiLinePaste',
-                error: error.message || 'Failed to paste multiple lines'
-            });
-        }
-    }
-
-    removeEventListeners() {
-        // Remove document level listener
-        document.removeEventListener('selectionchange', this._boundHandlers.selectionChange);
-
+        // Set up focus out events
         if (this.editorArea) {
-            // Remove editor area listeners
-            this.editorArea.removeEventListener('input', this._boundHandlers.input);
-            this.editorArea.removeEventListener('import', this._boundHandlers.import);
-            this.editorArea.removeEventListener('click', this._boundHandlers.click);
-            this.editorArea.removeEventListener('paste', this._boundHandlers.paste);
+            this.editorArea.addEventListener('focusout', this._eventHandlers.focusOut);
+
+            // Use event delegation for line events to prevent memory leaks
+            this.editorArea.addEventListener('input', this._eventHandlers.input);
+            this.editorArea.addEventListener('keydown', this._eventHandlers.keydown);
+            this.editorArea.addEventListener('click', this._eventHandlers.click);
         }
     }
 
-    // Public API methods
-    setContent(content, isHistoryOperation = false) {
-        this.contentManager.setContent(content, isHistoryOperation);
+    /**
+     *
+     * @param content
+     */
+    handleContentChange (content) {
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, content);
+        if (this.callbacks.onChange) {
+            this.callbacks.onChange(content);
+        }
     }
 
-    getContent() {
-        const content = this.contentManager.getContent();
-        return content;
+    /**
+     * Delegate keydown handling to KeyboardManager
+     * @param {KeyboardEvent} event
+     */
+    handleKeydown (event) {
+        if (this.keyboardManager && typeof this.keyboardManager._handleKeyDown === 'function') {
+            this.keyboardManager._handleKeyDown(event);
+        }
     }
 
-    setLineFormat(format) {
-        if (!this.contentManager) {
-            console.error('EditorContent: ContentManager not initialized');
-            return;
+    /**
+     * Delegate click handling to KeyboardManager
+     * @param {MouseEvent} event
+     */
+    handleClick (event) {
+        if (this.keyboardManager && typeof this.keyboardManager._handleClick === 'function') {
+            this.keyboardManager._handleClick(event);
+        }
+    }
+
+    /**
+     * Debounce full-content emission to avoid per-keystroke serialization.
+     */
+    scheduleContentChange () {
+        if (this._contentChangeTimeout) {
+            clearTimeout(this._contentChangeTimeout);
         }
 
-        // Get current line from state manager
-        const currentLine = this.stateManager.getCurrentLine();
-        if (!currentLine) {
-            console.warn('EditorContent: No current line selected');
-            return;
-        }
-
-        try {
-            // Apply new format using line formatter
-            this.lineFormatter.setLineFormat(currentLine, format);
-
-            // Update state
-            this.stateManager.setCurrentFormat(format);
-
-            // Emit format change event
-            this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
-
-            // Emit content change event since format affects content
+        this._contentChangeTimeout = setTimeout(() => {
             const content = this.getContent();
-            this.emit(EditorContent.EVENTS.CHANGE, content);
-        } catch (error) {
-            console.error('EditorContent: Error setting line format:', error);
-            this.emit(EditorContent.EVENTS.ERROR, error);
-        }
+            this.handleContentChange(content);
+        }, 150);
     }
 
-    clear() {
-        this.contentManager.clear();
-    }
-
-    // Event system methods
-    emit(eventType, data) {
-        this._eventManager.publish(eventType, data);
-    }
-
-    on(eventType, handler) {
-        return this._eventManager.subscribe(eventType, handler, this);
-    }
-
-    off(eventType) {
-        this._eventManager.unsubscribeAll(this);
-    }
-
-    // Event registration methods
-    onChange(callback) { return this.on(EditorContent.EVENTS.CHANGE, callback); }
-    onFormatChange(callback) { return this.on(EditorContent.EVENTS.FORMAT_CHANGE, callback); }
-    onPageChange(callback) { return this.on(EditorContent.EVENTS.PAGE_CHANGE, callback); }
-    onError(callback) { return this.on(EditorContent.EVENTS.ERROR, callback); }
-    onUndo(callback) { return this.on(EditorContent.EVENTS.UNDO, callback); }
-    onRedo(callback) { return this.on(EditorContent.EVENTS.REDO, callback); }
-
-    // Cleanup
-    destroy() {
+    /**
+     *
+     * @param content
+     * @param root0
+     * @param root0.isEdit
+     * @param root0.preserveState
+     * @param root0.source
+     * @param root0.focus
+     */
+    async updateContent (content, { isEdit = false, preserveState = false, source = null, focus = false } = {}) {
         try {
-            this.removeEventListeners();
+            debugLog('[EditorContent] Starting content update:', {
+                contentLength: content ? content.length : 0,
+                isEdit,
+                preserveState,
+                source,
+                focus
+            });
 
-            if (this.contentManager) this.contentManager.destroy();
-            if (this.domManager) this.domManager.destroy();
-            if (this.pageManager) this.pageManager.destroy();
-            if (this.autocomplete) this.autocomplete.destroy();
-
-            this._boundHandlers = null;
-            this._eventManager.unsubscribeAll(this);
-
-        } catch (error) {
-            console.error('Error during cleanup:', error);
-            throw error;
-        } finally {
-            super.destroy();
-        }
-    }
-
-    // Add selection methods
-    clearSelection() {
-        this.selectedLines.forEach(line => {
-            line.classList.remove('selected');
-        });
-        this.selectedLines.clear();
-        this.selectionStart = null;
-    }
-
-    selectLine(line) {
-        if (!line || !line.classList.contains('script-line')) return;
-        line.classList.add('selected');
-        this.selectedLines.add(line);
-    }
-
-    _handleCursorUpdate(line) {
-        if (!line) return;
-
-        // Set as current line
-        this.stateManager.setCurrentLine(line);
-
-        // Update format
-        const format = this.lineFormatter.getFormatForLine(line);
-        this.stateManager.setCurrentFormat(format);
-        this.emit(EditorContent.EVENTS.FORMAT_CHANGE, format);
-
-        // Focus line and move cursor to end
-        if (document.activeElement !== line) {
-            line.focus();
-            const range = document.createRange();
-            const selection = window.getSelection();
-
-            // Move cursor to end of line
-            if (line.lastChild && line.lastChild.nodeType === Node.TEXT_NODE) {
-                range.setStart(line.lastChild, line.lastChild.length);
-                range.setEnd(line.lastChild, line.lastChild.length);
-            } else {
-                range.selectNodeContents(line);
-                range.collapse(false);
+            // Validate content before update
+            if (content === null || content === undefined) {
+                console.warn('[EditorContent] Invalid content provided');
+                return false;
             }
 
-            selection.removeAllRanges();
-            selection.addRange(range);
+            // For initial load, ensure DOM handler is initialized
+            if (source === 'initial_load' && !this.domHandler.isInitialized) {
+                await this.domHandler.initialize();
+            }
+
+            this.document = ScriptDocument.fromContent(content || '');
+            this.ensureMinimumLine();
+
+            const renderStart = performance.now();
+            const success = await this.domHandler.renderDocument(this.document, {
+                isEdit,
+                preserveState,
+                source,
+                focus
+            });
+            const renderDuration = performance.now() - renderStart;
+            this._recordPerf('render', renderDuration, source);
+
+            if (!success) {
+                console.error('[EditorContent] Failed to update DOM content');
+                return false;
+            }
+
+            // Wait for a short delay to ensure DOM is updated
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const serializeStart = performance.now();
+            const contentValue = this.getContent();
+            const serializeDuration = performance.now() - serializeStart;
+            this._recordPerf('serialize', serializeDuration, source);
+            // Emit content updated event first
+            this.emit(EDITOR_EVENTS.CONTENT_UPDATED, {
+                content: contentValue,
+                source,
+                timestamp: Date.now()
+            });
+
+            // Then emit content change event
+            this.emit(EDITOR_EVENTS.CONTENT_CHANGE, {
+                content: contentValue,
+                source,
+                timestamp: Date.now()
+            });
+
+            return true;
+        } catch (error) {
+            console.error('[EditorContent] Error updating content:', error);
+            return false;
+        }
+    }
+
+    /**
+     *
+     */
+    getContent () {
+        if (!this.document) {
+            return '';
+        }
+        return this.document.toStorageString();
+    }
+
+    getPlainText () {
+        if (!this.document) {
+            return '';
+        }
+        return this.document.toPlainText();
+    }
+
+    getLines () {
+        return this.document ? this.document.lines : [];
+    }
+
+    /**
+     * Apply command-based edits to the editor content.
+     * @param {Array} commands
+     * @returns {Promise<object>}
+     */
+    async applyCommands (commands = [], options = {}) {
+        if (!Array.isArray(commands) || commands.length === 0) {
+            return { success: false, reason: 'no_commands' };
+        }
+
+        const results = [];
+        const inverseCommands = [];
+        const { source = 'ai_commands' } = options;
+
+        const parseValue = (value) => {
+            if (typeof value !== 'string') {
+                return { format: 'action', content: '' };
+            }
+
+            const match = value.match(/<([\w-]+)>([\s\S]*)<\/\1>/);
+            if (!match) {
+                return { format: 'action', content: value };
+            }
+
+            return {
+                format: match[1].toLowerCase(),
+                content: match[2]
+            };
+        };
+
+        const addCommands = commands.filter(cmd => cmd.command === 'ADD')
+            .sort((a, b) => a.lineNumber - b.lineNumber);
+        const otherCommands = commands.filter(cmd => cmd.command !== 'ADD')
+            .sort((a, b) => b.lineNumber - a.lineNumber);
+
+        const orderedCommands = [...otherCommands, ...addCommands];
+
+        for (const cmd of orderedCommands) {
+            const { command, lineNumber, value } = cmd;
+            try {
+                if (command === 'DELETE') {
+                    const removed = this.document.removeLineByIndex(lineNumber - 1);
+                    if (!removed) {
+                        throw new Error(`Line ${lineNumber} not found`);
+                    }
+                    inverseCommands.unshift({
+                        command: 'ADD',
+                        lineNumber: Math.max(0, lineNumber - 1),
+                        value: `<${removed.format}>${removed.content}</${removed.format}>`
+                    });
+                } else if (command === 'EDIT') {
+                    const line = this.document.lines[lineNumber - 1];
+                    if (!line) {
+                        throw new Error(`Line ${lineNumber} not found`);
+                    }
+                    inverseCommands.unshift({
+                        command: 'EDIT',
+                        lineNumber,
+                        value: `<${line.format}>${line.content}</${line.format}>`
+                    });
+                    const parsed = parseValue(value);
+                    this.document.updateLine(line.id, {
+                        format: parsed.format,
+                        content: parsed.content
+                    });
+                } else if (command === 'ADD') {
+                    const parsed = parseValue(value);
+                    const insertIndex = Math.min(this.document.lines.length, Math.max(0, lineNumber));
+                    const added = this.document.insertLineAt(insertIndex, {
+                        format: parsed.format,
+                        content: parsed.content
+                    });
+                    inverseCommands.unshift({
+                        command: 'DELETE',
+                        lineNumber: insertIndex + 1
+                    });
+                    if (!added) {
+                        throw new Error(`Failed to add line at ${insertIndex}`);
+                    }
+                } else {
+                    throw new Error(`Unknown command type: ${command}`);
+                }
+
+                results.push({ success: true, command: cmd });
+            } catch (error) {
+                console.error('[EditorContent] Command apply failed:', error);
+                results.push({ success: false, command: cmd, error: error.message });
+            }
+        }
+
+        this.ensureMinimumLine();
+
+        const renderStart = performance.now();
+        await this.domHandler.renderDocument(this.document, { source, allowInPlace: true, skipFocus: true });
+        const renderDuration = performance.now() - renderStart;
+        this._recordPerf('render', renderDuration, source);
+
+        const serializeStart = performance.now();
+        const content = this.getContent();
+        const serializeDuration = performance.now() - serializeStart;
+        this._recordPerf('serialize', serializeDuration, source);
+        this.emit(EDITOR_EVENTS.CONTENT_UPDATED, { content, source, timestamp: Date.now() });
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, { content, source, timestamp: Date.now() });
+
+        return { success: true, results, content, inverseCommands };
+    }
+
+    /**
+     * Set format for the current line
+     * @param format
+     */
+    setCurrentLineFormat (format) {
+        const currentLine = this.domHandler.getCurrentLine();
+        if (!currentLine || !this.lineFormatter.isValidFormat(format)) {
+            return;
+        }
+        const lineId = currentLine.dataset.lineId || this.ensureLineId(currentLine);
+        this.applyFormat(lineId, { format });
+    }
+
+    /**
+     *
+     * @param direction
+     */
+    cycleFormat (direction = 1) {
+        const currentLine = this.domHandler.getCurrentLine();
+        if (!currentLine) return;
+        const lineId = currentLine.dataset.lineId || this.ensureLineId(currentLine);
+        this.applyFormat(lineId, { direction });
+    }
+
+    /**
+     * Apply a format change by explicit format or direction.
+     * @param {string} lineId
+     * @param {object} options
+     * @param {string} [options.format]
+     * @param {number} [options.direction]
+     */
+    applyFormat (lineId, { format, direction } = {}) {
+        if (!lineId) {
+            return null;
+        }
+
+        const line = this.document.getLineById(lineId);
+        const currentFormat = line?.format || this.lineFormatter.DEFAULT_FORMAT;
+        const nextFormat = format || this.lineFormatter.getNextFormatInFlow(currentFormat, direction || 1);
+        const command = this.lineFormatter.setLineFormat(lineId, nextFormat);
+        if (command) {
+            this.applyFormatCommand(command);
+        }
+        return command;
+    }
+
+    /**
+     *
+     */
+    clearSelection () {
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+    }
+
+    /**
+     * Set the save service for auto-save functionality
+     * @param {EditorSaveService} saveService - The save service instance
+     */
+    setSaveService (saveService) {
+        if (this.keyboardManager) {
+            this.keyboardManager.saveService = saveService;
+        }
+    }
+
+    /**
+     * Set the history service for undo/redo functionality
+     * @param {EditorHistory} history - The history service instance
+     */
+    setHistory (history) {
+        if (this.keyboardManager) {
+            this.keyboardManager.history = history;
+        }
+    }
+
+    /**
+     * @param {HTMLElement} lineElement
+     */
+    syncLineContentFromDOM (lineElement) {
+        if (!lineElement || !lineElement.classList.contains('script-line')) {
+            return;
+        }
+
+        const lineId = this.ensureLineId(lineElement);
+        const content = lineElement.textContent || '';
+        const format = lineElement.getAttribute('data-format') || 'action';
+        const existing = this.document.getLineById(lineId);
+        if (existing && existing.content === content && existing.format === format) {
+            return;
+        }
+        this.document.updateLine(lineId, { content, format });
+    }
+
+    /**
+     * @param {HTMLElement} lineElement
+     */
+    ensureLineId (lineElement) {
+        if (lineElement.dataset.lineId) {
+            return lineElement.dataset.lineId;
+        }
+
+        const lines = this.editorArea.querySelectorAll('.script-line');
+        let index = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i] === lineElement) {
+                index = i;
+                break;
+            }
+        }
+        const existing = index >= 0 ? this.document.lines[index] : null;
+        if (existing) {
+            lineElement.dataset.lineId = existing.id;
+            debugLog('[EditorContent] Bound lineId from document:', {
+                lineId: existing.id,
+                index,
+                format: existing.format
+            });
+            return existing.id;
+        }
+
+        const lineId = ScriptDocument.createLineId();
+        lineElement.dataset.lineId = lineId;
+        this.document.insertLineAt(index, {
+            id: lineId,
+            format: lineElement.getAttribute('data-format') || 'action',
+            content: lineElement.textContent || ''
+        });
+        console.warn('[EditorContent] Created new lineId for DOM line:', {
+            lineId,
+            index,
+            format: lineElement.getAttribute('data-format') || 'action'
+        });
+        return lineId;
+    }
+
+    /**
+     * @param {object} command
+     */
+    applyFormatCommand (command) {
+        if (!command || command.type !== 'setFormat') {
+            return null;
+        }
+
+        const updated = this.document.updateLine(command.lineId, {
+            format: command.format
+        });
+        if (!updated) {
+            return null;
+        }
+
+        this.domHandler.updateLineById(command.lineId, {
+            format: command.format
+        });
+
+        this.stateManager.setCurrentFormat(command.format);
+        const content = this.getContent();
+        this.emit(this.constructor.EVENTS.CHANGE, content);
+        this.emit(this.constructor.EVENTS.FORMAT_CHANGE, command.format);
+        this.debouncedContentUpdate();
+
+        return updated;
+    }
+
+    /**
+     * @param {string} lineId
+     * @param {object} options
+     */
+    async insertLineAfter (lineId, options = {}) {
+        const { format = 'action', content = '', updateCurrentContent, focus = true } = options;
+        if (updateCurrentContent !== undefined) {
+            this.document.updateLine(lineId, { content: updateCurrentContent });
+        }
+
+        const wasLastLine = this.document.getLineIndex(lineId) === this.document.lines.length - 1;
+        const newLine = this.document.insertLineAfter(lineId, { format, content });
+        const requiredPages = this._getRequiredPageCount();
+        const currentPages = this.pageManager.getPageCount();
+        const canIncremental = wasLastLine && requiredPages === currentPages;
+
+        if (updateCurrentContent !== undefined) {
+            this.domHandler.updateLineById(lineId, { content: updateCurrentContent });
+        }
+
+        if (canIncremental && newLine) {
+            this.domHandler.appendLine({
+                id: newLine.id,
+                format: newLine.format,
+                text: newLine.content
+            });
+        } else {
+            await this.domHandler.renderDocument(this.document, { source: 'line_insert', allowInPlace: true, skipFocus: true });
+        }
+
+        if (focus && newLine) {
+            this.domHandler.focusLineById(newLine.id, { position: 'start' });
+        }
+        const updatedContent = this.getContent();
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, updatedContent);
+        this.debouncedContentUpdate();
+        return newLine;
+    }
+
+    /**
+     * @param {string[]} lineIds
+     * @param {object} options
+     */
+    async deleteLinesById (lineIds = [], options = {}) {
+        if (!Array.isArray(lineIds) || lineIds.length === 0) {
+            return null;
+        }
+
+        const remainingFocusId = options.focusLineId || null;
+        const targetLineId = lineIds.length === 1 ? lineIds[0] : null;
+        const targetIndex = targetLineId ? this.document.getLineIndex(targetLineId) : -1;
+        const wasLastLine = targetIndex === this.document.lines.length - 1;
+
+        lineIds.forEach(lineId => this.document.removeLineById(lineId));
+        this.ensureMinimumLine();
+
+        const requiredPages = this._getRequiredPageCount();
+        const currentPages = this.pageManager.getPageCount();
+        const canIncremental = targetLineId &&
+            lineIds.length === 1 &&
+            wasLastLine &&
+            requiredPages === currentPages &&
+            this.document.lines.length > 0;
+
+        if (canIncremental) {
+            this.domHandler.removeLineById(targetLineId);
+        } else {
+            await this.domHandler.renderDocument(this.document, { source: 'line_delete', allowInPlace: true, skipFocus: true });
+        }
+
+        if (remainingFocusId) {
+            this.domHandler.focusLineById(remainingFocusId, { position: 'end' });
+        }
+        const content = this.getContent();
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, content);
+        this.debouncedContentUpdate();
+        return true;
+    }
+
+    ensureMinimumLine () {
+        if (this.document.lines.length === 0) {
+            this.document.insertLineAt(0, { format: 'action', content: '' });
+        }
+    }
+
+    _getRequiredPageCount () {
+        return Math.ceil(this.document.lines.length / this.pageManager.maxLinesPerPage);
+    }
+
+    /**
+     * @param {string} lineId
+     */
+    getLineById (lineId) {
+        return this.document.getLineById(lineId);
+    }
+
+    /**
+     * @param {string} lineId
+     * @param {object} updates
+     */
+    updateLineById (lineId, updates = {}) {
+        const updated = this.document.updateLine(lineId, updates);
+        if (!updated) {
+            return null;
+        }
+        this.domHandler.updateLineById(lineId, updates);
+        const content = this.getContent();
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, content);
+        this.debouncedContentUpdate();
+        return updated;
+    }
+
+    /**
+     * @param {string} lineText
+     */
+    getLineFormat (lineText) {
+        const match = lineText.match(/<([\w-]+)>([\s\S]*)<\/\1>/);
+        if (!match) {
+            return 'action';
+        }
+        return match[1].toLowerCase();
+    }
+
+    getChapterCount () {
+        return this.document.lines.filter(line => line.format === 'chapter-break').length;
+    }
+
+    /**
+     * @param {string} content
+     * @param {number} startPosition
+     * @param {number} endPosition
+     * @param {string} format
+     */
+    async replaceContentRange (content, startPosition, endPosition, format = 'action') {
+        const line = this.document.replaceRange(startPosition, endPosition, {
+            format,
+            content
+        });
+
+        await this.domHandler.renderDocument(this.document, { source: 'replace_range', allowInPlace: true, skipFocus: true });
+
+        if (line) {
+            this.domHandler.focusLineById(line.id, { position: 'end' });
+        }
+
+        const updatedContent = this.getContent();
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, updatedContent);
+
+        return line;
+    }
+
+    /**
+     *
+     */
+    destroy () {
+        // Remove event listeners
+        if (this._eventHandlers) {
+            if (this.domHandler) {
+                this.domHandler.off(EDITOR_EVENTS.CURSOR_MOVE, this._eventHandlers.cursorMove);
+                this.domHandler.off(EDITOR_EVENTS.FORMAT_CHANGE, this._eventHandlers.formatChange);
+            }
+
+            if (this.editorArea) {
+                this.editorArea.removeEventListener('focusout', this._eventHandlers.focusOut);
+                this.editorArea.removeEventListener('input', this._eventHandlers.input);
+                this.editorArea.removeEventListener('keydown', this._eventHandlers.keydown);
+                this.editorArea.removeEventListener('click', this._eventHandlers.click);
+            }
+
+            this._eventHandlers = null;
+        }
+
+        if (this._contentUpdateTimeout) {
+            clearTimeout(this._contentUpdateTimeout);
+            this._contentUpdateTimeout = null;
+        }
+
+        // Clean up keyboard manager
+        if (this.keyboardManager) {
+            this.keyboardManager.destroy();
+        }
+
+        // Clean up autocomplete
+        if (this.autocomplete) {
+            this.autocomplete.destroy();
+        }
+
+        // Clean up DOM handler
+        if (this.domHandler) {
+            this.domHandler.destroy();
+        }
+
+        // Clean up line formatter
+        if (this.lineFormatter) {
+            this.lineFormatter.destroy();
+        }
+
+        // Remove all event listeners
+        this.removeAllListeners();
+
+        // Clear references
+        this.container = null;
+        this.editorArea = null;
+        this.stateManager = null;
+        this.pageManager = null;
+        this.lineFormatter = null;
+        this.domHandler = null;
+        this.keyboardManager = null;
+        this.autocomplete = null;
+        this.callbacks = null;
+    }
+
+    // ==============================================
+    // AI Content Manipulation Methods
+    // ==============================================
+
+    /**
+     * Append content to the end of the script
+     * @param {string} content - Content to append
+     * @param {string} format - Format for the content
+     * @returns {Promise<object>} - Result of the operation
+     */
+    async appendContent (content, format = 'action') {
+        try {
+
+            const newLine = this.document.insertLineAt(this.document.lines.length, {
+                format,
+                content
+            });
+
+            await this.domHandler.renderDocument(this.document, { source: 'append' });
+
+            const domLine = newLine ?
+                this.domHandler.focusLineById(newLine.id, { position: 'end' }) :
+                null;
+
+            // Emit content change event
+            this.emit('contentChanged', {
+                type: 'append',
+                content: content,
+                format: format,
+                element: domLine
+            });
+            const contentValue = this.getContent();
+            this.emit(EDITOR_EVENTS.CONTENT_CHANGE, contentValue);
+            this.debouncedContentUpdate();
+
+            return { success: true, element: domLine, line: newLine };
+        } catch (error) {
+            console.error('[EditorContent] Failed to append content:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Prepend content to the beginning of the script
+     * @param {string} content - Content to prepend
+     * @param {string} format - Format for the content
+     * @returns {Promise<object>} - Result of the operation
+     */
+    async prependContent (content, format = 'action') {
+        try {
+
+            const newLine = this.document.insertLineAt(0, {
+                format,
+                content
+            });
+
+            await this.domHandler.renderDocument(this.document, { source: 'prepend' });
+
+            const domLine = newLine ?
+                this.domHandler.focusLineById(newLine.id, { position: 'end' }) :
+                null;
+
+            // Emit content change event
+            this.emit('contentChanged', {
+                type: 'prepend',
+                content: content,
+                format: format,
+                element: domLine
+            });
+            const contentValue = this.getContent();
+            this.emit(EDITOR_EVENTS.CONTENT_CHANGE, contentValue);
+            this.debouncedContentUpdate();
+
+            return { success: true, element: domLine, line: newLine };
+        } catch (error) {
+            console.error('[EditorContent] Failed to prepend content:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Insert content at a specific position
+     * @param {string} content - Content to insert
+     * @param {number} position - Position to insert at
+     * @param {string} format - Format for the content
+     * @returns {Promise<object>} - Result of the operation
+     */
+    async insertContentAt (content, position, format = 'action') {
+        try {
+
+            const newLine = this.document.insertLineAt(position, {
+                format,
+                content
+            });
+
+            await this.domHandler.renderDocument(this.document, { source: 'insert' });
+
+            const domLine = newLine ?
+                this.domHandler.focusLineById(newLine.id, { position: 'end' }) :
+                null;
+
+            // Emit content change event
+            this.emit('contentChanged', {
+                type: 'insert',
+                content: content,
+                format: format,
+                position: position,
+                element: domLine
+            });
+            const contentValue = this.getContent();
+            this.emit(EDITOR_EVENTS.CONTENT_CHANGE, contentValue);
+            this.debouncedContentUpdate();
+
+            return { success: true, element: domLine, line: newLine };
+        } catch (error) {
+            console.error('[EditorContent] Failed to insert content:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create a new line element
+     * @param {string} content - Content for the line
+     * @param {string} format - Format for the line
+     * @returns {HTMLElement} - The created line element
+     */
+    createLineElement (content, format = 'action', lineId = null) {
+        const line = document.createElement('div');
+        line.className = 'script-line';
+        line.dataset.format = format;
+        if (lineId) {
+            line.dataset.lineId = lineId;
+        }
+        line.setAttribute('role', 'textbox');
+        line.setAttribute('aria-label', `${format} line`);
+        line.setAttribute('data-enable-grammarly', 'false');
+        line.contentEditable = 'true';
+        line.classList.add(`format-${format}`);
+
+        // Set content
+        line.textContent = content;
+
+        // Event listeners will be handled by event delegation in setupEventListeners
+        // This prevents memory leaks from individual line listeners
+
+        return line;
+    }
+
+    /**
+     * Get current content from the editor
+     * @returns {string} Current editor content
+     */
+    _getContent () {
+        return this.getContent();
+    }
+
+    /**
+     * Debounced content update
+     */
+    _debouncedContentUpdate () {
+        if (this._contentUpdateTimeout) {
+            clearTimeout(this._contentUpdateTimeout);
+        }
+
+        this._contentUpdateTimeout = setTimeout(() => {
+            const content = this._getContent();
+            this.emit(EDITOR_EVENTS.CONTENT_CHANGE, content);
+        }, 300);
+    }
+
+    _recordPerf (type, duration, source) {
+        if (type === 'render') {
+            this.perfStats.renderCount += 1;
+            this.perfStats.renderTotalMs += duration;
+        } else if (type === 'serialize') {
+            this.perfStats.serializeCount += 1;
+            this.perfStats.serializeTotalMs += duration;
         }
     }
 }
-
-// Could improve performance by batching:
-const batchUpdate = (operations) => {
-    requestAnimationFrame(() => {
-        operations.forEach(op => op());
-    });
-};

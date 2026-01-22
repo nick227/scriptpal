@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Autosave Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .test-container { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-weight: bold;
+        }
+        .test-pass { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .test-fail { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .test-running { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .log { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-family: monospace; 
+            max-height: 300px; 
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover { background: #0056b3; }
+        .editor-test {
+            border: 2px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f9f9f9;
+        }
+        .script-line {
+            min-height: 30px;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: text;
+        }
+        .script-line:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        .format-action { background: #e3f2fd; }
+        .format-speaker { background: #e8f5e8; }
+        .format-dialog { background: #fff3e0; }
+        .format-header { background: #f3e5f5; }
+        .format-directions { background: #fce4ec; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Simple Autosave Test</h1>
+    
+    <div class="test-container">
+        <h2>Test Controls</h2>
+        <button onclick="startTest()">🚀 Start Test</button>
+        <button onclick="clearLogs()">🗑️ Clear Logs</button>
+        <div id="testStatus" class="test-status" style="display: none;"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Mock Editor for Testing</h2>
+        <div class="editor-test">
+            <div class="script-line format-action" data-format="action" contenteditable="true">
+                Click here and type to test format switching and autosave
+            </div>
+            <div class="script-line format-speaker" data-format="speaker" contenteditable="true">
+                Character name line
+            </div>
+            <div class="script-line format-dialog" data-format="dialog" contenteditable="true">
+                Dialog line
+            </div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Live Logs</h2>
+        <div id="logs" class="log"></div>
+    </div>
+
+    <script>
+        let testResults = [];
+        let apiCalls = [];
+        let originalFetch = window.fetch;
+
+        // Override fetch to monitor API calls
+        window.fetch = function(...args) {
+            const url = args[0];
+            const options = args[1] || {};
+            
+            if (typeof url === 'string' && url.includes('/api/script/')) {
+                const call = {
+                    url: url,
+                    method: options.method || 'GET',
+                    timestamp: Date.now(),
+                    status: 'pending'
+                };
+                apiCalls.push(call);
+                log(`📡 API Call: ${call.method} ${url}`);
+                
+                return originalFetch.apply(this, args)
+                    .then(response => {
+                        call.status = response.status;
+                        call.responseTime = Date.now() - call.timestamp;
+                        if (response.ok) {
+                            log(`✅ API Success: ${call.method} ${url} (${call.responseTime}ms)`);
+                        } else {
+                            log(`❌ API Error: ${call.method} ${url} - ${response.status} (${call.responseTime}ms)`);
+                        }
+                        return response;
+                    })
+                    .catch(error => {
+                        call.status = 'error';
+                        call.error = error.message;
+                        call.responseTime = Date.now() - call.timestamp;
+                        log(`💥 API Exception: ${call.method} ${url} - ${error.message}`);
+                        throw error;
+                    });
+            }
+            
+            return originalFetch.apply(this, args);
+        };
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            logElement.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[Simple Test] ${message}`);
+        }
+
+        function updateTestStatus(message, type = 'running') {
+            const statusElement = document.getElementById('testStatus');
+            statusElement.textContent = message;
+            statusElement.className = `test-status test-${type}`;
+            statusElement.style.display = 'block';
+        }
+
+        function addTestResult(testName, passed, message) {
+            const result = { testName, passed, message, timestamp: Date.now() };
+            testResults.push(result);
+            
+            const resultsElement = document.getElementById('testResults');
+            const statusClass = passed ? 'test-pass' : 'test-fail';
+            const statusIcon = passed ? '✅' : '❌';
+            
+            resultsElement.innerHTML += `
+                <div class="test-status ${statusClass}">
+                    ${statusIcon} ${testName}: ${message}
+                </div>
+            `;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function startTest() {
+            log('🚀 Starting Simple Autosave Test...');
+            updateTestStatus('Running tests...', 'running');
+            
+            testResults = [];
+            apiCalls = [];
+            
+            try {
+                await testFormatSwitching();
+                await testTypingAndAutosave();
+                await testMultipleChanges();
+                
+                // Final results
+                const passedTests = testResults.filter(r => r.passed).length;
+                const totalTests = testResults.length;
+                
+                if (passedTests === totalTests) {
+                    updateTestStatus('✅ All tests passed!', 'pass');
+                    log('🎉 All tests completed successfully!');
+                } else {
+                    updateTestStatus(`❌ ${passedTests}/${totalTests} tests passed`, 'fail');
+                    log(`❌ Some tests failed. Check results above.`);
+                }
+                
+                log(`📊 API Calls made: ${apiCalls.length}`);
+                log(`📈 Success rate: ${apiCalls.filter(c => c.status === 200).length}/${apiCalls.length}`);
+                
+            } catch (error) {
+                log(`💥 Test failed: ${error.message}`);
+                updateTestStatus(`❌ Test failed: ${error.message}`, 'fail');
+            }
+        }
+
+        async function testFormatSwitching() {
+            log('🎨 Testing format switching...');
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                addTestResult('Format Switching', false, 'No script lines found');
+                return;
+            }
+            
+            const firstLine = scriptLines[0];
+            const initialFormat = firstLine.getAttribute('data-format');
+            log(`📝 Initial format: ${initialFormat}`);
+            
+            // Test Enter key format switching
+            firstLine.focus();
+            const enterEvent = new KeyboardEvent('keydown', { 
+                key: 'Enter', 
+                bubbles: true,
+                cancelable: true
+            });
+            firstLine.dispatchEvent(enterEvent);
+            
+            await sleep(500);
+            
+            const newFormat = firstLine.getAttribute('data-format');
+            log(`🔄 Format after Enter: ${newFormat}`);
+            
+            // Test Ctrl+Arrow format switching
+            const ctrlRightEvent = new KeyboardEvent('keydown', {
+                key: 'ArrowRight',
+                ctrlKey: true,
+                bubbles: true,
+                cancelable: true
+            });
+            firstLine.dispatchEvent(ctrlRightEvent);
+            
+            await sleep(500);
+            
+            const ctrlFormat = firstLine.getAttribute('data-format');
+            log(`🔄 Format after Ctrl+Right: ${ctrlFormat}`);
+            
+            if (newFormat !== initialFormat || ctrlFormat !== newFormat) {
+                addTestResult('Format Switching', true, 'Format changes detected');
+            } else {
+                addTestResult('Format Switching', false, 'No format changes detected');
+            }
+        }
+
+        async function testTypingAndAutosave() {
+            log('⌨️ Testing typing and autosave...');
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                addTestResult('Typing and Autosave', false, 'No script lines found');
+                return;
+            }
+            
+            const firstLine = scriptLines[0];
+            firstLine.focus();
+            
+            // Clear existing content and type new content
+            firstLine.textContent = '';
+            
+            // Simulate typing
+            const testText = 'E2E Test Content - ' + Date.now();
+            for (let i = 0; i < testText.length; i++) {
+                const char = testText[i];
+                firstLine.textContent += char;
+                
+                // Dispatch input event
+                const inputEvent = new Event('input', { bubbles: true });
+                firstLine.dispatchEvent(inputEvent);
+                
+                await sleep(50); // Simulate typing speed
+            }
+            
+            log(`📝 Typed: "${testText}"`);
+            
+            // Wait for potential autosave
+            log('⏳ Waiting for autosave...');
+            await sleep(2000);
+            
+            // Check if any save API calls were made
+            const saveCalls = apiCalls.filter(call => 
+                call.method === 'PUT' && call.url.includes('/api/script/')
+            );
+            
+            if (saveCalls.length > 0) {
+                addTestResult('Typing and Autosave', true, `Detected ${saveCalls.length} save API call(s)`);
+            } else {
+                addTestResult('Typing and Autosave', false, 'No save API calls detected');
+            }
+        }
+
+        async function testMultipleChanges() {
+            log('🔄 Testing multiple changes...');
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                addTestResult('Multiple Changes', false, 'No script lines found');
+                return;
+            }
+            
+            const initialApiCalls = apiCalls.length;
+            
+            // Make changes to multiple lines
+            for (let i = 0; i < Math.min(3, scriptLines.length); i++) {
+                const line = scriptLines[i];
+                line.focus();
+                line.textContent = `E2E Test Line ${i + 1} - ${Date.now()}`;
+                
+                const inputEvent = new Event('input', { bubbles: true });
+                line.dispatchEvent(inputEvent);
+                
+                await sleep(200);
+            }
+            
+            log('⏳ Waiting for autosave after multiple changes...');
+            await sleep(3000);
+            
+            const newApiCalls = apiCalls.length;
+            const additionalCalls = newApiCalls - initialApiCalls;
+            
+            if (additionalCalls > 0) {
+                addTestResult('Multiple Changes', true, `Triggered ${additionalCalls} additional API calls`);
+            } else {
+                addTestResult('Multiple Changes', false, 'No additional API calls detected');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('testStatus').style.display = 'none';
+        }
+
+        // Initialize
+        log('🧪 Simple Autosave Test initialized');
+        log('📋 Ready to test format switching and autosave functionality');
+        log('💡 This test monitors API calls and format changes in real-time');
+    </script>
+</body>
+</html>

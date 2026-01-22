@@ -1,9 +1,16 @@
+import { BaseRenderer } from '../core/BaseRenderer.js';
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
-import { BaseRenderer } from '../core/BaseRenderer.js';
 
+/**
+ *
+ */
 export class BaseWidget {
-    constructor(elements = {}) {
+    /**
+     *
+     * @param elements
+     */
+    constructor (elements = {}) {
         this.elements = elements;
         this.stateManager = null;
         this.eventManager = null;
@@ -11,7 +18,10 @@ export class BaseWidget {
         this.requiredElements = []; // Default to no required elements
     }
 
-    async initialize() {
+    /**
+     *
+     */
+    async initialize () {
         // Only validate elements if there are required ones
         if (this.requiredElements.length > 0) {
             this.validateElements();
@@ -26,7 +36,10 @@ export class BaseWidget {
         await this.setupStateSubscriptions();
     }
 
-    validateElements() {
+    /**
+     *
+     */
+    validateElements () {
         // Check for all required elements
         this.requiredElements.forEach(elementName => {
             if (!this.elements[elementName]) {
@@ -35,45 +48,85 @@ export class BaseWidget {
         });
     }
 
-    setupEventListeners() {
+    /**
+     *
+     */
+    setupEventListeners () {
         // Override in child classes
     }
 
-    setupStateSubscriptions() {
+    /**
+     *
+     */
+    setupStateSubscriptions () {
         // Override in child classes
     }
 
-    subscribe(event, callback) {
+    /**
+     *
+     * @param event
+     * @param callback
+     */
+    subscribe (event, callback) {
         return this.eventManager.subscribe(event, callback, this);
     }
 
-    publish(event, data) {
+    /**
+     *
+     * @param event
+     * @param data
+     */
+    publish (event, data) {
         this.eventManager.publish(event, data);
     }
 
-    setState(key, value) {
+    /**
+     *
+     * @param key
+     * @param value
+     */
+    setState (key, value) {
         this.stateManager.setState(key, value);
     }
 
-    getState(key) {
+    /**
+     *
+     * @param key
+     */
+    getState (key) {
         return this.stateManager.getState(key);
     }
 
-    subscribeToState(key, callback) {
+    /**
+     *
+     * @param key
+     * @param callback
+     */
+    subscribeToState (key, callback) {
         return this.stateManager.subscribe(key, callback, this);
     }
 
-    handleError(error) {
+    /**
+     *
+     * @param error
+     */
+    handleError (error) {
         console.error('Widget Error:', error);
         this.publish(EventManager.EVENTS.ERROR, { error });
     }
 
-    destroy() {
+    /**
+     *
+     */
+    destroy () {
         // Clean up event subscriptions
-        this.eventManager.unsubscribeAll(this);
+        if (this.eventManager) {
+            this.eventManager.unsubscribeAll(this);
+        }
 
         // Clean up state subscriptions
-        this.stateManager.unsubscribeAll(this);
+        // Note: StateManager doesn't have unsubscribeAll, so we can't clean up state subscriptions
+        // This is a limitation of the current StateManager implementation
 
         // Clean up renderer
         if (this.renderer) {
@@ -84,31 +137,52 @@ export class BaseWidget {
         this.elements = {};
     }
 
-    setManagers(stateManager, eventManager) {
+    /**
+     *
+     * @param stateManager
+     * @param eventManager
+     */
+    setManagers (stateManager, eventManager) {
         this.stateManager = stateManager;
         this.eventManager = eventManager;
     }
 
     // Common utility methods for all widgets
-    scrollToBottom() {
+    /**
+     *
+     */
+    scrollToBottom () {
         if (this.elements.messagesContainer) {
             this.elements.messagesContainer.scrollTop = this.elements.messagesContainer.scrollHeight;
         }
     }
 
-    scrollToTop() {
+    /**
+     *
+     */
+    scrollToTop () {
         if (this.elements.messagesContainer) {
             this.elements.messagesContainer.scrollTop = 0;
         }
     }
 
-    clearContainer(container) {
+    /**
+     *
+     * @param container
+     */
+    clearContainer (container) {
         if (container) {
             container.innerHTML = '';
         }
     }
 
-    createElement(tag, className, textContent = '') {
+    /**
+     *
+     * @param tag
+     * @param className
+     * @param textContent
+     */
+    createElement (tag, className, textContent = '') {
         const element = document.createElement(tag);
         if (className) {
             element.className = className;
@@ -119,7 +193,12 @@ export class BaseWidget {
         return element;
     }
 
-    appendToContainer(container, element) {
+    /**
+     *
+     * @param container
+     * @param element
+     */
+    appendToContainer (container, element) {
         if (container && element) {
             container.appendChild(element);
         }

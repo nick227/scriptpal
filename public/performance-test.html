@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal Performance Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-result.pass {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .test-result.fail {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .test-result.warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .summary {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .metric-label {
+            font-weight: bold;
+        }
+        .metric-value {
+            font-family: monospace;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ScriptPal Performance Test</h1>
+        <p>This test measures various performance metrics to identify potential bottlenecks in the ScriptPal application.</p>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Running performance tests...</p>
+        </div>
+
+        <div id="test-results" style="display: none;">
+            <div class="test-section">
+                <h2>Page Load Performance</h2>
+                <div id="page-load-results"></div>
+            </div>
+
+            <div class="test-section">
+                <h2>JavaScript Performance</h2>
+                <div id="js-performance-results"></div>
+            </div>
+
+            <div class="test-section">
+                <h2>DOM Performance</h2>
+                <div id="dom-performance-results"></div>
+            </div>
+
+            <div class="test-section">
+                <h2>Network Performance</h2>
+                <div id="network-performance-results"></div>
+            </div>
+
+            <div class="test-section">
+                <h2>Memory Usage</h2>
+                <div id="memory-results"></div>
+            </div>
+
+            <div class="summary">
+                <h2>Performance Summary</h2>
+                <div id="summary-results"></div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="runPageLoadTest()">Page Load Only</button>
+            <button onclick="runJSPerformanceTest()">JS Performance Only</button>
+            <button onclick="runDOMPerformanceTest()">DOM Performance Only</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+    </div>
+
+    <script>
+        // Performance test results storage
+        const testResults = {
+            pageLoad: {},
+            jsPerformance: {},
+            domPerformance: {},
+            networkPerformance: {},
+            memory: {}
+        };
+
+        // Utility functions
+        function addResult(containerId, testName, result, value, threshold, unit = 'ms') {
+            const container = document.getElementById(containerId);
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${result}`;
+            
+            const status = result === 'pass' ? '✅' : result === 'fail' ? '❌' : '⚠️';
+            const message = result === 'pass' ? 'PASS' : result === 'fail' ? 'FAIL' : 'WARNING';
+            
+            resultDiv.innerHTML = `
+                <strong>${status} ${testName}: ${message}</strong><br>
+                <span class="metric">
+                    <span class="metric-label">Time:</span>
+                    <span class="metric-value">${value}${unit}</span>
+                </span>
+                ${threshold ? `<br><span class="metric">
+                    <span class="metric-label">Threshold:</span>
+                    <span class="metric-value">&lt;${threshold}${unit}</span>
+                </span>` : ''}
+            `;
+            
+            container.appendChild(resultDiv);
+        }
+
+        function clearResults() {
+            document.getElementById('test-results').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+            
+            // Clear all result containers
+            ['page-load-results', 'js-performance-results', 'dom-performance-results', 
+             'network-performance-results', 'memory-results', 'summary-results'].forEach(id => {
+                document.getElementById(id).innerHTML = '';
+            });
+            
+            // Reset test results
+            Object.keys(testResults).forEach(key => {
+                testResults[key] = {};
+            });
+        }
+
+        // Page Load Performance Tests
+        function runPageLoadTest() {
+            const startTime = performance.now();
+            
+            // Test DOM Content Loaded
+            const domContentLoaded = performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd - 
+                                   performance.getEntriesByType('navigation')[0]?.domContentLoadedEventStart || 0;
+            
+            // Test Window Load
+            const windowLoad = performance.getEntriesByType('navigation')[0]?.loadEventEnd - 
+                             performance.getEntriesByType('navigation')[0]?.loadEventStart || 0;
+            
+            // Test First Contentful Paint
+            const fcp = performance.getEntriesByName('first-contentful-paint')[0]?.startTime || 0;
+            
+            // Test Largest Contentful Paint
+            const lcp = performance.getEntriesByType('largest-contentful-paint')[0]?.startTime || 0;
+            
+            const endTime = performance.now();
+            const totalTime = endTime - startTime;
+            
+            // Store results
+            testResults.pageLoad = {
+                domContentLoaded,
+                windowLoad,
+                fcp,
+                lcp,
+                totalTime
+            };
+            
+            // Display results
+            addResult('page-load-results', 'DOM Content Loaded', 
+                     domContentLoaded < 1000 ? 'pass' : domContentLoaded < 2000 ? 'warning' : 'fail',
+                     domContentLoaded.toFixed(2), 1000);
+            
+            addResult('page-load-results', 'Window Load', 
+                     windowLoad < 2000 ? 'pass' : windowLoad < 4000 ? 'warning' : 'fail',
+                     windowLoad.toFixed(2), 2000);
+            
+            addResult('page-load-results', 'First Contentful Paint', 
+                     fcp < 1500 ? 'pass' : fcp < 2500 ? 'warning' : 'fail',
+                     fcp.toFixed(2), 1500);
+            
+            addResult('page-load-results', 'Largest Contentful Paint', 
+                     lcp < 2500 ? 'pass' : lcp < 4000 ? 'warning' : 'fail',
+                     lcp.toFixed(2), 2500);
+            
+            addResult('page-load-results', 'Total Test Time', 'pass', totalTime.toFixed(2), 100);
+        }
+
+        // JavaScript Performance Tests
+        function runJSPerformanceTest() {
+            // Object Creation Performance
+            const objStart = performance.now();
+            const objects = [];
+            for (let i = 0; i < 10000; i++) {
+                objects.push({
+                    id: i,
+                    name: `Object ${i}`,
+                    data: { value: i * 2 }
+                });
+            }
+            const objTime = performance.now() - objStart;
+            
+            // Array Operations Performance
+            const arrayStart = performance.now();
+            const numbers = Array.from({length: 10000}, (_, i) => i);
+            const doubled = numbers.map(n => n * 2);
+            const filtered = doubled.filter(n => n > 1000);
+            const sum = filtered.reduce((acc, n) => acc + n, 0);
+            const arrayTime = performance.now() - arrayStart;
+            
+            // String Operations Performance
+            const stringStart = performance.now();
+            let result = '';
+            for (let i = 0; i < 1000; i++) {
+                result += `String ${i} `;
+            }
+            const upper = result.toUpperCase();
+            const split = result.split(' ');
+            const joined = split.join('-');
+            const stringTime = performance.now() - stringStart;
+            
+            // Function Call Performance
+            const funcStart = performance.now();
+            const testFunction = (a, b) => a + b;
+            let funcSum = 0;
+            for (let i = 0; i < 100000; i++) {
+                funcSum += testFunction(i, i + 1);
+            }
+            const funcTime = performance.now() - funcStart;
+            
+            // Store results
+            testResults.jsPerformance = {
+                objectCreation: objTime,
+                arrayOperations: arrayTime,
+                stringOperations: stringTime,
+                functionCalls: funcTime
+            };
+            
+            // Display results
+            addResult('js-performance-results', 'Object Creation (10k objects)', 
+                     objTime < 50 ? 'pass' : objTime < 100 ? 'warning' : 'fail',
+                     objTime.toFixed(2), 50);
+            
+            addResult('js-performance-results', 'Array Operations (10k items)', 
+                     arrayTime < 25 ? 'pass' : arrayTime < 50 ? 'warning' : 'fail',
+                     arrayTime.toFixed(2), 25);
+            
+            addResult('js-performance-results', 'String Operations (1k strings)', 
+                     stringTime < 50 ? 'pass' : stringTime < 100 ? 'warning' : 'fail',
+                     stringTime.toFixed(2), 50);
+            
+            addResult('js-performance-results', 'Function Calls (100k calls)', 
+                     funcTime < 50 ? 'pass' : funcTime < 100 ? 'warning' : 'fail',
+                     funcTime.toFixed(2), 50);
+        }
+
+        // DOM Performance Tests
+        function runDOMPerformanceTest() {
+            // Create test elements
+            const testContainer = document.createElement('div');
+            testContainer.id = 'test-container';
+            document.body.appendChild(testContainer);
+            
+            // DOM Creation Performance
+            const createStart = performance.now();
+            for (let i = 0; i < 1000; i++) {
+                const div = document.createElement('div');
+                div.className = `test-element-${i}`;
+                div.textContent = `Element ${i}`;
+                testContainer.appendChild(div);
+            }
+            const createTime = performance.now() - createStart;
+            
+            // DOM Query Performance
+            const queryStart = performance.now();
+            for (let i = 0; i < 100; i++) {
+                document.querySelector(`.test-element-${i}`);
+            }
+            const queryTime = performance.now() - queryStart;
+            
+            // DOM Update Performance
+            const updateStart = performance.now();
+            const elements = testContainer.querySelectorAll('div');
+            elements.forEach((el, i) => {
+                el.style.backgroundColor = i % 2 === 0 ? 'red' : 'blue';
+                el.textContent = `Updated ${i}`;
+            });
+            const updateTime = performance.now() - updateStart;
+            
+            // DOM Removal Performance
+            const removeStart = performance.now();
+            testContainer.innerHTML = '';
+            const removeTime = performance.now() - removeStart;
+            
+            // Clean up
+            document.body.removeChild(testContainer);
+            
+            // Store results
+            testResults.domPerformance = {
+                creation: createTime,
+                queries: queryTime,
+                updates: updateTime,
+                removal: removeTime
+            };
+            
+            // Display results
+            addResult('dom-performance-results', 'DOM Creation (1k elements)', 
+                     createTime < 100 ? 'pass' : createTime < 200 ? 'warning' : 'fail',
+                     createTime.toFixed(2), 100);
+            
+            addResult('dom-performance-results', 'DOM Queries (100 queries)', 
+                     queryTime < 50 ? 'pass' : queryTime < 100 ? 'warning' : 'fail',
+                     queryTime.toFixed(2), 50);
+            
+            addResult('dom-performance-results', 'DOM Updates (1k elements)', 
+                     updateTime < 100 ? 'pass' : updateTime < 200 ? 'warning' : 'fail',
+                     updateTime.toFixed(2), 100);
+            
+            addResult('dom-performance-results', 'DOM Removal (1k elements)', 
+                     removeTime < 50 ? 'pass' : removeTime < 100 ? 'warning' : 'fail',
+                     removeTime.toFixed(2), 50);
+        }
+
+        // Network Performance Tests
+        function runNetworkPerformanceTest() {
+            const resources = performance.getEntriesByType('resource');
+            const resourceTimes = {};
+            
+            resources.forEach(resource => {
+                const name = resource.name;
+                const loadTime = resource.responseEnd - resource.startTime;
+                resourceTimes[name] = loadTime;
+            });
+            
+            // Calculate average load time
+            const loadTimes = Object.values(resourceTimes);
+            const avgLoadTime = loadTimes.reduce((sum, time) => sum + time, 0) / loadTimes.length || 0;
+            const maxLoadTime = Math.max(...loadTimes, 0);
+            
+            // Store results
+            testResults.networkPerformance = {
+                averageLoadTime: avgLoadTime,
+                maxLoadTime: maxLoadTime,
+                resourceCount: resources.length
+            };
+            
+            // Display results
+            addResult('network-performance-results', 'Average Resource Load Time', 
+                     avgLoadTime < 500 ? 'pass' : avgLoadTime < 1000 ? 'warning' : 'fail',
+                     avgLoadTime.toFixed(2), 500);
+            
+            addResult('network-performance-results', 'Max Resource Load Time', 
+                     maxLoadTime < 1000 ? 'pass' : maxLoadTime < 2000 ? 'warning' : 'fail',
+                     maxLoadTime.toFixed(2), 1000);
+            
+            addResult('network-performance-results', 'Total Resources', 'pass', resources.length, null, '');
+            
+            // Show individual resource times
+            const container = document.getElementById('network-performance-results');
+            const resourceDiv = document.createElement('div');
+            resourceDiv.className = 'test-result pass';
+            resourceDiv.innerHTML = '<strong>📊 Individual Resource Times:</strong><br>';
+            
+            Object.entries(resourceTimes)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 10) // Show top 10 slowest resources
+                .forEach(([name, time]) => {
+                    const shortName = name.length > 50 ? name.substring(0, 47) + '...' : name;
+                    resourceDiv.innerHTML += `${shortName}: ${time.toFixed(2)}ms<br>`;
+                });
+            
+            container.appendChild(resourceDiv);
+        }
+
+        // Memory Usage Tests
+        function runMemoryTest() {
+            if (!performance.memory) {
+                addResult('memory-results', 'Memory API', 'warning', 'Not available', null, '');
+                return;
+            }
+            
+            const memory = performance.memory;
+            const usedMB = (memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
+            const totalMB = (memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
+            const limitMB = (memory.jsHeapSizeLimit / 1024 / 1024).toFixed(2);
+            
+            // Store results
+            testResults.memory = {
+                used: memory.usedJSHeapSize,
+                total: memory.totalJSHeapSize,
+                limit: memory.jsHeapSizeLimit
+            };
+            
+            // Display results
+            addResult('memory-results', 'Used Memory', 
+                     memory.usedJSHeapSize < 50 * 1024 * 1024 ? 'pass' : 'warning',
+                     usedMB, 50, 'MB');
+            
+            addResult('memory-results', 'Total Memory', 'pass', totalMB, null, 'MB');
+            
+            addResult('memory-results', 'Memory Limit', 'pass', limitMB, null, 'MB');
+        }
+
+        // Generate Summary
+        function generateSummary() {
+            const summary = document.getElementById('summary-results');
+            summary.innerHTML = '';
+            
+            // Calculate overall performance score
+            let totalTests = 0;
+            let passedTests = 0;
+            let warningTests = 0;
+            let failedTests = 0;
+            
+            // Count test results
+            document.querySelectorAll('.test-result').forEach(result => {
+                totalTests++;
+                if (result.classList.contains('pass')) passedTests++;
+                else if (result.classList.contains('warning')) warningTests++;
+                else if (result.classList.contains('fail')) failedTests++;
+            });
+            
+            const score = totalTests > 0 ? Math.round((passedTests / totalTests) * 100) : 0;
+            
+            // Create summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Overall Performance Score:</span>
+                    <span class="metric-value">${score}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tests Passed:</span>
+                    <span class="metric-value">${passedTests}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tests with Warnings:</span>
+                    <span class="metric-value">${warningTests}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tests Failed:</span>
+                    <span class="metric-value">${failedTests}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Tests:</span>
+                    <span class="metric-value">${totalTests}</span>
+                </div>
+            `;
+            
+            summary.appendChild(summaryDiv);
+            
+            // Add recommendations
+            if (score < 70) {
+                const recDiv = document.createElement('div');
+                recDiv.className = 'test-result fail';
+                recDiv.innerHTML = '<strong>🚨 Performance Issues Detected</strong><br>Consider optimizing slow operations and reducing resource load times.';
+                summary.appendChild(recDiv);
+            } else if (score < 90) {
+                const recDiv = document.createElement('div');
+                recDiv.className = 'test-result warning';
+                recDiv.innerHTML = '<strong>⚠️ Some Performance Issues</strong><br>Consider optimizing the operations marked with warnings.';
+                summary.appendChild(recDiv);
+            } else {
+                const recDiv = document.createElement('div');
+                recDiv.className = 'test-result pass';
+                recDiv.innerHTML = '<strong>✅ Good Performance</strong><br>Your application is performing well!';
+                summary.appendChild(recDiv);
+            }
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            clearResults();
+            document.getElementById('loading').style.display = 'block';
+            
+            // Run tests with small delays to prevent blocking
+            setTimeout(() => {
+                runPageLoadTest();
+                setTimeout(() => {
+                    runJSPerformanceTest();
+                    setTimeout(() => {
+                        runDOMPerformanceTest();
+                        setTimeout(() => {
+                            runNetworkPerformanceTest();
+                            setTimeout(() => {
+                                runMemoryTest();
+                                setTimeout(() => {
+                                    generateSummary();
+                                    document.getElementById('loading').style.display = 'none';
+                                    document.getElementById('test-results').style.display = 'block';
+                                }, 100);
+                            }, 100);
+                        }, 100);
+                    }, 100);
+                }, 100);
+            }, 100);
+        }
+
+        // Auto-run tests when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                runAllTests();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

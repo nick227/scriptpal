@@ -4,49 +4,49 @@ import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemp
  * Builds and manages the message templates and prompts for script writing
  */
 export class WriteScriptMessages {
-    /**
+  /**
      * Get the function schema for script writing
      */
-    static getFunctionSchema() {
-        return {
-            name: "write_script",
-            description: "Array of commands to apply to the script",
-            parameters: {
-                type: "object",
-                properties: {
-                    commands: {
-                        type: "array",
-                        items: {
-                            type: "object",
-                            properties: {
-                                command: {
-                                    type: "string",
-                                    enum: ["ADD"],
-                                    description: "The type of write operation"
-                                },
-                                lineNumber: {
-                                    type: "number",
-                                    description: "The line number to write (1-based)"
-                                },
-                                value: {
-                                    type: "string",
-                                    description: "The new content for ADD operations (must include script tags)"
-                                }
-                            },
-                            required: ["command", "lineNumber", "value"]
-                        }
-                    }
+  static getFunctionSchema() {
+    return {
+      name: 'write_script',
+      description: 'Array of commands to apply to the script',
+      parameters: {
+        type: 'object',
+        properties: {
+          commands: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                command: {
+                  type: 'string',
+                  enum: ['ADD'],
+                  description: 'The type of write operation'
                 },
-                required: ["commands"]
+                lineNumber: {
+                  type: 'number',
+                  description: 'The line number to write (1-based)'
+                },
+                value: {
+                  type: 'string',
+                  description: 'The new content for ADD operations (must include script tags)'
+                }
+              },
+              required: ['command', 'lineNumber', 'value']
             }
-        };
-    }
+          }
+        },
+        required: ['commands']
+      }
+    };
+  }
 
-    /**
+  /**
      * Build system template for script writing
      */
-    static getSystemTemplate(totalLines) {
-        return `
+  static getSystemTemplate(totalLines) {
+    return `
         
         You are a script writing assistant. Your task is to write content for a script based on the user's request.
         
@@ -98,13 +98,13 @@ EXAMPLE COMMANDS:
     "value": "<speaker>Hello everyone.</speaker>"
   }
 ]`;
-    }
+  }
 
-    /**
+  /**
      * Build messages for the chain
      */
-    static buildMessages(scriptContent, prompt) {
-        const systemTemplate = `You are a script writing assistant. You help users write scripts by applying specific commands.
+  static buildMessages(scriptContent, prompt) {
+    const systemTemplate = `You are a script writing assistant. You help users write scripts by applying specific commands.
 The script content is formatted with XML-style script tags like <header>, <action>, <speaker>, <dialog>, <directions>, and <chapter-break>.
 
 When writing, you can use these commands:
@@ -121,25 +121,25 @@ Each command should have:
 - lineNumber: The line number to write (1-based)
 - value: The new content for ADD (must include script tags)`;
 
-        const promptTemplate = ChatPromptTemplate.fromMessages([
-            SystemMessagePromptTemplate.fromTemplate(systemTemplate),
-            HumanMessagePromptTemplate.fromTemplate("{input}")
-        ]);
+    const promptTemplate = ChatPromptTemplate.fromMessages([
+      SystemMessagePromptTemplate.fromTemplate(systemTemplate),
+      HumanMessagePromptTemplate.fromTemplate('{input}')
+    ]);
 
-        return promptTemplate.formatMessages({
-            script_content: scriptContent,
-            input: prompt
-        });
-    }
+    return promptTemplate.formatMessages({
+      script_content: scriptContent,
+      input: prompt
+    });
+  }
 
-    /**
+  /**
      * Count the number of content lines in the script
      * @private
      */
-    static countScriptLines(scriptContent) {
-        if (!scriptContent) return 0;
-        // Match any content between XML-style tags
-        const lineMatches = scriptContent.match(/<(header|action|speaker|dialog|directions|chapter-break)>([^<]+)<\/\1>/g) || [];
-        return lineMatches.length;
-    }
+  static countScriptLines(scriptContent) {
+    if (!scriptContent) return 0;
+    // Match any content between XML-style tags
+    const lineMatches = scriptContent.match(/<(header|action|speaker|dialog|directions|chapter-break)>([^<]+)<\/\1>/g) || [];
+    return lineMatches.length;
+  }
 }

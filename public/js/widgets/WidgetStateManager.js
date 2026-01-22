@@ -1,7 +1,14 @@
 import { StateManager } from '../core/StateManager.js';
 
+/**
+ *
+ */
 export class WidgetStateManager extends StateManager {
-    constructor(initialState = {}) {
+    /**
+     *
+     * @param initialState
+     */
+    constructor (initialState = {}) {
         super();
 
         // Widget-specific state keys
@@ -23,27 +30,48 @@ export class WidgetStateManager extends StateManager {
     }
 
     // Widget-specific state methods
-    isReady() {
+    /**
+     *
+     */
+    isReady () {
         return this.getState('ready');
     }
 
-    isActive() {
+    /**
+     *
+     */
+    isActive () {
         return this.getState('active');
     }
 
-    isDirty() {
+    /**
+     *
+     */
+    isDirty () {
         return this.getState('dirty');
     }
 
-    markDirty(isDirty = true) {
+    /**
+     *
+     * @param isDirty
+     */
+    markDirty (isDirty = true) {
         this.setState('dirty', isDirty);
     }
 
-    setReady(isReady = true) {
+    /**
+     *
+     * @param isReady
+     */
+    setReady (isReady = true) {
         this.setState('ready', isReady);
     }
 
-    setActive(isActive = true) {
+    /**
+     *
+     * @param isActive
+     */
+    setActive (isActive = true) {
         this.setState('active', isActive);
     }
 

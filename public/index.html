@@ -18,67 +18,52 @@
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <!-- Meta tags for CSP -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
 </head>
 
-<body>
+<body class="auth-locked">
     <!-- Main Navigation Bar -->
     <div class="navbar">
         <!-- Brand -->
         <h1 class="title">ScriptPal</h1>
 
         <!-- User Section -->
-        <div class="user-info"></div>
-        <button class="logout-button" style="display: none;"><i
-                    class="fas fa-sign-out-alt"></i> Logout</button>
+        <div class="auth-widget">
+            <div class="user-info auth-user" aria-live="polite" style="display: none;">
+                <span class="auth-avatar" aria-hidden="true"></span>
+                <span class="auth-identity">
+                    <span class="auth-name"></span>
+                    <span style="display:none;" class="auth-email"></span>
+                </span>
+            </div>
+            <button class="logout-button auth-logout" style="display: none;"><i
+                        class="fas fa-sign-out-alt"></i> Logout</button>
 
-        <!-- Authentication Forms -->
-        <div class="user-forms">
-            <!-- Login Form -->
-            <form id="login-form" class="login-form">
-                <input type="email" id="email" placeholder="Enter email">
-                <button type="submit">Login</button>
-            </form>
-
-            <!-- Registration Form -->
-            <form id="register-form" class="register-form">
-                <input type="email" id="register-email" placeholder="Register with email">
-                <button type="submit">Register</button>
-            </form>
+            <!-- Authentication Forms -->
+            <div class="user-forms auth-forms"></div>
         </div>
 
-        <!-- Site Navigation Controls -->
-        <div class="button-set site-controls">
-            <!-- Layout Toggle Button -->
-            <button id="toggle-view">switch</button>
-        </div>
+        <div class="script-selector hidden"></div>
     </div>
 
     <div class="container-main">
+        <!-- User Scripts Panel -->
+        <div class="user-scripts hidden"></div>
 
         <!-- Script Editor Panel -->
-        <div class="editor-container" data-name="editor"></div>
-
-        <div class="chatbot-container">
-            <!-- Message Input -->
-            <textarea id="user-input" placeholder="Type your message here..."></textarea>
-            <!-- Chat Controls -->
-            <div class="chat-controls">
-                <button id="send"><i
-                            class="fas fa-paper-plane"></i></button>
-                <button id="record"><i
-                            class="fas fa-microphone"></i></button>
-                <div class="spinner loading-indicator hidden"></div>
-            </div>
-            <!-- Chat Messages Panel -->
-            <div class="chat-messages" data-name="chat">
-                <div class="loading-indicator"></div>
-            </div>
+        <div class="editor-container" data-name="editor">
+            <div class="editor-toolbar"></div>
+            <div class="minimap-container"></div>
         </div>
+
+        <div class="chatbot-container" aria-live="polite"></div>
 
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="js/init.js"></script>
+    <script type="module" src="js/init-clean.js"></script>
 </body>
 
 </html>

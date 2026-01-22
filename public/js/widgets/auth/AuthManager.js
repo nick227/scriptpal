@@ -1,74 +1,130 @@
-import { BaseManager } from '../../core/BaseManager.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../../constants.js';
-import { EventBus } from '../../core/EventBus.js';
+import { BaseManager } from '../../core/BaseManager.js';
+import { EventManager } from '../../core/EventManager.js';
+import { debugLog } from '../../core/logger.js';
 
+/**
+ *
+ */
 export class AuthManager extends BaseManager {
-    constructor(stateManager, api, eventBus) {
+    /**
+     *
+     * @param stateManager
+     * @param api
+     * @param eventManager
+     */
+    constructor (stateManager, api, eventManager) {
         super(stateManager);
         this.api = api;
-        this.eventBus = eventBus;
+        this.eventManager = eventManager;
     }
 
-    async handleLogin(email) {
-        if (!email) {
-            this.handleError(new Error('Invalid email'), 'auth');
-            return;
+    /**
+     *
+     * @param email
+     * @param password
+     */
+    async handleLogin (email, password) {
+        if (!email || !password) {
+            throw new Error('Invalid email');
         }
 
         try {
             this.setLoading(true);
-            const user = await this.api.login(email);
+            const response = await this.api.login(email, password);
 
-            if (!user) {
+            if (!response || !response.user) {
                 throw new Error(ERROR_MESSAGES.LOGIN_FAILED);
             }
 
+            const user = response.user;
+
+            // Update state and notify
             this.stateManager.setState('authenticated', true);
-            this.eventBus.publish(EventBus.EVENTS.AUTH.LOGIN, { user });
-        } catch (error) {
-            this.handleError(error, 'auth');
-            throw error;
+            this.stateManager.setState('currentUser', user);
+            this.eventManager.publish(EventManager.EVENTS.AUTH.LOGIN, user);
+
+            debugLog('[AUTH] Login successful:', {
+                email: user.email,
+                hasToken: !!response.token
+            });
+
+            // Schedule page reload after state updates
+            this._scheduleReload();
+
+            return user;
         } finally {
             this.setLoading(false);
         }
     }
 
-    async handleRegister(email) {
-        if (!email) {
-            this.handleError(new Error('Invalid email'), 'auth');
-            return;
+    /**
+     *
+     */
+    _scheduleReload () {
+        // Small delay to ensure all state updates and token storage are complete
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    }
+
+    /**
+     *
+     * @param email
+     * @param password
+     */
+    async handleRegister (email, password) {
+        if (!email || !password) {
+            throw new Error('Invalid email');
         }
 
         try {
             this.setLoading(true);
-            await this.api.createUser({ email });
-            this.eventBus.publish(EventBus.EVENTS.AUTH.REGISTER, { email });
+            const user = await this.api.createUser({ email, password });
 
             // Auto login after registration
-            await this.handleLogin(email);
-        } catch (error) {
-            this.handleError(error, 'auth');
-            throw error;
+            return this.handleLogin(email, password);
         } finally {
             this.setLoading(false);
         }
     }
 
-    async handleLogout() {
+    /**
+     *
+     */
+    async handleLogout () {
         try {
             this.setLoading(true);
             await this.api.logout();
+
+            // Clear state and notify
             this.stateManager.setState('authenticated', false);
-            this.eventBus.publish(EventBus.EVENTS.AUTH.LOGOUT);
-        } catch (error) {
-            this.handleError(error, 'auth');
-            throw error;
+            this.stateManager.setState('currentUser', null);
+            this.eventManager.publish(EventManager.EVENTS.AUTH.LOGOUT);
         } finally {
             this.setLoading(false);
         }
     }
 
-    updateUserInfo(user) {
+    /**
+     *
+     */
+    getCurrentUser () {
+        return this.stateManager.getState('currentUser');
+    }
+
+    /**
+     *
+     */
+    isAuthenticated () {
+        return this.stateManager.getState('authenticated') === true;
+    }
+
+    /**
+     *
+     * @param user
+     */
+    updateUserInfo (user) {
         if (this.renderer) {
             this.renderer.renderUserInfo(user);
         }

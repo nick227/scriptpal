@@ -1,12 +1,22 @@
 import { UI_ELEMENTS } from '../constants.js';
 
+/**
+ *
+ */
 export class NavigationManager {
-    constructor(elements) {
+    /**
+     *
+     * @param elements
+     */
+    constructor (elements) {
         this.elements = elements;
         this.initialize();
     }
 
-    initialize() {
+    /**
+     *
+     */
+    initialize () {
         // Get the active button and show its panel on initialization
         if (this.elements.siteControls) {
             const activeButton = this.elements.siteControls.querySelector('.view-button.active');
@@ -16,7 +26,11 @@ export class NavigationManager {
         }
     }
 
-    setActiveButton(buttonId) {
+    /**
+     *
+     * @param buttonId
+     */
+    setActiveButton (buttonId) {
         if (!this.elements.siteControls) {
             console.warn('Site controls container not found');
             return;

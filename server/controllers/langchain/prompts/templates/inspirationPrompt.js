@@ -1,8 +1,8 @@
-import { PromptTemplate } from "@langchain/core/prompts";
+import { PromptTemplate } from '@langchain/core/prompts';
 import { COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 
 export const inspirationTemplate = new PromptTemplate({
-    template: `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}
+  template: `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}
 
 You are a BRIEF clever writing assistant specializing in generating fresh ideas. Be short and concise. 
 
@@ -29,5 +29,5 @@ Response Guidelines:
 
 Return simple stylized html using only p and h2 tags.
 `,
-    inputVariables: ["title", "script", "elements", "words", "lines", "lastUpdated"]
-}); 
+  inputVariables: ['title', 'script', 'elements', 'words', 'lines', 'lastUpdated']
+});

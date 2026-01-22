@@ -1,8 +1,15 @@
 import { BaseWidget } from '../BaseWidget.js';
 import { ScriptImportManager } from '../editor/ScriptImportManager.js';
 
+/**
+ *
+ */
 export class ScriptImportWidget extends BaseWidget {
-    constructor(options) {
+    /**
+     *
+     * @param options
+     */
+    constructor (options) {
         super();
         if (!options.container) {
             throw new Error('Container is required for ScriptImportWidget');
@@ -29,7 +36,11 @@ export class ScriptImportWidget extends BaseWidget {
         this._handleClose = this._handleClose.bind(this);
     }
 
-    async handleFile(file) {
+    /**
+     *
+     * @param file
+     */
+    async handleFile (file) {
         if (!file) return;
 
         try {
@@ -54,7 +65,10 @@ export class ScriptImportWidget extends BaseWidget {
         }
     }
 
-    render() {
+    /**
+     *
+     */
+    render () {
         if (!this.container) {
             console.error('Container element is not initialized');
             return;
@@ -72,7 +86,10 @@ export class ScriptImportWidget extends BaseWidget {
         this.elements.output = this.elements.messageArea;
     }
 
-    createWidgetContainer() {
+    /**
+     *
+     */
+    createWidgetContainer () {
         const widget = this.createElement('div', 'uploader-widget');
 
         // Position the widget in the center of the editor
@@ -109,7 +126,10 @@ export class ScriptImportWidget extends BaseWidget {
         return widget;
     }
 
-    async handleImport() {
+    /**
+     *
+     */
+    async handleImport () {
         try {
             const file = this.fileInput.files[0];
             if (!file) {
@@ -135,7 +155,11 @@ export class ScriptImportWidget extends BaseWidget {
         }
     }
 
-    readFile(file) {
+    /**
+     *
+     * @param file
+     */
+    readFile (file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
 
@@ -151,7 +175,10 @@ export class ScriptImportWidget extends BaseWidget {
         });
     }
 
-    createHeader() {
+    /**
+     *
+     */
+    createHeader () {
         const header = this.createElement('div', 'uploader-header');
 
         this.elements.fileName = this.createElement('span', 'uploader-filename');
@@ -166,7 +193,11 @@ export class ScriptImportWidget extends BaseWidget {
         return header;
     }
 
-    _handleClose(event = null) {
+    /**
+     *
+     * @param event
+     */
+    _handleClose (event = null) {
         if (event) {
             event.preventDefault();
         }
@@ -184,7 +215,10 @@ export class ScriptImportWidget extends BaseWidget {
         this.elements = {};
     }
 
-    createProgressSection() {
+    /**
+     *
+     */
+    createProgressSection () {
         const section = this.createElement('div', 'uploader-progress-section');
         this.elements.progressBar = this.createElement('div', 'uploader-progress-bar');
         this.elements.progressInner = this.createElement('div', 'uploader-progress-inner');
@@ -195,20 +229,32 @@ export class ScriptImportWidget extends BaseWidget {
         return section;
     }
 
-    createMessageArea() {
+    /**
+     *
+     */
+    createMessageArea () {
         this.elements.messageArea = this.createElement('div', 'uploader-message');
         this.updateMessage('Processing script...');
         return this.elements.messageArea;
     }
 
-    createElement(tag, className, text = '') {
+    /**
+     *
+     * @param tag
+     * @param className
+     * @param text
+     */
+    createElement (tag, className, text = '') {
         const element = document.createElement(tag);
         if (className) element.className = className;
         if (text) element.textContent = text;
         return element;
     }
 
-    updateFileName() {
+    /**
+     *
+     */
+    updateFileName () {
         const fileName = this.fileInput && this.fileInput.files && this.fileInput.files[0] ?
             this.fileInput.files[0].name : 'No file selected';
         if (this.elements.fileName) {
@@ -216,19 +262,30 @@ export class ScriptImportWidget extends BaseWidget {
         }
     }
 
-    updateProgress(percent) {
+    /**
+     *
+     * @param percent
+     */
+    updateProgress (percent) {
         if (this.elements.progressInner) {
             this.elements.progressInner.style.width = `${percent}%`;
         }
     }
 
-    updateMessage(message) {
+    /**
+     *
+     * @param message
+     */
+    updateMessage (message) {
         if (this.elements.messageArea) {
             this.elements.messageArea.textContent = message;
         }
     }
 
-    destroy() {
+    /**
+     *
+     */
+    destroy () {
         this._handleClose();
         super.destroy();
     }

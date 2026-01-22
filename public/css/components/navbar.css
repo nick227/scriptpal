@@ -11,6 +11,8 @@
     top: 0;
     height: var(--navbar-height);
     z-index: 4;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 
@@ -57,6 +59,10 @@
     display: flex;
     align-items: center;
     gap: 1rem;
+}
+
+.auth-widget {
+    margin-left: auto;
 }
 
 #user-email {

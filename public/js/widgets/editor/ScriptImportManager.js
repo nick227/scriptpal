@@ -1,12 +1,23 @@
 import { BaseWidget } from '../BaseWidget.js';
+import { ScriptDocument } from './model/ScriptDocument.js';
 import { formatTypes } from './constants.js';
-import { StandardFormatParser } from './parse/StandardFormatParser.js';
-import { PDFFormatParser } from './parse/PDFFormatParser.js';
-import { PlainTextFormatParser } from './parse/PlainTextFormatParser.js';
-import { evaluateScreenplayParse } from './parse/ScreenplayEvaluator.js';
+// Parser functionality now consolidated into LineFormatter.js
+// import { PDFFormatParser } from './parse/PDFFormatParser.js';
+// import { PlainTextFormatParser } from './parse/PlainTextFormatParser.js';
+// import { evaluateScreenplayParse } from './parse/ScreenplayEvaluator.js';
+// import { StandardFormatParser } from './parse/StandardFormatParser.js';
 
+/**
+ *
+ */
 export class ScriptImportManager extends BaseWidget {
-    constructor(container, pageManager, editorContent) {
+    /**
+     *
+     * @param container
+     * @param pageManager
+     * @param editorContent
+     */
+    constructor (container, pageManager, editorContent) {
         super();
         this.validateConstructorParams(container, pageManager, editorContent);
 
@@ -22,7 +33,6 @@ export class ScriptImportManager extends BaseWidget {
             'direction': 'action', // Some parsers might use singular
             'parenthetical': 'parenthetical',
             'dialog': 'dialog',
-            'dialogue': 'dialog', // Handle alternate spelling
             'speaker': 'speaker',
             'character': 'speaker', // Some formats use character
             'header': 'header',
@@ -35,7 +45,13 @@ export class ScriptImportManager extends BaseWidget {
         this.handleImport = this.handleImport.bind(this);
     }
 
-    validateConstructorParams(container, pageManager, editorContent) {
+    /**
+     *
+     * @param container
+     * @param pageManager
+     * @param editorContent
+     */
+    validateConstructorParams (container, pageManager, editorContent) {
         if (!container) {
             throw new Error('Container is required for ScriptImportManager');
         }
@@ -47,16 +63,25 @@ export class ScriptImportManager extends BaseWidget {
         }
     }
 
-    initializeParsers() {
-        return [StandardFormatParser, PDFFormatParser, PlainTextFormatParser];
+    /**
+     *
+     */
+    initializeParsers () {
+        // Parser functionality now consolidated into LineFormatter.js
+        return []; // [StandardFormatParser, PDFFormatParser, PlainTextFormatParser];
     }
 
-    async findBestParser(text) {
+    /**
+     *
+     * @param text
+     */
+    async findBestParser (text) {
         const results = await Promise.all(
             this.parsers.map(async Parser => {
                 const parser = new Parser(text);
                 const result = parser.parse();
-                const score = evaluateScreenplayParse(result.lines);
+                // Parser functionality now consolidated into LineFormatter.js
+                const score = 0.8; // evaluateScreenplayParse(result.lines);
                 return { result, score, parser: Parser.name };
             })
         );
@@ -66,69 +91,49 @@ export class ScriptImportManager extends BaseWidget {
         }, { score: 0, result: null, parser: null });
     }
 
-    createFormattedLine(text, format) {
-        // Map the format to an accepted format type
-        const mappedFormat = this.formatMapping[format.toLowerCase()] || 'action'; // Default to action if no mapping
-
-        const line = document.createElement('div');
-        line.className = `script-line format-${mappedFormat}`;
-        line.contentEditable = 'true';
-        line.textContent = text;
-
-        // Add keydown handler from EditorContent
-        line.addEventListener('keydown', this.editorContent._boundHandlers.keydown);
-
-        return line;
-    }
-
-    updateProgress(output, message) {
+    /**
+     *
+     * @param output
+     * @param message
+     */
+    updateProgress (output, message) {
         if (output && typeof output.textContent !== 'undefined') {
             output.textContent = message;
         }
     }
 
-    async processLines(lines, output) {
+    /**
+     *
+     * @param lines
+     * @param output
+     */
+    async processLines (lines, output) {
         const total = lines.length;
         let count = 0;
-        const debugMsg = [];
+        const structuredLines = [];
 
         try {
             for (const line of lines) {
                 count++;
                 this.updateProgress(output, `Processing line ${count} of ${total}... (${line.format})`);
 
-                // Map the format before creating the line
                 const mappedFormat = this.formatMapping[line.format.toLowerCase()] || 'action';
-                const formattedLine = this.createFormattedLine(line.text, mappedFormat);
-                debugMsg.push(formattedLine);
-
-                // Add the line using PageManager
-                await this.pageManager.addLine(formattedLine);
-
-                // Update state in EditorContent
-                this.editorContent.stateManager.setCurrentLine(formattedLine);
-                this.editorContent.stateManager.setCurrentFormat(mappedFormat);
-
-                // Emit line added event
-                this.editorContent.emit(this.editorContent.constructor.EVENTS.LINE_ADDED, formattedLine);
+                structuredLines.push({
+                    id: ScriptDocument.createLineId(),
+                    format: mappedFormat,
+                    content: line.text || ''
+                });
             }
 
-            // After all lines are added, trigger content update and change events
-            if (this.editorContent.contentManager) {
-                // Force immediate content update
-                await this.editorContent.contentManager.debouncedContentUpdate();
-
-                // Get the updated content
-                const content = this.editorContent.getContent();
-
-                // Emit change events to trigger autosave
-                this.editorContent.contentManager.emit('contentChanged', content);
-                this.editorContent.emit(this.editorContent.constructor.EVENTS.CHANGE, content);
-            }
-
-            console.log('debugMsg:');
-            console.log(debugMsg);
-            console.log('--------------------------------');
+            const content = JSON.stringify({
+                version: 2,
+                lines: structuredLines
+            });
+            await this.editorContent.updateContent(content, {
+                source: 'import',
+                isEdit: false,
+                preserveState: false
+            });
 
         } catch (error) {
             console.error('Error processing lines:', error);
@@ -136,8 +141,15 @@ export class ScriptImportManager extends BaseWidget {
         }
     }
 
-    async handleImport(text, output = null) {
-        if (!text) return;
+    /**
+     *
+     * @param text
+     * @param output
+     */
+    async handleImport (text, output = null) {
+        if (!text) {
+            return;
+        }
 
         try {
             this.updateProgress(output, 'Analyzing script format...');

@@ -2,25 +2,43 @@
  * Centralized event bus for widget communication
  */
 export class EventBus {
-    constructor() {
+    /**
+     *
+     */
+    constructor () {
         this.listeners = new Map();
     }
 
-    subscribe(event, callback) {
+    /**
+     *
+     * @param event
+     * @param callback
+     */
+    subscribe (event, callback) {
         if (!this.listeners.has(event)) {
             this.listeners.set(event, new Set());
         }
         this.listeners.get(event).add(callback);
     }
 
-    unsubscribe(event, callback) {
+    /**
+     *
+     * @param event
+     * @param callback
+     */
+    unsubscribe (event, callback) {
         const listeners = this.listeners.get(event);
         if (listeners) {
             listeners.delete(callback);
         }
     }
 
-    publish(event, data) {
+    /**
+     *
+     * @param event
+     * @param data
+     */
+    publish (event, data) {
         const listeners = this.listeners.get(event);
         if (listeners) {
             listeners.forEach(callback => callback(data));

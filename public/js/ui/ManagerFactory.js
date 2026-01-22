@@ -1,12 +1,21 @@
-import { ViewManager } from './ViewManager.js';
 import { EventManager } from '../core/EventManager.js';
-import { LoadingManager } from './LoadingManager.js';
-import { AuthUIManager } from './AuthUIManager.js';
 import { RendererFactory } from '../renderers.js';
-import { NavigationManager } from './NavigationManager.js';
 
+import { AuthUIManager } from './AuthUIManager.js';
+import { LoadingManager } from './LoadingManager.js';
+import { NavigationManager } from './NavigationManager.js';
+import { ViewManager } from './ViewManager.js';
+
+/**
+ *
+ */
 export class ManagerFactory {
-    static createManagers(elements, dependencies) {
+    /**
+     *
+     * @param elements
+     * @param dependencies
+     */
+    static createManagers (elements, dependencies) {
         return {
             loading: new LoadingManager(elements),
             auth: new AuthUIManager(elements, dependencies.userRenderer),

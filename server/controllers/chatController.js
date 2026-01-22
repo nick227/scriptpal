@@ -1,115 +1,216 @@
-import { ERROR_TYPES } from "./langchain/constants.js";
-import { Chat } from "./chat/Chat.js";
-import db from "../db/index.js";
+import { ERROR_TYPES } from './langchain/constants.js';
+import { Chat } from './chat/Chat.js';
+import chatMessageRepository from '../repositories/chatMessageRepository.js';
 
 // Move handleChatError to be a standalone function
 function handleChatError(error) {
-    const errorResponse = {
-        status: 500,
-        body: {
-            error: "Internal server error",
-            details: error.message
-        }
-    };
-
-    if (error.message.includes(ERROR_TYPES.INVALID_FORMAT)) {
-        errorResponse.status = 400;
-        errorResponse.body.error = "Invalid request format";
-    } else if (error.message.includes("Script not found")) {
-        errorResponse.status = 404;
-        errorResponse.body.error = "Script not found";
-    } else if (error.message.includes(Chat.CHAT_ERRORS.INVALID_INTENT)) {
-        errorResponse.status = 400;
-        errorResponse.body.error = "Invalid intent";
-    } else if (error.message === 'insufficient_content') {
-        errorResponse.status = 400;
-        errorResponse.body.error = "Insufficient content for analysis";
-    } else if (error.message.includes('Chain execution failed')) {
-        // Keep 500 status but provide more specific error
-        errorResponse.body.error = "Chain execution failed";
+  const errorResponse = {
+    status: 500,
+    body: {
+      error: 'Internal server error',
+      details: error.message
     }
+  };
 
-    return errorResponse;
+  if (error.message.includes(ERROR_TYPES.INVALID_FORMAT)) {
+    errorResponse.status = 400;
+    errorResponse.body.error = 'Invalid request format';
+  } else if (error.message.includes('Script not found')) {
+    errorResponse.status = 404;
+    errorResponse.body.error = 'Script not found';
+  } else if (error.message.includes(Chat.CHAT_ERRORS.INVALID_INTENT)) {
+    errorResponse.status = 400;
+    errorResponse.body.error = 'Invalid intent';
+  } else if (error.message === 'insufficient_content') {
+    errorResponse.status = 400;
+    errorResponse.body.error = 'Insufficient content for analysis';
+  } else if (error.message.includes('Chain execution failed')) {
+    // Keep 500 status but provide more specific error
+    errorResponse.body.error = 'Chain execution failed';
+  }
+
+  return errorResponse;
 }
 
 const chatController = {
-    getChatHistory: async(req, res) => {
-        try {
-            const userId = req.user.id;
-            const history = await db.getChatHistory(userId);
-            res.status(200).json(history);
-        } catch (error) {
-            console.error("Error getting chat history:", error);
-            res.status(500).json({
-                error: "Internal server error",
-                details: error.message
+  getChatMessages: async(req, res) => {
+    try {
+      const { userId, query } = req;
+      const { scriptId: scriptIdRaw, limit: limitRaw, offset: offsetRaw } = query;
+      const scriptId = scriptIdRaw ? parseInt(scriptIdRaw, 10) : null;
+      const limit = limitRaw ? parseInt(limitRaw, 10) : 30;
+      const offset = offsetRaw ? parseInt(offsetRaw, 10) : 0;
+
+      if (Number.isNaN(limit) || Number.isNaN(offset)) {
+        return res.status(400).json({ error: 'Invalid pagination values' });
+      }
+
+      const rows = await chatMessageRepository.listByUser(userId, scriptId, limit, offset);
+      const orderedRows = rows.slice().reverse();
+      const messages = orderedRows.flatMap((row) => {
+        const list = [];
+        if (row.role === 'assistant') {
+          if (row?.metadata?.userPrompt) {
+            list.push({
+              id: `user_${row.id}`,
+              content: row.metadata.userPrompt,
+              type: 'user',
+              timestamp: row.createdAt,
+              scriptId: row.scriptId
             });
+          }
+          list.push({
+            id: `assistant_${row.id}`,
+            content: row.content,
+            type: 'assistant',
+            timestamp: row.createdAt,
+            scriptId: row.scriptId
+          });
+          return list;
         }
-    },
 
-    startChat: async(req, res) => {
-        try {
-            // 1. Validate inputs
-            if (!req.body.prompt) {
-                return res.status(400).json({ error: "Missing prompt" });
-            }
+        list.push({
+          id: `user_${row.id}`,
+          content: row.content,
+          type: 'user',
+          timestamp: row.createdAt,
+          scriptId: row.scriptId
+        });
+        return list;
+      });
 
-            const scriptId = parseInt(req.body.scriptId, 10);
-            if (!scriptId || isNaN(scriptId)) {
-                return res.status(400).json({ error: "Invalid script ID" });
-            }
-
-            // 2. Create and execute chat
-            const chat = new Chat(req.user.id, scriptId);
-            const result = await chat.processMessage(req.body.prompt);
-            console.log('result::::::::::::::::::::::::::::::');
-            console.log(result);
-
-            // 3. Return standardized response
-            res.status(200).json(result);
-
-        } catch (error) {
-            // Handle different error types using the standalone function
-            const errorResponse = handleChatError(error);
-            res.status(errorResponse.status).json(errorResponse.body);
-        }
-    },
-
-    getWelcomeButtons: async(req, res) => {
-        try {
-            const welcomeButtons = [{
-                    text: "Create New Script",
-                    action: "create_script",
-                    description: "Start a new script from scratch"
-                },
-                {
-                    text: "Import Script",
-                    action: "import_script",
-                    description: "Import an existing script"
-                },
-                {
-                    text: "View Tutorial",
-                    action: "view_tutorial",
-                    description: "Learn how to use the AI assistant"
-                },
-                {
-                    text: "Recent Scripts",
-                    action: "recent_scripts",
-                    description: "View your recent scripts"
-                }
-            ];
-
-            res.status(200).json({
-                buttons: welcomeButtons
-            });
-        } catch (error) {
-            console.error("Error getting welcome buttons:", error);
-            res.status(500).json({
-                error: "Internal server error",
-                details: error.message
-            });
-        }
+      res.status(200).json(messages);
+    } catch (error) {
+      console.error('Error getting chat messages:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message
+      });
     }
+  },
+
+  addChatMessage: async(req, res) => {
+    try {
+      const { userId, body } = req;
+      const { scriptId, message } = body;
+      
+      if (!scriptId || !message) {
+        return res.status(400).json({ error: 'Script ID and message are required' });
+      }
+      
+      const parsedScriptId = parseInt(scriptId, 10);
+      if (Number.isNaN(parsedScriptId)) {
+        return res.status(400).json({ error: 'Invalid script ID' });
+      }
+
+      const role = message.type === 'assistant' ? 'assistant' : 'user';
+      const content = message.content || '';
+      const result = await chatMessageRepository.create({
+        userId,
+        scriptId: parsedScriptId,
+        role,
+        content,
+        metadata: null
+      });
+      
+      res.status(201).json({ id: result.id, ...message });
+    } catch (error) {
+      console.error('Error adding chat message:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message
+      });
+    }
+  },
+
+  clearChatMessages: async(req, res) => {
+    try {
+      const scriptId = parseInt(req.params.scriptId, 10);
+      if (isNaN(scriptId)) {
+        return res.status(400).json({ error: 'Invalid script ID' });
+      }
+      
+      const result = await chatMessageRepository.clearByUserAndScript(req.userId, scriptId);
+      res.status(200).json({ success: result });
+    } catch (error) {
+      console.error('Error clearing chat messages:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message
+      });
+    }
+  },
+
+  startChat: async(req, res) => {
+    try {
+      // 1. Validate inputs
+      if (!req.body.prompt) {
+        return res.status(400).json({ error: 'Missing prompt' });
+      }
+
+      // Handle enhanced context
+      const context = req.body.context || {};
+      
+      // Handle scriptId - check both req.body.scriptId and context.scriptId
+      let scriptId = null;
+      const scriptIdSource = req.body.scriptId || context.scriptId;
+      if (scriptIdSource !== null && scriptIdSource !== undefined) {
+        scriptId = parseInt(scriptIdSource, 10);
+        if (isNaN(scriptId)) {
+          return res.status(400).json({ error: 'Invalid script ID' });
+        }
+      }
+
+      // 2. Create and execute chat
+      const chat = new Chat(req.userId, scriptId);
+      const result = await chat.processMessage(req.body.prompt, context);
+
+      // 3. Return standardized response
+      res.status(200).json(result);
+
+    } catch (error) {
+      console.error('Chat controller error:', error);
+      // Handle different error types using the standalone function
+      const errorResponse = handleChatError(error);
+      res.status(errorResponse.status).json(errorResponse.body);
+    }
+  },
+
+  getWelcomeButtons: (req, res) => {
+    try {
+      const welcomeButtons = [{
+        text: 'Create New Script',
+        action: 'create_script',
+        description: 'Start a new script from scratch'
+      },
+      {
+        text: 'Import Script',
+        action: 'import_script',
+        description: 'Import an existing script'
+      },
+      {
+        text: 'View Tutorial',
+        action: 'view_tutorial',
+        description: 'Learn how to use the AI assistant'
+      },
+      {
+        text: 'Recent Scripts',
+        action: 'recent_scripts',
+        description: 'View your recent scripts'
+      }
+      ];
+
+      res.status(200).json({
+        buttons: welcomeButtons
+      });
+    } catch (error) {
+      console.error('Error getting welcome buttons:', error);
+      res.status(500).json({
+        error: 'Internal server error',
+        details: error.message
+      });
+    }
+  }
 };
 
 export default chatController;

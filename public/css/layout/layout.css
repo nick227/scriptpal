@@ -1,119 +1,113 @@
-/* Container Layouts */
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-
-/* Form Layouts */
-
-.form-group {
-    margin-bottom: 1rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-}
-
-input {
-    padding: 0.5rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: var(--input-bg);
-    color: var(--text-color);
-}
-
+    /* Container Layouts */
+    
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    /* Form Layouts */
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    
+    input {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: var(--input-bg);
+        color: var(--text-color);
+    }
+    
+    .container-main {
+        display: flex;
+    }
+    /* Vertical Layout */
+    
+    .vertical-layout .editor-container {
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: 0;
+    }
+    
+    .vertical-layout .chatbot-container {
+        width: 20%;
+        height: 100%;
+        min-width: 300px;
+        position: fixed;
+        top: 120px;
+        right: 0;
+        z-index: 10001;
+    }
+    /* Horizontal Layout */
+    
+    body.horizontal-layout .container-main {
+        flex-direction: row-reverse;
+    }
+    
+    body.horizontal-layout .chatbot-container {
+        width: 40vw;
+        margin-left: 30vw;
+    }
+    
 .container-main {
     display: flex;
+    background: transparent;
+    justify-content: space-between;
 }
-
-
-/* Vertical Layout */
-
-.vertical-layout .editor-container {
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    top: 0;
+.navbar {
+    height: 6vh;
+}
+.user-scripts {
+    width: 5vw;
+    height: 94vh;
+    position:fixed;
     left: 0;
+    z-index: 1;
+
+}
+.editor-container {
+    width: 100vw;
+    height: 94vh;
+    flex-grow: 1;
     z-index: 0;
 }
-
-.vertical-layout .chatbot-container {
-    width: 25%;
-    height: 100%;
-    min-width: 300px;
-    position: fixed;
-    top: 120px;
+.chatbot-container {
+    width: 25vw;
+    height: 100vh;
+    position:fixed;
     right: 0;
-    z-index: 10001;
+    z-index: 1;
 }
 
-
-/* Horizontal Layout */
-
-body.horizontal-layout .container-main {
-    flex-direction: row-reverse;
-}
-
-body.horizontal-layout .chatbot-container {
-    width: 40vw;
-    margin-left: 30vw;
-}
-
-
-/* Rows and Columns */
-
-.row {
-    display: flex;
-    flex-direction: row;
-}
-
-.column {
-    display: flex;
-    flex-direction: column;
-}
-
-.col-50 {
-    width: 50%;
-}
-
-.col-25 {
-    width: 25%;
-}
-
-.col-75 {
-    width: 75%;
-}
-
-
-/* Responsive Layout */
-
-@media (max-width: 768px) {
-    .title {
-        font-size: var(--font-size-md);
+    /* Rows and Columns */
+    
+    .row {
+        display: flex;
+        flex-direction: row;
     }
-    .chat-container {
-        margin: var(--spacing-md);
+    
+    .column {
+        display: flex;
+        flex-direction: column;
     }
-}
-
-@media (max-width: 480px) {
-     :root {
-        --spacing-md: 1rem;
-        --spacing-lg: 1.5rem;
-        --spacing-xl: 2rem;
+    
+    .col-50 {
+        width: 50%;
     }
-    .navbar {
-        padding: var(--spacing-md);
+    
+    .col-25 {
+        width: 25%;
     }
-    .chat-buttons {
-        flex-wrap: wrap;
+    
+    .col-75 {
+        width: 75%;
     }
-    .chat-buttons button {
-        flex: 1;
-    }
-}

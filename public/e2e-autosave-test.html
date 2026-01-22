@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E2E Autosave Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .test-container { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-weight: bold;
+        }
+        .test-pass { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .test-fail { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .test-running { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .log { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-family: monospace; 
+            max-height: 300px; 
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+        .test-controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 E2E Autosave Test</h1>
+    
+    <div class="test-container">
+        <h2>Test Overview</h2>
+        <p>This test will:</p>
+        <ul>
+            <li>Load the ScriptPal application</li>
+            <li>Simulate user typing and format changes</li>
+            <li>Monitor autosave requests to the server</li>
+            <li>Verify that saves complete successfully</li>
+            <li>Check that format switching works</li>
+        </ul>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Controls</h2>
+        <div class="test-controls">
+            <button id="startTest" onclick="startE2ETest()">🚀 Start E2E Test</button>
+            <button id="stopTest" onclick="stopTest()" disabled>⏹️ Stop Test</button>
+            <button onclick="clearLogs()">🗑️ Clear Logs</button>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div id="testStatus" class="test-status" style="display: none;"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Live Logs</h2>
+        <div id="logs" class="log"></div>
+    </div>
+
+    <script>
+        let testRunning = false;
+        let testResults = [];
+        let originalFetch = window.fetch;
+        let apiCalls = [];
+        let testStartTime = null;
+
+        // Override fetch to monitor API calls
+        window.fetch = function(...args) {
+            const url = args[0];
+            const options = args[1] || {};
+            
+            if (typeof url === 'string' && url.includes('/api/script/')) {
+                const call = {
+                    url: url,
+                    method: options.method || 'GET',
+                    timestamp: Date.now(),
+                    status: 'pending'
+                };
+                apiCalls.push(call);
+                log(`📡 API Call: ${call.method} ${url}`);
+                
+                return originalFetch.apply(this, args)
+                    .then(response => {
+                        call.status = response.status;
+                        call.responseTime = Date.now() - call.timestamp;
+                        if (response.ok) {
+                            log(`✅ API Success: ${call.method} ${url} (${call.responseTime}ms)`);
+                        } else {
+                            log(`❌ API Error: ${call.method} ${url} - ${response.status} (${call.responseTime}ms)`);
+                        }
+                        return response;
+                    })
+                    .catch(error => {
+                        call.status = 'error';
+                        call.error = error.message;
+                        call.responseTime = Date.now() - call.timestamp;
+                        log(`💥 API Exception: ${call.method} ${url} - ${error.message}`);
+                        throw error;
+                    });
+            }
+            
+            return originalFetch.apply(this, args);
+        };
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('logs');
+            logElement.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[E2E Test] ${message}`);
+        }
+
+        function updateProgress(step, total) {
+            const percentage = (step / total) * 100;
+            document.getElementById('progressFill').style.width = percentage + '%';
+        }
+
+        function updateTestStatus(message, type = 'running') {
+            const statusElement = document.getElementById('testStatus');
+            statusElement.textContent = message;
+            statusElement.className = `test-status test-${type}`;
+            statusElement.style.display = 'block';
+        }
+
+        function addTestResult(testName, passed, message) {
+            const result = { testName, passed, message, timestamp: Date.now() };
+            testResults.push(result);
+            
+            const resultsElement = document.getElementById('testResults');
+            const statusClass = passed ? 'test-pass' : 'test-fail';
+            const statusIcon = passed ? '✅' : '❌';
+            
+            resultsElement.innerHTML += `
+                <div class="test-status ${statusClass}">
+                    ${statusIcon} ${testName}: ${message}
+                </div>
+            `;
+        }
+
+        async function startE2ETest() {
+            if (testRunning) return;
+            
+            testRunning = true;
+            testStartTime = Date.now();
+            testResults = [];
+            apiCalls = [];
+            
+            document.getElementById('startTest').disabled = true;
+            document.getElementById('stopTest').disabled = false;
+            document.getElementById('testResults').innerHTML = '';
+            
+            log('🚀 Starting E2E Autosave Test...');
+            updateTestStatus('Initializing test...', 'running');
+            
+            try {
+                await runE2ETest();
+                updateTestStatus('✅ All tests completed successfully!', 'pass');
+            } catch (error) {
+                log(`💥 Test failed: ${error.message}`);
+                updateTestStatus(`❌ Test failed: ${error.message}`, 'fail');
+            } finally {
+                testRunning = false;
+                document.getElementById('startTest').disabled = false;
+                document.getElementById('stopTest').disabled = true;
+                
+                const totalTime = Date.now() - testStartTime;
+                log(`🏁 Test completed in ${totalTime}ms`);
+                log(`📊 API Calls made: ${apiCalls.length}`);
+                log(`📈 Success rate: ${apiCalls.filter(c => c.status === 200).length}/${apiCalls.length}`);
+            }
+        }
+
+        async function runE2ETest() {
+            const steps = [
+                { name: 'Load Application', fn: loadApplication },
+                { name: 'Find Editor Elements', fn: findEditorElements },
+                { name: 'Test Format Switching', fn: testFormatSwitching },
+                { name: 'Test Typing and Autosave', fn: testTypingAndAutosave },
+                { name: 'Verify Save Success', fn: verifySaveSuccess },
+                { name: 'Test Multiple Changes', fn: testMultipleChanges }
+            ];
+
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
+                updateProgress(i, steps.length);
+                updateTestStatus(`Running: ${step.name}...`, 'running');
+                log(`🔄 Step ${i + 1}/${steps.length}: ${step.name}`);
+                
+                try {
+                    await step.fn();
+                    addTestResult(step.name, true, 'Passed');
+                    log(`✅ ${step.name} completed successfully`);
+                } catch (error) {
+                    addTestResult(step.name, false, error.message);
+                    log(`❌ ${step.name} failed: ${error.message}`);
+                    throw error;
+                }
+                
+                // Wait between steps
+                await sleep(1000);
+            }
+            
+            updateProgress(steps.length, steps.length);
+        }
+
+        async function loadApplication() {
+            log('📱 Loading ScriptPal application...');
+            
+            // Check if we're already on the ScriptPal page
+            if (!window.location.href.includes('localhost:5555')) {
+                log('🌐 Navigating to ScriptPal application...');
+                window.location.href = 'http://localhost:5555';
+                await sleep(3000); // Wait for page load
+            }
+            
+            // Wait for the application to initialize
+            await waitForElement('.editor-area', 10000);
+            log('✅ Application loaded successfully');
+        }
+
+        async function findEditorElements() {
+            log('🔍 Finding editor elements...');
+            
+            const editorArea = document.querySelector('.editor-area');
+            if (!editorArea) {
+                throw new Error('Editor area not found');
+            }
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                throw new Error('No script lines found');
+            }
+            
+            log(`✅ Found editor area and ${scriptLines.length} script lines`);
+            return { editorArea, scriptLines };
+        }
+
+        async function testFormatSwitching() {
+            log('🎨 Testing format switching...');
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                throw new Error('No script lines available for format testing');
+            }
+            
+            const firstLine = scriptLines[0];
+            const initialFormat = firstLine.getAttribute('data-format');
+            log(`📝 Initial format: ${initialFormat}`);
+            
+            // Test Enter key format switching
+            firstLine.focus();
+            const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+            firstLine.dispatchEvent(enterEvent);
+            
+            await sleep(500);
+            
+            const newFormat = firstLine.getAttribute('data-format');
+            log(`🔄 Format after Enter: ${newFormat}`);
+            
+            if (newFormat === initialFormat) {
+                log('⚠️ Format did not change on Enter key');
+            } else {
+                log('✅ Format switching detected');
+            }
+        }
+
+        async function testTypingAndAutosave() {
+            log('⌨️ Testing typing and autosave...');
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                throw new Error('No script lines available for typing test');
+            }
+            
+            const firstLine = scriptLines[0];
+            firstLine.focus();
+            
+            // Clear existing content and type new content
+            firstLine.textContent = '';
+            
+            // Simulate typing
+            const testText = 'E2E Test Content';
+            for (let i = 0; i < testText.length; i++) {
+                const char = testText[i];
+                firstLine.textContent += char;
+                
+                // Dispatch input event
+                const inputEvent = new Event('input', { bubbles: true });
+                firstLine.dispatchEvent(inputEvent);
+                
+                await sleep(50); // Simulate typing speed
+            }
+            
+            log(`📝 Typed: "${testText}"`);
+            
+            // Wait for autosave to trigger
+            log('⏳ Waiting for autosave...');
+            await sleep(2000);
+            
+            // Check if any save API calls were made
+            const saveCalls = apiCalls.filter(call => 
+                call.method === 'PUT' && call.url.includes('/api/script/')
+            );
+            
+            if (saveCalls.length === 0) {
+                throw new Error('No save API calls detected');
+            }
+            
+            log(`✅ Detected ${saveCalls.length} save API call(s)`);
+        }
+
+        async function verifySaveSuccess() {
+            log('🔍 Verifying save success...');
+            
+            const saveCalls = apiCalls.filter(call => 
+                call.method === 'PUT' && call.url.includes('/api/script/')
+            );
+            
+            if (saveCalls.length === 0) {
+                throw new Error('No save calls to verify');
+            }
+            
+            const successfulSaves = saveCalls.filter(call => call.status === 200);
+            const failedSaves = saveCalls.filter(call => call.status !== 200);
+            
+            if (failedSaves.length > 0) {
+                const errorDetails = failedSaves.map(call => 
+                    `${call.url} - Status: ${call.status}`
+                ).join(', ');
+                throw new Error(`Save failures detected: ${errorDetails}`);
+            }
+            
+            log(`✅ All ${successfulSaves.length} save(s) completed successfully`);
+        }
+
+        async function testMultipleChanges() {
+            log('🔄 Testing multiple changes...');
+            
+            const scriptLines = document.querySelectorAll('.script-line');
+            if (scriptLines.length === 0) {
+                throw new Error('No script lines available for multiple changes test');
+            }
+            
+            // Make changes to multiple lines
+            for (let i = 0; i < Math.min(3, scriptLines.length); i++) {
+                const line = scriptLines[i];
+                line.focus();
+                line.textContent = `E2E Test Line ${i + 1} - ${Date.now()}`;
+                
+                const inputEvent = new Event('input', { bubbles: true });
+                line.dispatchEvent(inputEvent);
+                
+                await sleep(200);
+            }
+            
+            log('⏳ Waiting for autosave after multiple changes...');
+            await sleep(3000);
+            
+            const totalSaveCalls = apiCalls.filter(call => 
+                call.method === 'PUT' && call.url.includes('/api/script/')
+            );
+            
+            log(`📊 Total save calls made: ${totalSaveCalls.length}`);
+            
+            if (totalSaveCalls.length < 2) {
+                log('⚠️ Expected more save calls for multiple changes');
+            } else {
+                log('✅ Multiple changes triggered appropriate saves');
+            }
+        }
+
+        function stopTest() {
+            if (testRunning) {
+                testRunning = false;
+                log('⏹️ Test stopped by user');
+                updateTestStatus('Test stopped', 'fail');
+                document.getElementById('startTest').disabled = false;
+                document.getElementById('stopTest').disabled = true;
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('testStatus').style.display = 'none';
+            document.getElementById('progressFill').style.width = '0%';
+        }
+
+        // Utility functions
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function waitForElement(selector, timeout = 5000) {
+            return new Promise((resolve, reject) => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    resolve(element);
+                    return;
+                }
+                
+                const observer = new MutationObserver((mutations, obs) => {
+                    const element = document.querySelector(selector);
+                    if (element) {
+                        obs.disconnect();
+                        resolve(element);
+                    }
+                });
+                
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+                
+                setTimeout(() => {
+                    observer.disconnect();
+                    reject(new Error(`Element ${selector} not found within ${timeout}ms`));
+                }, timeout);
+            });
+        }
+
+        // Initialize
+        log('🧪 E2E Autosave Test initialized');
+        log('📋 Ready to test ScriptPal autosave functionality');
+        
+        // Auto-start if we're on the ScriptPal page
+        if (window.location.href.includes('localhost:5555')) {
+            log('🎯 ScriptPal page detected, ready to start test');
+        } else {
+            log('🌐 Navigate to ScriptPal application to begin testing');
+        }
+    </script>
+</body>
+</html>

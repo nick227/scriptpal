@@ -2,11 +2,19 @@
  * Manages loading states for UI elements
  */
 export class LoadingManager {
-    constructor(elements) {
+    /**
+     *
+     * @param elements
+     */
+    constructor (elements) {
         this.elements = elements;
     }
 
-    setLoading(isLoading) {
+    /**
+     *
+     * @param isLoading
+     */
+    setLoading (isLoading) {
         if (this.elements.sendButton) {
             this.elements.sendButton.disabled = isLoading;
             this.elements.sendButton.innerHTML = isLoading ? '...' : '<i class="fas fa-paper-plane"></i>';

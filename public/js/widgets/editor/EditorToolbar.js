@@ -1,32 +1,37 @@
+import { VALID_FORMATS, FORMAT_DISPLAY_NAMES } from '../../constants/formats.js';
 import { BaseWidget } from '../BaseWidget.js';
-import { formatTypes } from './constants.js';
 import { ScriptImportWidget } from '../uploader/ScriptImportWidget.js';
+import { debugLog } from '../../core/logger.js';
 
-
+/**
+ *
+ */
 export class EditorToolbar extends BaseWidget {
-    constructor(options) {
-        if (!options || !options.editorContainer) {
-            throw new Error('Editor container element is required');
+    /**
+     *
+     * @param options
+     */
+    constructor (options = {}) {
+        super();
+
+        if (!options.container) {
+            throw new Error('Container element is required for EditorToolbar');
         }
         if (!options.stateManager) {
             throw new Error('StateManager is required for EditorToolbar');
         }
-        if (!options.editorContent) {
-            throw new Error('EditorContent instance is required for EditorToolbar');
+        if (!options.pageManager) {
+            throw new Error('PageManager is required for EditorToolbar');
         }
 
-        // Call super with required elements
-        super({
-            editorContainer: options.editorContainer
-        });
-
-        console.log('options: ', options);
-
-        // Store references
+        this.container = options.container;
         this.stateManager = options.stateManager;
-        this.editorContent = options.editorContent;
-        this.eventManager = options.eventManager;
-        this.editorContainer = options.editorContainer;
+        this.pageManager = options.pageManager;
+        this.editorArea = null;
+
+        // Initialize formats using centralized constants
+        this.formats = VALID_FORMATS;
+        this.formatDisplayNames = FORMAT_DISPLAY_NAMES;
 
         // Initialize toolbar elements
         this.toolbar = null;
@@ -40,7 +45,7 @@ export class EditorToolbar extends BaseWidget {
         this.importButton = null;
         this.fileInput = null;
         this.chapterBreakCreateButton = null;
-        this.editorArea = null;
+        this.pageBreakCreateButton = null;
 
         // Initialize handlers
         this._handlers = {
@@ -48,6 +53,7 @@ export class EditorToolbar extends BaseWidget {
             undo: null,
             redo: null,
             chapterBreakCreate: null,
+            pageBreakCreate: null,
             save: null,
             import: null
         };
@@ -61,27 +67,77 @@ export class EditorToolbar extends BaseWidget {
         this._handleFileSelect = this.handleFileSelect.bind(this);
         this._handleScroll = this.handleScroll.bind(this);
         this._handleChapterBreakCreateClick = this.handleChapterBreakCreateClick.bind(this);
-
-        // Wait for editor area to be ready
-        this.editorContent.on('EDITOR:EDITOR_AREA_READY', (editorArea) => {
-            console.log('Editor area ready, storing reference');
-            this.editorArea = editorArea;
-
-            setTimeout(() => {
-                if (this.editorArea) {
-                    this.editorArea.addEventListener('scroll', this._handleScroll);
-                    console.log('Scroll listener attached');
-                }
-            }, 13000);
-        });
-
-        this.formats = formatTypes;
+        this._handlePageBreakCreateClick = this.handlePageBreakCreateClick.bind(this);
     }
 
-    handleScroll(event) {
+    /**
+     *
+     * @param editorArea
+     */
+    setEditorArea (editorArea) {
+        this.editorArea = editorArea;
+    }
+
+    /**
+     *
+     */
+    validateElements () {
+        try {
+            if (!this.container || !(this.container instanceof HTMLElement)) {
+                console.error('[EditorToolbar] Invalid container:', this.container);
+                throw new Error('Valid DOM container element is required for EditorToolbar');
+            }
+        } catch (error) {
+            console.error('[EditorToolbar] Element validation failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     *
+     */
+    async initialize () {
+        try {
+            this.validateElements();
+
+            // Use the container itself as the toolbar
+            this.toolbar = this.container;
+            if (!this.toolbar) {
+                throw new Error('Editor toolbar element not found in container');
+            }
+
+            // Initialize all toolbar components in correct order
+            this.createUndoRedoButtons();
+
+            this.createFormatButtons();
+
+            this.createChapterBreakCreateButton();
+
+            this.createPageNumButtons();
+
+            this.setupEventListeners();
+
+            // Set initial page count from state manager
+            const pageCount = this.stateManager.getPageCount();
+            if (pageCount > 0) {
+                this.updatePageCount(pageCount);
+            }
+
+            return true;
+        } catch (error) {
+            console.error('[EditorToolbar] Initialization failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     *
+     * @param event
+     */
+    handleScroll (event) {
         // Add detailed logging
         const editorArea = event.target;
-        console.log('handleScroll triggered', {
+        debugLog('handleScroll triggered', {
             scrollTop: editorArea.scrollTop,
             scrollHeight: editorArea.scrollHeight,
             clientHeight: editorArea.clientHeight,
@@ -98,43 +154,45 @@ export class EditorToolbar extends BaseWidget {
         this.updateCurrentPage(currentPage);
     }
 
-    validateElements() {
-        if (!this.elements.editorContainer) {
-            throw new Error('Editor container element is required');
+    /**
+     *
+     * @param tagName
+     * @param className
+     * @param textContent
+     */
+    createElement (tagName, className, textContent = '') {
+        const element = document.createElement(tagName);
+        if (className) {
+            element.className = className;
         }
+        if (textContent) {
+            element.textContent = textContent;
+        }
+        return element;
     }
 
-    async initialize() {
-        if (!this.elements.editorContainer) {
-            throw new Error('Editor container element is required');
-        }
-
-        this.toolbar = this.createElement('div', 'editor-toolbar');
-        this.elements.editorContainer.appendChild(this.toolbar);
-
-        // Initialize all toolbar components in correct order
-        this.createUndoRedoButtons(); // Create this first since it includes fileInput
-        this.createFormatButtons();
-        this.createChapterBreakCreateButton();
-        this.createPageNumButtons();
-        this.setupEventListeners();
-
-        // Ensure we get the latest page count after everything is initialized
-        const pageCount = this.stateManager.getPageCount();
-        if (pageCount > 0) {
-            this.updatePageCount(pageCount);
-        }
-    }
-
-    createChapterBreakCreateButton() {
+    /**
+     *
+     */
+    createChapterBreakCreateButton () {
         const chapterBreakCreateButton = this.createElement('button', 'format-button chapter-break-create-button');
         chapterBreakCreateButton.innerHTML = '<i class="fas fa-plus"></i>';
         chapterBreakCreateButton.title = 'Insert Chapter Break';
         this.chapterBreakCreateButton = chapterBreakCreateButton;
         this.toolbar.appendChild(chapterBreakCreateButton);
+
+        // Create page break button
+        const pageBreakCreateButton = this.createElement('button', 'format-button page-break-create-button');
+        pageBreakCreateButton.innerHTML = '<i class="fas fa-file-alt"></i>';
+        pageBreakCreateButton.title = 'Insert Page Break';
+        this.pageBreakCreateButton = pageBreakCreateButton;
+        this.toolbar.appendChild(pageBreakCreateButton);
     }
 
-    createUndoRedoButtons() {
+    /**
+     *
+     */
+    createUndoRedoButtons () {
         const undoButton = this.createElement('button', 'format-button undo-button', '↶');
         undoButton.title = 'Undo (Ctrl+Z)';
 
@@ -166,23 +224,63 @@ export class EditorToolbar extends BaseWidget {
         this.toolbar.appendChild(fileInput);
     }
 
-    createFormatButtons() {
+    /**
+     * Create format buttons for the toolbar
+     */
+    createFormatButtons () {
         const container = this.createElement('div', 'format-buttons-container');
-        const openButton = this.createElement('button', 'format-button open-button');
-        openButton.innerHTML = 'format';
-        container.appendChild(openButton);
 
-        Object.entries(this.formats).forEach(([key, value]) => {
-            const button = this.createElement('button', 'format-button', key.toLowerCase());
-            button.dataset.format = value;
-            button.title = `Format as ${key.toLowerCase()}`;
-            container.appendChild(button);
+        // Create format dropdown trigger
+        const formatDropdown = this.createElement('button', 'format-button format-dropdown-trigger');
+        formatDropdown.innerHTML = '<i class="fas fa-font"></i> Format';
+        formatDropdown.title = 'Select Format';
+        container.appendChild(formatDropdown);
+
+        // Create format buttons for each valid format
+        if (this.formats && this.formatDisplayNames) {
+            Object.entries(this.formats).forEach(([key, value]) => {
+                const button = this.createElement('button', 'format-button format-option');
+                button.dataset.format = value;
+                button.textContent = this.formatDisplayNames[value] || key.toLowerCase();
+                button.title = `Format as ${this.formatDisplayNames[value] || key.toLowerCase()}`;
+                button.style.display = 'none'; // Hidden by default, shown in dropdown
+                container.appendChild(button);
+
+                // Store reference for easy access
+                this.formatButtons.set(value, button);
+            });
+        } else {
+            console.warn('[EditorToolbar] Format types not properly initialized');
+        }
+
+        // Add click handler for dropdown
+        formatDropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._toggleFormatDropdown(container);
+        });
+
+        // Add click handlers for format options
+        container.addEventListener('click', (e) => {
+            const { target } = e;
+            if (target.classList.contains('format-option')) {
+                const { format } = target.dataset;
+                this._handleFormatSelection(format);
+                this._hideFormatDropdown(container);
+            }
+        });
+
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', () => {
+            this._hideFormatDropdown(container);
         });
 
         this.toolbar.appendChild(container);
     }
 
-    createPageNumButtons() {
+    /**
+     *
+     */
+    createPageNumButtons () {
         // Create a separator
         const separator = this.createElement('span', 'toolbar-separator');
         separator.textContent = '|';
@@ -221,21 +319,42 @@ export class EditorToolbar extends BaseWidget {
         this.totalPages.style.fontWeight = 'bold';
     }
 
-    setupEventListeners() {
-        console.log('setupEventListeners');
-        this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
-        this.fileInput.addEventListener('change', this._handleFileSelect);
+    /**
+     *
+     */
+    setupEventListeners () {
+        if (!this.toolbar) {
+            console.error('[EditorToolbar] Toolbar not initialized');
+            return;
+        }
 
-        if (this.chapterBreakCreateButton) {
-            this.chapterBreakCreateButton.addEventListener('click', this._handleChapterBreakCreateClick);
+        // Add click handler for toolbar
+        this.toolbar.addEventListener('click', this.handleToolbarClick.bind(this));
+
+        // Add file input change handler
+        if (this.fileInput) {
+            this.fileInput.addEventListener('change', this._handleFileSelect);
         }
     }
 
-    handleFormatClick(format) {
-        this._handlers.formatSelected(format);
+    /**
+     *
+     * @param format
+     */
+    handleFormatClick (format) {
+        if (typeof this._handlers.formatSelected === 'function') {
+            this._handlers.formatSelected(format);
+            // Update active format button
+            this.updateActiveFormat(format);
+        } else {
+            console.warn('[EditorToolbar] Format handler not set');
+        }
     }
 
-    handleUndoClick() {
+    /**
+     *
+     */
+    handleUndoClick () {
         if (this._handlers.undo) {
             this._handlers.undo();
             this.updateHistoryState(
@@ -245,7 +364,10 @@ export class EditorToolbar extends BaseWidget {
         }
     }
 
-    handleRedoClick() {
+    /**
+     *
+     */
+    handleRedoClick () {
         if (this._handlers.redo) {
             this._handlers.redo();
             this.updateHistoryState(
@@ -255,7 +377,10 @@ export class EditorToolbar extends BaseWidget {
         }
     }
 
-    handleSaveClick() {
+    /**
+     *
+     */
+    handleSaveClick () {
         if (this._handlers.save) {
             this.setSaveState('saving');
             this._handlers.save().finally(() => {
@@ -265,25 +390,36 @@ export class EditorToolbar extends BaseWidget {
         }
     }
 
-    handleImportClick() {
+    /**
+     *
+     */
+    handleImportClick () {
         this.fileInput.click();
     }
 
-    handleFileSelect(event) {
+    /**
+     *
+     * @param event
+     */
+    handleFileSelect (event) {
         const file = event.target.files[0];
         if (!file) return;
 
         // Create uploader widget with EditorContent reference
         const uploader = new ScriptImportWidget({
-            container: this.editorContainer,
-            pageManager: this.editorContent.pageManager,
+            container: this.container,
+            pageManager: this.pageManager,
             editorContent: this.editorContent
         });
 
         uploader.handleFile(file);
     }
 
-    handleToolbarClick(e) {
+    /**
+     *
+     * @param e
+     */
+    handleToolbarClick (e) {
         const button = e.target.closest('button');
         if (!button) return;
 
@@ -297,41 +433,139 @@ export class EditorToolbar extends BaseWidget {
             this._handleImportClick();
         } else if (button.classList.contains('chapter-break-create-button')) {
             this._handleChapterBreakCreateClick();
+        } else if (button.classList.contains('page-break-create-button')) {
+            this._handlePageBreakCreateClick();
         } else if (button.dataset.format) {
             this._handleFormatClick(button.dataset.format);
         }
     }
 
-    onFormatSelected(callback) {
+    /**
+     *
+     * @param callback
+     */
+    onFormatSelected (callback) {
+        if (typeof callback !== 'function') {
+            console.warn('[EditorToolbar] Invalid format callback provided');
+            return;
+        }
         this._handlers.formatSelected = callback;
     }
 
-    onUndo(callback) {
+    /**
+     *
+     * @param callback
+     */
+    onUndo (callback) {
         this._handlers.undo = callback;
     }
 
-    onRedo(callback) {
+    /**
+     *
+     * @param callback
+     */
+    onRedo (callback) {
         this._handlers.redo = callback;
     }
 
-    onSave(callback) {
+    /**
+     *
+     * @param callback
+     */
+    onSave (callback) {
         this._handlers.save = callback;
     }
 
-    onImport(callback) {
+    /**
+     *
+     * @param callback
+     */
+    onImport (callback) {
         this._handlers.import = callback;
     }
 
-    updateActiveFormat(format) {
-        const buttons = this.toolbar.querySelectorAll('.format-button');
-        buttons.forEach(button => {
+    /**
+     * Toggle format dropdown visibility
+     * @param {HTMLElement} container - The format buttons container
+     * @private
+     */
+    _toggleFormatDropdown (container) {
+        const isVisible = container.classList.contains('dropdown-open');
+        if (isVisible) {
+            this._hideFormatDropdown(container);
+        } else {
+            this._showFormatDropdown(container);
+        }
+    }
+
+    /**
+     * Show format dropdown
+     * @param {HTMLElement} container - The format buttons container
+     * @private
+     */
+    _showFormatDropdown (container) {
+        container.classList.add('dropdown-open');
+        const formatOptions = container.querySelectorAll('.format-option');
+        formatOptions.forEach(option => {
+            option.style.display = 'block';
+        });
+    }
+
+    /**
+     * Hide format dropdown
+     * @param {HTMLElement} container - The format buttons container
+     * @private
+     */
+    _hideFormatDropdown (container) {
+        container.classList.remove('dropdown-open');
+        const formatOptions = container.querySelectorAll('.format-option');
+        formatOptions.forEach(option => {
+            option.style.display = 'none';
+        });
+    }
+
+    /**
+     * Handle format selection
+     * @param {string} format - The selected format
+     * @private
+     */
+    _handleFormatSelection (format) {
+
+        // Update active format
+        this.updateActiveFormat(format);
+
+        // Trigger format change
+        if (typeof this._handlers.formatSelected === 'function') {
+            this._handlers.formatSelected(format);
+        }
+    }
+
+    /**
+     * Update active format button
+     * @param {string} format - The active format
+     */
+    updateActiveFormat (format) {
+        // Update format dropdown trigger text
+        const dropdownTrigger = this.toolbar.querySelector('.format-dropdown-trigger');
+        if (dropdownTrigger && this.formatDisplayNames[format]) {
+            dropdownTrigger.innerHTML = `<i class="fas fa-font"></i> ${this.formatDisplayNames[format]}`;
+        }
+
+        // Update format option buttons
+        const formatOptions = this.toolbar.querySelectorAll('.format-option');
+        formatOptions.forEach(button => {
             if (button.dataset.format) {
                 button.classList.toggle('active', button.dataset.format === format);
             }
         });
     }
 
-    updateHistoryState(canUndo, canRedo) {
+    /**
+     *
+     * @param canUndo
+     * @param canRedo
+     */
+    updateHistoryState (canUndo, canRedo) {
         const undoButton = this.toolbar.querySelector('.undo-button');
         const redoButton = this.toolbar.querySelector('.redo-button');
 
@@ -345,7 +579,11 @@ export class EditorToolbar extends BaseWidget {
         }
     }
 
-    updatePageCount(pageCount) {
+    /**
+     *
+     * @param pageCount
+     */
+    updatePageCount (pageCount) {
         if (!this.pageCounter) return;
 
         // Ensure we don't display 0 pages
@@ -361,23 +599,54 @@ export class EditorToolbar extends BaseWidget {
     }
 
     // Update the current page without changing total
-    updateCurrentPage(currentPage) {
+    /**
+     *
+     * @param currentPage
+     */
+    updateCurrentPage (currentPage) {
         if (!this.pageCounter) return;
         this.pageCounter.current.textContent = currentPage;
     }
 
-    onChapterBreakCreate(callback) {
-        console.log('Registering chapter break handler');
+    /**
+     *
+     * @param callback
+     */
+    onChapterBreakCreate (callback) {
         this._handlers.chapterBreakCreate = callback;
     }
 
-    notifyChapterBreakCreate() {
+    /**
+     *
+     * @param callback
+     */
+    onPageBreakCreate (callback) {
+        this._handlers.pageBreakCreate = callback;
+    }
+
+    /**
+     *
+     */
+    notifyChapterBreakCreate () {
         if (this._handlers.chapterBreakCreate) {
             this._handlers.chapterBreakCreate();
         }
     }
 
-    setSaveState(state) {
+    /**
+     *
+     */
+    notifyPageBreakCreate () {
+        if (this._handlers.pageBreakCreate) {
+            this._handlers.pageBreakCreate();
+        }
+    }
+
+    /**
+     *
+     * @param state
+     */
+    setSaveState (state) {
         if (!this.saveButton) return;
 
         // Remove all state classes first
@@ -393,25 +662,446 @@ export class EditorToolbar extends BaseWidget {
             case 'autosaving':
                 this.saveButton.classList.add('autosaving');
                 break;
+            case 'dirty':
+                this.saveButton.classList.add('dirty');
+                break;
+            case 'error':
+                this.saveButton.classList.add('error');
+                break;
+            case 'idle':
+            default:
+                // no-op
+                break;
         }
     }
 
-    handleChapterBreakCreateClick() {
+    /**
+     *
+     */
+    handleChapterBreakCreateClick () {
         if (this._handlers.chapterBreakCreate) {
             this._handlers.chapterBreakCreate();
         }
     }
 
-    destroy() {
-        this.toolbar.removeEventListener('click', this.handleToolbarClick);
-        this.fileInput.removeEventListener('change', this._handleFileSelect);
-        this.formatHandlers.clear();
-        this._handlers.undo = null;
-        this._handlers.redo = null;
-        this._handlers.formatSelected = null;
-        this._handlers.import = null;
-        this.toolbar.remove();
-        this.toolbar = null;
-        super.destroy();
+    /**
+     *
+     */
+    handlePageBreakCreateClick () {
+        if (this._handlers.pageBreakCreate) {
+            this._handlers.pageBreakCreate();
+        }
     }
+
+    /**
+     *
+     */
+    destroy () {
+        try {
+            if (this.toolbarContainer && this.container && this.container.contains(this.toolbarContainer)) {
+                this.container.removeChild(this.toolbarContainer);
+            }
+
+            if (this.toolbar) {
+                this.toolbar.removeEventListener('click', this.handleToolbarClick);
+            }
+
+            if (this.fileInput) {
+                this.fileInput.removeEventListener('change', this._handleFileSelect);
+            }
+
+            if (this.formatHandlers) {
+                this.formatHandlers.clear();
+            }
+
+            if (this._handlers) {
+                this._handlers.undo = null;
+                this._handlers.redo = null;
+                this._handlers.formatSelected = null;
+                this._handlers.import = null;
+            }
+
+            this.toolbar = null;
+            this.formatHandlers = null;
+            this._handlers = null;
+
+            super.destroy();
+        } catch (error) {
+            console.error('[EditorToolbar] Error during destroy:', error);
+        }
+    }
+
+    // ==============================================
+    // Minimap Functionality (consolidated from Minimap.js)
+    // ==============================================
+
+    /**
+     * Initialize minimap functionality
+     * @param minimapContainer
+     * @param content
+     */
+    initializeMinimap (minimapContainer, content) {
+        if (!minimapContainer) {
+            throw new Error('Minimap container is required');
+        }
+        if (!content) {
+            throw new Error('Content is required');
+        }
+
+        this.minimapContainer = minimapContainer;
+        this.minimapContent = content;
+        this.minimapViewport = null;
+        this.minimapScale = 0.2;
+        this.minimapEventHandlers = new Map();
+    }
+
+    /**
+     * Create and initialize minimap
+     */
+    async createMinimap () {
+        try {
+            // Create viewport element
+            this.minimapViewport = document.createElement('div');
+            this.minimapViewport.className = 'minimap-viewport';
+            this.minimapContainer.appendChild(this.minimapViewport);
+
+            // Set up event listeners
+            this.setupMinimapEventListeners();
+            return true;
+        } catch (error) {
+            console.error('Minimap initialization failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Setup minimap event listeners
+     */
+    setupMinimapEventListeners () {
+        // Handle viewport drag
+        let isDragging = false;
+        let startY = 0;
+
+        this.minimapViewport.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startY = e.clientY - this.minimapViewport.offsetTop;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const newTop = e.clientY - startY;
+            const maxTop = this.minimapContainer.offsetHeight - this.minimapViewport.offsetHeight;
+            this.minimapViewport.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+
+            this.updateMinimapPosition();
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Handle minimap click
+        this.minimapContainer.addEventListener('click', (e) => {
+            if (e.target === this.minimapViewport) return;
+
+            const rect = this.minimapContainer.getBoundingClientRect();
+            const clickY = e.clientY - rect.top;
+            const percentage = clickY / rect.height;
+
+            this.scrollToPercentage(percentage);
+        });
+    }
+
+    /**
+     * Update minimap position based on scroll
+     */
+    updateMinimapPosition () {
+        if (!this.minimapViewport || !this.minimapContent) return;
+
+        const { scrollHeight: contentHeight, clientHeight: viewportHeight, scrollTop } = this.minimapContent;
+        const { offsetHeight: minimapHeight } = this.minimapContainer;
+
+        const percentage = scrollTop / (contentHeight - viewportHeight);
+        const viewportHeight_px = minimapHeight * (viewportHeight / contentHeight);
+
+        this.minimapViewport.style.height = viewportHeight_px + 'px';
+        this.minimapViewport.style.top = (percentage * (minimapHeight - viewportHeight_px)) + 'px';
+    }
+
+    /**
+     * Scroll to percentage position
+     * @param percentage
+     */
+    scrollToPercentage (percentage) {
+        if (!this.minimapContent) return;
+
+        const contentHeight = this.minimapContent.scrollHeight;
+        const viewportHeight = this.minimapContent.clientHeight;
+        const targetScroll = percentage * (contentHeight - viewportHeight);
+
+        this.minimapContent.scrollTo({
+            top: targetScroll,
+            behavior: 'smooth'
+        });
+    }
+
+    // ==============================================
+    // Autocomplete Functionality (consolidated from Autocomplete.js)
+    // ==============================================
+
+    /**
+     * Initialize autocomplete functionality
+     */
+    initializeAutocomplete () {
+        this.autocompleteSupportedFormats = ['speaker', 'header'];
+        this.autocompleteCurrentSuggestion = null;
+        this.autocompleteLastSuggestionLine = null;
+        this.autocompleteDebounceTimeout = null;
+        this.autocompleteDebounceDelay = 150;
+
+        // Static suggestions data
+        this.autocompleteSuggestions = {
+            header: {
+                'INT': 'INTERIOR',
+                'EXT': 'EXTERIOR',
+                'INTERIOR': 'INTERIOR',
+                'EXTERIOR': 'EXTERIOR'
+            },
+            speaker: {
+                'TOM': 'TOM',
+                'SARAH': 'SARAH',
+                'JOHN': 'JOHN',
+                'JANE': 'JANE'
+            }
+        };
+
+        // Cache settings
+        this.autocompleteMaxCacheSize = 1000;
+        this.autocompleteCacheTTL = 60000;
+        this.autocompleteMatchCache = new Map();
+        this.autocompleteCacheTimestamps = new Map();
+        this.autocompleteFormatLinesCache = new Map();
+    }
+
+    /**
+     * Handle autocomplete for keyup events
+     * @param event
+     */
+    handleAutocompleteKeyup (event) {
+        if (this.autocompleteDebounceTimeout) {
+            clearTimeout(this.autocompleteDebounceTimeout);
+        }
+
+        this.autocompleteDebounceTimeout = setTimeout(() => {
+            this.processAutocomplete(event);
+        }, this.autocompleteDebounceDelay);
+    }
+
+    /**
+     * Process autocomplete suggestions
+     * @param event
+     */
+    processAutocomplete (event) {
+        const { target } = event;
+        const line = target.closest('.script-line');
+        if (!line) return;
+
+        const { format } = line.dataset;
+        if (!Array.isArray(this.autocompleteSupportedFormats)) {
+            return;
+        }
+        if (!this.autocompleteSupportedFormats.includes(format)) return;
+
+        const text = line.textContent.trim();
+        if (text.length < 2) return;
+
+        const suggestions = this.getAutocompleteSuggestions(format, text);
+        if (suggestions.length > 0) {
+            this.showAutocompleteSuggestion(line, suggestions[0]);
+        }
+    }
+
+    /**
+     * Get autocomplete suggestions
+     * @param format
+     * @param text
+     */
+    getAutocompleteSuggestions (format, text) {
+        const cacheKey = `${format}:${text}`;
+        const now = Date.now();
+
+        // Check cache
+        if (this.autocompleteMatchCache.has(cacheKey)) {
+            const timestamp = this.autocompleteCacheTimestamps.get(cacheKey);
+            if (now - timestamp < this.autocompleteCacheTTL) {
+                return this.autocompleteMatchCache.get(cacheKey);
+            }
+        }
+
+        const suggestions = this.autocompleteSuggestions[format] || {};
+        const matches = Object.keys(suggestions).filter(key =>
+            key.toLowerCase().startsWith(text.toLowerCase())
+        );
+
+        // Cache result
+        if (this.autocompleteMatchCache.size >= this.autocompleteMaxCacheSize) {
+            this.clearAutocompleteCache();
+        }
+        this.autocompleteMatchCache.set(cacheKey, matches);
+        this.autocompleteCacheTimestamps.set(cacheKey, now);
+
+        return matches;
+    }
+
+    /**
+     * Show autocomplete suggestion
+     * @param line
+     * @param suggestion
+     */
+    showAutocompleteSuggestion (line, suggestion) {
+        if (this.autocompleteCurrentSuggestion) {
+            this.hideAutocompleteSuggestion();
+        }
+
+        this.autocompleteCurrentSuggestion = {
+            line,
+            suggestion,
+            element: this.createSuggestionElement(suggestion)
+        };
+
+        line.appendChild(this.autocompleteCurrentSuggestion.element);
+    }
+
+    /**
+     * Create suggestion element
+     * @param suggestion
+     */
+    createSuggestionElement (suggestion) {
+        const element = document.createElement('div');
+        element.className = 'autocomplete-suggestion';
+        element.textContent = suggestion;
+        element.style.cssText = `
+            position: absolute;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 2px 6px;
+            font-size: 12px;
+            color: #666;
+            z-index: 1000;
+        `;
+        return element;
+    }
+
+    /**
+     * Hide autocomplete suggestion
+     */
+    hideAutocompleteSuggestion () {
+        if (this.autocompleteCurrentSuggestion) {
+            if (this.autocompleteCurrentSuggestion.element.parentNode) {
+                this.autocompleteCurrentSuggestion.element.parentNode.removeChild(
+                    this.autocompleteCurrentSuggestion.element
+                );
+            }
+            this.autocompleteCurrentSuggestion = null;
+        }
+    }
+
+    /**
+     * Clear autocomplete cache
+     */
+    clearAutocompleteCache () {
+        this.autocompleteMatchCache.clear();
+        this.autocompleteCacheTimestamps.clear();
+        this.autocompleteFormatLinesCache.clear();
+    }
+
+    // ==============================================
+    // Format FSM Functionality (consolidated from formatFSM.js)
+    // ==============================================
+
+    /**
+     * Initialize format state machine
+     */
+    initializeFormatFSM () {
+        this.formatCurrentState = this.formats.ACTION;
+        this.formatPreviousState = null;
+        this.formatStateHistory = [];
+        this.formatMaxHistorySize = 10;
+
+        // State transition rules
+        this.formatTransitions = new Map([
+            [this.formats.HEADER, {
+                enter: this.formats.ACTION,
+                left: this.formats.ACTION,
+                right: this.formats.ACTION,
+                manual: [this.formats.ACTION, this.formats.SPEAKER, this.formats.DIALOG]
+            }],
+            [this.formats.ACTION, {
+                enter: this.formats.SPEAKER,
+                left: this.formats.HEADER,
+                right: this.formats.SPEAKER,
+                manual: [this.formats.HEADER, this.formats.SPEAKER, this.formats.DIALOG, this.formats.DIRECTIONS]
+            }],
+            [this.formats.SPEAKER, {
+                enter: this.formats.DIALOG,
+                left: this.formats.ACTION,
+                right: this.formats.DIALOG,
+                manual: [this.formats.ACTION, this.formats.DIALOG, this.formats.DIRECTIONS]
+            }],
+            [this.formats.DIALOG, {
+                enter: this.formats.SPEAKER,
+                left: this.formats.SPEAKER,
+                right: this.formats.SPEAKER,
+                manual: [this.formats.SPEAKER, this.formats.ACTION, this.formats.DIRECTIONS]
+            }],
+            [this.formats.DIRECTIONS, {
+                enter: this.formats.DIALOG,
+                left: this.formats.SPEAKER,
+                right: this.formats.DIALOG,
+                manual: [this.formats.SPEAKER, this.formats.DIALOG, this.formats.ACTION]
+            }]
+        ]);
+    }
+
+    /**
+     * Get next format based on current state and action
+     * @param action
+     */
+    getNextFormatState (action) {
+        const currentTransitions = this.formatTransitions.get(this.formatCurrentState);
+        if (!currentTransitions) {
+            return this.formatCurrentState;
+        }
+
+        const nextState = currentTransitions[action];
+        if (nextState) {
+            this.formatPreviousState = this.formatCurrentState;
+            this.formatCurrentState = nextState;
+            this.addToStateHistory(this.formatCurrentState);
+            return this.formatCurrentState;
+        }
+
+        return this.formatCurrentState;
+    }
+
+    /**
+     * Add state to history
+     * @param state
+     */
+    addToStateHistory (state) {
+        this.formatStateHistory.push(state);
+        if (this.formatStateHistory.length > this.formatMaxHistorySize) {
+            this.formatStateHistory.shift();
+        }
+    }
+
+    /**
+     * Get format state history
+     */
+    getFormatStateHistory () {
+        return [...this.formatStateHistory];
+    }
+
 }

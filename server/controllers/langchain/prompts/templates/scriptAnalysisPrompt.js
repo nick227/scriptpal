@@ -1,15 +1,15 @@
-import { PromptTemplate } from "@langchain/core/prompts";
+import { PromptTemplate } from '@langchain/core/prompts';
 import { COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 
 export const scriptAnalysisTemplate = new PromptTemplate({
-    template: `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}
+  template: `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}
 
 You are an experienced script analyst and story editor. Analyze the following script content:
 
 SCRIPT METADATA:
 Title: {title}
 Current Status: {status}
-Version: {version_number}
+Version: {versionNumber}
 
 CONTENT:
 {content}
@@ -32,5 +32,5 @@ Return a JSON response following this format:
         "themes": ["Theme development recommendations"]
     }}
 }}`,
-    inputVariables: ["title", "status", "version_number", "content", "focusAreas"]
-}); 
+  inputVariables: ['title', 'status', 'versionNumber', 'content', 'focusAreas']
+});

@@ -1,10 +1,17 @@
 /**
+ * Server Configuration
+ */
+export const SERVER_PORT = 3001;
+export const CLIENT_PORT = 5555;
+
+/**
  * API Configuration
  */
 export const API_ENDPOINTS = {
     CHAT: '/chat',
     SCRIPT: '/script',
-    USER: '/user'
+    USER: '/user',
+    SYSTEM_PROMPTS: '/system-prompts'
 };
 
 export const API_HEADERS = {
@@ -15,19 +22,18 @@ export const API_HEADERS = {
  * UI Element Selectors
  */
 export const UI_ELEMENTS = {
-    CHAT_CONTAINER: '.chat-container',
     MESSAGES_CONTAINER: '.chat-messages',
+    CHAT_PANEL: '.chatbot-container',
     EDITOR_CONTAINER: '.editor-container',
+    EDITOR_TOOLBAR: '.editor-toolbar',
     USER_SCRIPTS_PANEL: '.user-scripts',
-    INPUT: '#user-input',
-    SEND_BUTTON: '#send',
-    RECORD_BUTTON: '#record',
     TOGGLE_VIEW: '#toggle-view',
     EDITOR_VIEW: '#editor-view',
     SETTINGS_VIEW: '#settings-view',
     ASSISTANT_RESPONSE: '.assistant-response',
     SITE_CONTROLS: '.site-controls',
     USER_INFO: '.user-info',
+    AUTH_FORMS: '.auth-forms',
     LOGIN_FORM: '#login-form',
     REGISTER_FORM: '#register-form',
     LOGOUT_BUTTON: '.logout-button',
@@ -41,6 +47,24 @@ export const UI_ELEMENTS = {
     EDITOR_PAGE_CONTENT: '.editor-page-content',
     MINIMAP_CONTAINER: '.minimap-container',
     EDITOR_AREA: '.editor-area'
+};
+
+export const UI_COMPONENTS = {
+    SCRIPT_PAL_UI: 'ScriptPalUI'
+};
+
+export const UI_LOADING_TYPES = {
+    GLOBAL: 'global',
+    EDITOR: 'editor',
+    CHAT: 'chat',
+    AUTH: 'auth'
+};
+
+export const UI_LOADING_STATE_KEYS = {
+    [UI_LOADING_TYPES.GLOBAL]: 'loading',
+    [UI_LOADING_TYPES.EDITOR]: 'editorLoading',
+    [UI_LOADING_TYPES.CHAT]: 'chatLoading',
+    [UI_LOADING_TYPES.AUTH]: 'authLoading'
 };
 
 /**
@@ -65,7 +89,13 @@ export const LAYOUTS = {
  * Error Messages
  */
 export const ERROR_MESSAGES = {
-    INIT_ERROR: 'Failed to initialize ScriptPal',
+    INIT_ERROR: 'Failed to initialize application',
+    AUTH_ERROR: 'Authentication failed',
+    SCRIPT_ERROR: 'Script operation failed',
+    NETWORK_ERROR: 'Network request failed',
+    VALIDATION_ERROR: 'Validation failed',
+    UPDATE_ERROR: 'Update failed',
+    SYNC_ERROR: 'Sync failed',
     UI_INIT_ERROR: 'Failed to initialize UI',
     ELEMENT_NOT_FOUND: 'Required UI element not found',
     REQUIRED_ELEMENTS_MISSING: 'Required UI elements are missing',
@@ -80,7 +110,6 @@ export const ERROR_MESSAGES = {
     SCRIPT_NOT_FOUND: 'Script not found',
     SCRIPT_CREATION_FAILED: 'Failed to create script',
     INVALID_EMAIL: 'Please enter a valid email address',
-    NETWORK_ERROR: 'Network error. Please check your connection.',
     SERVER_ERROR: 'Server error. Please try again later.'
 };
 

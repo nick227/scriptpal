@@ -1,0 +1,24 @@
+@media (max-width: 768px){
+    
+.container-main {
+    display: flex;
+    background: transparent;
+    flex-direction: column;
+}
+    
+.user-scripts {
+    width: 100vw;
+    height: auto;
+
+}
+.editor-container {
+    width: 100vw;
+    height: 100vh;
+    flex-grow: 1;
+}
+.chatbot-container {
+    width: 100vw;
+    height: auto;
+}
+
+}

@@ -1,8 +1,15 @@
 import { BaseRenderer } from '../../core/BaseRenderer.js';
 import { DOMUtils } from '../../core/DOMUtils.js';
 
+/**
+ *
+ */
 export class AuthRenderer extends BaseRenderer {
-    renderUserInfo(user) {
+    /**
+     *
+     * @param user
+     */
+    renderUserInfo (user) {
         if (!this.container) return;
 
         const content = user ?
@@ -12,7 +19,10 @@ export class AuthRenderer extends BaseRenderer {
         DOMUtils.setContent(this.container, content);
     }
 
-    renderLoginForm() {
+    /**
+     *
+     */
+    renderLoginForm () {
         if (!this.container) return;
 
         const form = this.createElement('form', 'login-form');
@@ -35,7 +45,10 @@ export class AuthRenderer extends BaseRenderer {
         return form;
     }
 
-    renderRegisterForm() {
+    /**
+     *
+     */
+    renderRegisterForm () {
         if (!this.container) return;
 
         const form = this.createElement('form', 'register-form');
@@ -58,7 +71,10 @@ export class AuthRenderer extends BaseRenderer {
         return form;
     }
 
-    renderLogoutButton() {
+    /**
+     *
+     */
+    renderLogoutButton () {
         if (!this.container) return;
 
         const button = this.createElement('button', 'logout-button', 'Logout');

@@ -1,0 +1,139 @@
+## SCRIPTPAL FRONT-END DOCUMENTATION
+
+### Overview
+
+The front-end of ScriptPal controls the chat interface and the script editor.
+
+### Features
+
+The AI chat assistant widget, the script editor, and the script import widget are all implemented in the front-end.
+Autosave is implemented for the script editor.
+The script editor includes a minimap, a keyboard manager, and a page tracker.
+The script editor can import scripts from a text file.
+
+### File Structure
+
+├── index.html
+├── css
+├── js
+    ├── api.js
+    ├── app.js
+    ├── config.js
+    ├── constants.js
+    ├── core
+    │   ├── BaseEvents.js
+    │   ├── BaseManager.js
+    │   ├── BaseRenderer.js
+    │   ├── DOMUtils.js
+    │   ├── EventBus.js
+    │   ├── EventEmitter.js
+    │   ├── EventManager.js
+    │   └── StateManager.js
+    ├── init.js
+    ├── managers
+    │   ├── ScriptManager.js
+    │   ├── ScriptOrchestrator.js
+    │   └── ScriptSyncService.js
+    ├── renderers.js
+    ├── script.js
+    ├── services/      (empty)
+    ├── state/         (empty)
+    ├── ui
+    │   ├── AuthUIManager.js
+    │   ├── ErrorManager.js
+    │   ├── LoadingManager.js
+    │   ├── ManagerFactory.js
+    │   ├── NavigationManager.js
+    │   ├── NotificationManager.js
+    │   └── ViewManager.js
+    ├── ui.js
+    ├── user.js
+    ├── utils.js
+    └── widgets
+        ├── auth
+        │   ├── AuthEvents.js
+        │   ├── AuthManager.js
+        │   ├── AuthRenderer.js
+        │   └── AuthWidget.js
+        ├── BaseWidget.js
+        ├── chat
+        │   ├── ChatEvents.js
+        │   ├── ChatManager.js
+        ?",   ?"o?"??"? ChatIntegration.js
+        ?",   ?"o?"??"? ModernChatWidget.js
+        ?",   ?"o?"??"? ModernChatManager.js
+        ├── editor
+        │   ├── ai
+        │   │   └── AICommandManager.js
+        │   ├── AICommandManager.js
+        │   ├── Autocomplete.js
+        │   ├── autosave
+        │   │   └── EditorAutosave.js
+        │   ├── ChapterManager.js
+        │   ├── chapters
+        │   │   └── ChapterManager.js
+        │   ├── constants.js
+        │   ├── content
+        │   │   ├── ContentEvents.js
+        │   │   ├── ContentManager.js
+        │   │   ├── DOMManager.js
+        │   │   ├── EditorContent.js
+        │   │   └── EventHandler.js
+        │   ├── EditorAutosave.js
+        │   ├── EditorContent.js
+        │   ├── EditorController.js
+        │   ├── EditorToolbar.js
+        │   ├── EditorWidget.js
+        │   ├── events/        (empty)
+        │   ├── handlers
+        │   │   ├── EditorContentHandler.js
+        │   │   ├── EditorDOMHandler.js
+        │   │   ├── EditorEventHandler.js
+        │   │   ├── EditorFormatFlowManager.js
+        │   │   ├── EditorLineOperationManager.js
+        │   │   ├── EditorSelectionHandler.js
+        │   │   └── EditorStateHandler.js
+        │   ├── history
+        │   │   ├── EditorHistory.js
+        │   │   └── HistoryService.js
+        │   ├── keyboard
+        │   │   └── KeyboardManager.js
+        │   ├── minimap
+        │   │   └── Minimap.js
+        │   ├── page
+        │   │   ├── PageManager.js
+        │   │   ├── PageOperations.js
+        │   │   ├── PageTracker.js
+        │   │   └── VirtualScrollManager.js
+        │   ├── parse
+        │   │   ├── PDFFormatParser.js
+        │   │   ├── PlainTextFormatParser.js
+        │   │   ├── ScreenplayEvaluator.js
+        │   │   ├── ScreenplayFormatParsers.js
+        │   │   ├── ScreenplayParser.js
+        │   │   ├── scriptPatterns.js
+        │   │   ├── StandardFormatParser.js
+        │   │   └── utils
+        │   │       └── ParserUtils.js
+        │   ├── save
+        │   │   └── EditorSaveService.js
+        │   └── state
+        │       └── EditorStateManager.js
+        ├── script
+        │   └── ScriptWidget.js
+        ├── uploader
+        │   └── ScriptImportWidget.js
+        └── WidgetStateManager.js
+
+
+## ScriptPal Refactor Plan
+
+The goal of our refactor is organize code by ONLY renaming and moving files and folders to improve modularity:
+
+
+
+
+
+
+
+

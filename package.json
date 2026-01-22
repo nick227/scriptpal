@@ -1,0 +1,23 @@
+{
+  "name": "scriptpal-root",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n client,server \"vite\" \"npm run dev --prefix server\"",
+    "dev:client": "vite",
+    "dev:server": "npm run dev --prefix server",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.2",
+    "globals": "^17.0.0",
+    "knip": "^5.82.1",
+    "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "mysql2": "^3.16.1"
+  }
+}
