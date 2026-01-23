@@ -3,8 +3,9 @@ import { ChatHistoryManager } from './ChatHistoryManager.js';
 import { INTENT_TYPES } from '../langchain/constants.js';
 import { router } from '../langchain/router/index.js';
 import { ChainHelper } from '../langchain/chains/helpers/ChainHelper.js';
+import { IntentClassifier } from '../langchain/chains/system/IntentClassifier.js';
 
-const EDIT_REQUEST_PATTERN = /\b(?:edit|rewrite|revise|update|change|expand|improve|extend|shorten|trim|enhance|rework|replace)\b/i;
+const CHAT_ONLY_PATTERN = /\b(?:just chat|talk about|chit chat|quick question|small talk|random|how are you|anything else)\b/i;
 
 export class Chat {
   static CHAT_ERRORS = {
@@ -19,6 +20,7 @@ export class Chat {
     this.scriptId = scriptId;
     this.scriptManager = new ScriptManager();
     this.historyManager = new ChatHistoryManager(userId, scriptId);
+    this.intentClassifier = new IntentClassifier();
   }
 
   formatResponse(response, intentResult) {
@@ -61,8 +63,18 @@ export class Chat {
       const script = this.scriptId ? await this.scriptManager.getScript(this.scriptId) : null;
       console.log('Script Details:', script);
 
-      const intent = this.determineIntent(prompt, script);
-      console.log('Selected intent:', intent);
+      const classifierContext = {
+        userId: this.userId,
+        scriptId: this.scriptId,
+        scriptTitle: script?.title,
+        scriptContent: ChainHelper.extractTextFromStructuredContent(script?.content || '') ?? ''
+      };
+      const classification = await this.intentClassifier.classify(classifierContext, prompt);
+      let intent = this.resolveIntent(classification?.intent);
+      if (!intent) {
+        intent = this.determineIntent(prompt, script);
+      }
+      console.log('Selected intent:', intent, classification ? { classifier: classification.intent, reason: classification.reason } : null);
       const intentResult = this.createIntentResult(intent);
 
       const preparedContext = await this.buildContext(script, context, prompt, intent);
@@ -87,18 +99,32 @@ export class Chat {
     }
   }
   determineIntent(prompt, script) {
-    if (this.shouldAttemptEdit(prompt, script)) {
-      return INTENT_TYPES.EDIT_SCRIPT;
+    if (!this.scriptId || !script) {
+      return INTENT_TYPES.GENERAL_CONVERSATION;
     }
-    return INTENT_TYPES.EVERYTHING_ELSE;
+
+    if (this.isGeneralConversation(prompt)) {
+      return INTENT_TYPES.GENERAL_CONVERSATION;
+    }
+
+    return INTENT_TYPES.SCRIPT_CONVERSATION;
   }
 
-  shouldAttemptEdit(prompt, script) {
-    if (!this.scriptId || !script || !prompt || typeof prompt !== 'string') {
-      return false;
+  resolveIntent (candidateIntent) {
+    if (!candidateIntent) {
+      return null;
     }
 
-    return EDIT_REQUEST_PATTERN.test(prompt);
+    const validIntents = Object.values(INTENT_TYPES);
+    return validIntents.includes(candidateIntent) ? candidateIntent : null;
+  }
+
+  isGeneralConversation(prompt) {
+    if (!prompt || typeof prompt !== 'string') {
+      return true;
+    }
+
+    return CHAT_ONLY_PATTERN.test(prompt);
   }
 
   createIntentResult(intent) {
@@ -114,11 +140,14 @@ export class Chat {
     const scriptContent = script?.content || '';
     const normalizedContent = ChainHelper.extractTextFromStructuredContent(scriptContent) ?? scriptContent;
 
+    const includeScriptContext = intent === INTENT_TYPES.SCRIPT_CONVERSATION;
+
     const context = {
       userId: this.userId,
       scriptId: this.scriptId,
       intent,
-      scriptContent: normalizedContent,
+      includeScriptContext,
+      scriptContent: includeScriptContext ? normalizedContent : '',
       scriptTitle: script?.title || 'Untitled Script',
       scriptMetadata: {
         lastUpdated: script?.updatedAt,
@@ -126,7 +155,7 @@ export class Chat {
         status: script?.status
       },
       chainConfig: {
-        shouldGenerateQuestions: intent !== INTENT_TYPES.ANALYZE_SCRIPT,
+        shouldGenerateQuestions: true,
         modelConfig: {
           temperature: 0.7,
           response_format: { type: 'text' }
@@ -135,7 +164,7 @@ export class Chat {
       prompt
     };
 
-    if (intent === INTENT_TYPES.ANALYZE_SCRIPT) {
+    if (intent === INTENT_TYPES.GENERAL_CONVERSATION) {
       context.chatHistory = [];
       context.disableHistory = true;
     } else {

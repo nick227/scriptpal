@@ -48,7 +48,8 @@ export class WidgetLifecycleManager {
                 this.stateManager,
                 this.eventManager
             );
-            await this.widgets.script.initialize(dependencies.script);
+            this.widgets.script.setScriptStore(dependencies.script);
+            await this.widgets.script.initialize({ scriptStore: dependencies.script });
         }
 
         this.initialized = true;
@@ -90,7 +91,8 @@ export class WidgetLifecycleManager {
                     this.stateManager,
                     this.eventManager
                 );
-                await this.widgets.script.initialize(dependencies.script);
+                this.widgets.script.setScriptStore(dependencies.script);
+                await this.widgets.script.initialize({ scriptStore: dependencies.script });
             } else {
                 await this.widgets.script.update(dependencies.script);
             }

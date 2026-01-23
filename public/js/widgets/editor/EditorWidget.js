@@ -1,5 +1,4 @@
 import { UI_ELEMENTS } from '../../constants.js';
-import { EventEmitter } from '../../core/EventEmitter.js';
 import { EventManager } from '../../core/EventManager.js';
 
 import { AICommandManager } from './ai/AICommandManager.js';
@@ -23,14 +22,12 @@ import { TitlePageManager } from './title/TitlePageManager.js';
 /**
  *
  */
-export class EditorWidget extends EventEmitter {
+export class EditorWidget {
     /**
      *
      * @param options
      */
     constructor (options = {}) {
-        super();
-
         // Store container references
         this.container = options.container;
         this.toolbarContainer = options.toolbar || options.container.querySelector(UI_ELEMENTS.EDITOR_TOOLBAR);
@@ -57,6 +54,23 @@ export class EditorWidget extends EventEmitter {
 
         this._eventHubCleanup = null;
         this.saveStateSubscriptions = new Map();
+        this.localEvents = new EventManager();
+    }
+
+    on (eventType, handler) {
+        return this.localEvents.subscribe(eventType, handler);
+    }
+
+    off (eventType, handler) {
+        this.localEvents.unsubscribe(eventType, handler);
+    }
+
+    emit (eventType, data) {
+        this.localEvents.publish(eventType, data);
+    }
+
+    removeAllListeners () {
+        this.localEvents.clear();
     }
 
     /**
@@ -824,6 +838,7 @@ export class EditorWidget extends EventEmitter {
             }
         });
         this.saveStateSubscriptions.clear();
+        this.localEvents = null;
     }
 
     /**

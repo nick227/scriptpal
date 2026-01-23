@@ -38,7 +38,7 @@ You are an observant assistant providing a status report.
 
   {
     id: 'ideas',
-    label: 'Momentum / Idea Nudge',
+    label: 'Ideas',
     clientCopy: 'Want a creative nudge to keep momentum going?',
     userPrompt: `
 SYSTEM IDEA NUDGE.

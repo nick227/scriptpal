@@ -16,50 +16,29 @@ export const FUNCTION_DEFINITIONS = {
 
 // Core intent types for request classification
 export const INTENT_TYPES = {
-  // Core Script Analysis
-  SCRIPT_QUESTIONS: 'SCRIPT_QUESTIONS',
-  ANALYZE_SCRIPT: 'ANALYZE_SCRIPT',
-
-  // Creative Support
-  GET_INSPIRATION: 'GET_INSPIRATION',
-  GET_QUESTIONS: 'GET_QUESTIONS',
-  WRITE_SCRIPT: 'WRITE_SCRIPT',
-
-  // Script Operations
-  EDIT_SCRIPT: 'EDIT_SCRIPT',
-  SAVE_ELEMENT: 'SAVE_ELEMENT',
-
-  // Meta Intents
-  MULTI_INTENT: 'MULTI_INTENT',
-  EVERYTHING_ELSE: 'EVERYTHING_ELSE'
+  SCRIPT_CONVERSATION: 'SCRIPT_CONVERSATION',
+  GENERAL_CONVERSATION: 'GENERAL_CONVERSATION'
 };
 
 // Intent confidence thresholds
 export const INTENT_CONFIDENCE = {
   // Minimum confidence to proceed with intent execution
   THRESHOLD: 0.7,
-  
+
   // High confidence - proceed without question
   HIGH: 0.85,
-  
+
   // Medium confidence - proceed but monitor
   MEDIUM: 0.7,
-  
+
   // Low confidence - ask for clarification
   LOW: 0.5
 };
 
 // Detailed descriptions for each intent type
 export const INTENT_DESCRIPTIONS = {
-  SCRIPT_QUESTIONS: 'Answer questions, provide feedback, and discuss any aspect of the script including analysis, scenes, beats, characters, and general feedback',
-  ANALYZE_SCRIPT: 'Perform complete script analysis including structure, characters, plot, themes, and potential improvements',
-  GET_INSPIRATION: 'Generate creative ideas, help with brainstorming, and break writer\'s block',
-  GET_QUESTIONS: 'Generate relevant follow-up questions to help explore and improve the script',
-  EDIT_SCRIPT: 'Make direct changes to the script content or structure',
-  SAVE_ELEMENT: 'Save or update script components and maintain script consistency',
-  MULTI_INTENT: 'Handle multiple script-related operations in a single request',
-  EVERYTHING_ELSE: 'Handle general script-related queries or conversations',
-  WRITE_SCRIPT: 'Write script content for the user'
+  SCRIPT_CONVERSATION: 'Discuss the current script with the full script context appended so the AI can reason about scenes, characters, and next steps.',
+  GENERAL_CONVERSATION: 'Handle short-form or unrelated dialogue that should not automatically append the script context.'
 };
 
 //=============================================================================

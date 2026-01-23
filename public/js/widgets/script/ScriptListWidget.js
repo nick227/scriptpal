@@ -3,7 +3,6 @@
  * Provides UI for viewing, selecting, creating, and managing multiple scripts
  */
 
-import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
 import { BaseWidget } from '../BaseWidget.js';
 
@@ -16,7 +15,7 @@ export class ScriptListWidget extends BaseWidget {
      * @param {object} options - Configuration options
      * @param {object} options.container - Container element for the widget
      * @param {object} options.stateManager - State manager for current script tracking
-     * @param {object} options.eventManager - Event manager for notifications
+     * @param {object} options.scriptStore - Script store for commands
      */
     constructor (options) {
         super();
@@ -27,13 +26,13 @@ export class ScriptListWidget extends BaseWidget {
         if (!options.stateManager) {
             throw new Error('StateManager is required for ScriptListWidget');
         }
-        if (!options.eventManager) {
-            throw new Error('EventManager is required for ScriptListWidget');
+        if (!options.scriptStore) {
+            throw new Error('ScriptStore is required for ScriptListWidget');
         }
 
         this.container = options.container;
         this.stateManager = options.stateManager;
-        this.eventManager = options.eventManager;
+        this.scriptStore = options.scriptStore;
 
         // Widget state
         this.scripts = [];
@@ -47,9 +46,6 @@ export class ScriptListWidget extends BaseWidget {
         this.scriptList = null;
         this.createButton = null;
         this.loadingIndicator = null;
-
-        // Event handlers
-        this.eventHandlers = new Map();
 
         // Initialize
         this.initialize();
@@ -144,8 +140,6 @@ export class ScriptListWidget extends BaseWidget {
         this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this.handleScriptChange.bind(this));
         this.stateManager.subscribe(StateManager.KEYS.SCRIPTS, this.handleScriptsStateUpdate.bind(this));
 
-        // Listen for script list updates
-        this.eventManager.subscribe(EventManager.EVENTS.SCRIPT.LIST_UPDATED, this.handleScriptListUpdate.bind(this));
     }
 
     /**
@@ -242,11 +236,7 @@ export class ScriptListWidget extends BaseWidget {
             // Close dropdown
             this.closeDropdown();
 
-            // Emit script selection request
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.SELECT_REQUESTED, {
-                scriptId: script.id,
-                source: 'list'
-            });
+            await this.scriptStore.selectScript(script.id, { source: 'list' });
 
         } catch (error) {
             console.error('[ScriptListWidget] Failed to select script:', error);
@@ -259,17 +249,14 @@ export class ScriptListWidget extends BaseWidget {
      * @param {object} script - The script to delete
      */
     async handleDeleteScript (script) {
-        // eslint-disable-next-line no-alert
+
         if (!confirm(`Are you sure you want to delete "${script.title}"?`)) {
             return;
         }
 
         try {
 
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.DELETE_REQUESTED, {
-                scriptId: script.id,
-                title: script.title
-            });
+            await this.scriptStore.deleteScript(script.id);
 
         } catch (error) {
             console.error('[ScriptListWidget] Failed to delete script:', error);
@@ -282,20 +269,14 @@ export class ScriptListWidget extends BaseWidget {
      */
     async handleCreateScript () {
         try {
-            // eslint-disable-next-line no-alert
+
             const title = prompt('Enter script title:');
             if (!title || !title.trim()) {
                 return;
             }
 
-
-            // Get current user
             const user = this.stateManager.getState(StateManager.KEYS.USER);
-            if (!user || !user.id) {
-                throw new Error('No current user');
-            }
-
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.CREATE_REQUESTED, {
+            await this.scriptStore.createScript(user.id, {
                 title: title.trim(),
                 content: ''
             });
@@ -418,17 +399,6 @@ export class ScriptListWidget extends BaseWidget {
     }
 
     /**
-     * Handle script list update from event manager
-     * @param {object} event - The script list update event
-     */
-    handleScriptListUpdate (event) {
-        if (event.scripts) {
-            this.scripts = Array.isArray(event.scripts) ? event.scripts : [];
-            this.updateScriptList();
-        }
-    }
-
-    /**
      * Handle script list updates from state manager
      * @param {Array} scripts
      */
@@ -470,10 +440,8 @@ export class ScriptListWidget extends BaseWidget {
      * Refresh the script list
      */
     async refresh () {
-        this.eventManager.publish(EventManager.EVENTS.SCRIPT.LIST_REQUESTED, {
-            source: 'refresh',
-            force: true
-        });
+        const user = this.stateManager.getState(StateManager.KEYS.USER);
+        await this.scriptStore.loadScripts(user.id, { force: true });
     }
 
     /**
@@ -496,9 +464,6 @@ export class ScriptListWidget extends BaseWidget {
      * Destroy the widget
      */
     destroy () {
-        // Remove event listeners
-        this.eventHandlers.clear();
-
         // Clear container
         if (this.container) {
             this.container.innerHTML = '';
@@ -507,7 +472,7 @@ export class ScriptListWidget extends BaseWidget {
         // Clear references
         this.container = null;
         this.stateManager = null;
-        this.eventManager = null;
+        this.scriptStore = null;
         this.scripts = [];
         this.currentScript = null;
 

@@ -1,60 +1,50 @@
 import { INTENT_TYPES } from '../constants.js';
-import { EditScriptChain } from './edit/EditScript.js';
-import { SaveElementChain } from './save/SaveElementChain.js';
+import { AppendScriptChain } from './edit/AppendScriptChain.js';
 import { DefaultChain } from './base/DefaultChain.js';
 
-
-// Initialize the registry
-const registry = new Map();
-
-// Register core chains
-registry.set(INTENT_TYPES.EDIT_SCRIPT, EditScriptChain);
-registry.set(INTENT_TYPES.SAVE_ELEMENT, SaveElementChain);
-registry.set(INTENT_TYPES.EVERYTHING_ELSE, DefaultChain);
+// Initialize the registry map
+const registry = new Map([
+  [INTENT_TYPES.SCRIPT_CONVERSATION, AppendScriptChain],
+  [INTENT_TYPES.GENERAL_CONVERSATION, DefaultChain]
+]);
 
 export const chainRegistry = {
   /**
-     * Get a chain class by intent type
-     * @param {string} intent - The intent type
-     * @returns {Class|null} The chain class or null if not found
-     */
+   * Get a chain class by intent type
+   * @param {string} intent
+   */
   getChain(intent) {
     return registry.get(intent) || null;
   },
 
   /**
-     * Register a new chain class
-     * @param {string} intent - The intent type
-     * @param {Class} chainClass - The chain class to register
-     */
+   * Register a new chain class
+   * @param {string} intent
+   * @param {Class} chainClass
+   */
   registerChain(intent, chainClass) {
     registry.set(intent, chainClass);
   },
 
   /**
-     * Get all registered intent types
-     * @returns {Array<string>} Array of registered intent types
-     */
+   * List registered intent types
+   */
   getRegisteredIntents() {
     return Array.from(registry.keys());
   },
 
   /**
-     * Check if registry is properly initialized with required chains
-     * @returns {boolean} True if registry is properly initialized
-     */
+   * Ensure required chains are present
+   */
   isInitialized() {
-    // Check if we have the minimum required chains
-    const hasDefaultChain = registry.has(INTENT_TYPES.EVERYTHING_ELSE);
-    const hasEditChain = registry.has(INTENT_TYPES.EDIT_SCRIPT);
-    const hasSaveChain = registry.has(INTENT_TYPES.SAVE_ELEMENT);
+    const hasScriptConversation = registry.has(INTENT_TYPES.SCRIPT_CONVERSATION);
+    const hasGeneralConversation = registry.has(INTENT_TYPES.GENERAL_CONVERSATION);
 
-    const initialized = hasDefaultChain && hasEditChain && hasSaveChain;
+    const initialized = hasScriptConversation && hasGeneralConversation;
     if (!initialized) {
       console.error('Registry not properly initialized:', {
-        hasDefaultChain,
-        hasEditChain,
-        hasSaveChain,
+        hasScriptConversation,
+        hasGeneralConversation,
         registeredChains: this.getRegisteredIntents()
       });
     }
@@ -62,15 +52,15 @@ export const chainRegistry = {
   },
 
   /**
-     * Get detailed registry status
-     * @returns {Object} Registry status information
-     */
+   * Registry status metadata
+   */
   getStatus() {
     const registeredIntents = this.getRegisteredIntents();
     return {
       initialized: this.isInitialized(),
       chainCount: registry.size,
-      hasDefaultChain: registry.has(INTENT_TYPES.EVERYTHING_ELSE),
+      hasScriptConversation: registry.has(INTENT_TYPES.SCRIPT_CONVERSATION),
+      hasGeneralConversation: registry.has(INTENT_TYPES.GENERAL_CONVERSATION),
       registeredChains: registeredIntents
     };
   }

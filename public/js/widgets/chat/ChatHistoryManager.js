@@ -4,7 +4,7 @@
  */
 
 import { MESSAGE_TYPES } from '../../constants.js';
-import { debugLog } from '../../core/logger.js';
+import { StateManager } from '../../core/StateManager.js';
 
 /**
  * ChatHistoryManager class for managing script-specific chat history
@@ -27,7 +27,7 @@ export class ChatHistoryManager {
         this.eventManager = options.eventManager;
 
         // Chat history storage
-        this.chatHistories = new Map(); // scriptId -> chat history
+        this.chatHistories = new Map(); // historyKey -> { userId, scriptId, history }
         this.currentScriptId = null;
         this.maxHistorySize = 1000; // Maximum messages per script
         this.maxScripts = 50; // Maximum scripts to keep in memory
@@ -42,6 +42,8 @@ export class ChatHistoryManager {
         // Event handlers
         this.eventHandlers = new Map();
 
+        this.currentUserId = this.stateManager.getState(StateManager.KEYS.USER)?.id || null;
+
         // Initialize
         this.initialize();
     }
@@ -52,14 +54,95 @@ export class ChatHistoryManager {
     async initialize () {
 
         // Subscribe to script changes
-        this.stateManager.subscribe('currentScript', this.handleScriptChange.bind(this));
+        this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this.handleScriptChange.bind(this));
+
+        // Subscribe to user changes
+        this.stateManager.subscribe(StateManager.KEYS.USER, this.handleUserChange.bind(this));
 
         // Load current script history if available
-        const currentScript = this.stateManager.getState('currentScript');
+        const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
         if (currentScript) {
             await this.loadScriptHistory(currentScript.id);
         }
 
+    }
+
+    /**
+     * Generate history map key
+     * @param {string} scriptId
+     * @returns {string|null}
+     */
+    _createHistoryKey (scriptId) {
+        if (!this.currentUserId || !scriptId) {
+            return null;
+        }
+        return `${this.currentUserId}:${scriptId}`;
+    }
+
+    /**
+     * Get cached entry by script
+     * @param {string} scriptId
+     */
+    _getHistoryEntry (scriptId) {
+        const key = this._createHistoryKey(scriptId);
+        if (!key) {
+            return null;
+        }
+        return this.chatHistories.get(key);
+    }
+
+    /**
+     * Store entry for a specific script
+     * @param {string} scriptId
+     * @param {Array} history
+     */
+    _setHistoryEntry (scriptId, history) {
+        const key = this._createHistoryKey(scriptId);
+        if (!key) {
+            return;
+        }
+        this.chatHistories.set(key, {
+            userId: this.currentUserId,
+            scriptId,
+            history
+        });
+    }
+
+    /**
+     * Delete entry for a specific script
+     * @param {string} scriptId
+     */
+    _deleteHistoryEntry (scriptId) {
+        const key = this._createHistoryKey(scriptId);
+        if (!key) {
+            return;
+        }
+        this.chatHistories.delete(key);
+    }
+
+    /**
+     * Validate that both userId and scriptId context exist
+     * @param {string} scriptId
+     * @param {string} context
+     */
+    _hasHistoryScope (scriptId, context) {
+        if (!this.currentUserId) {
+            console.warn(`[ChatHistoryManager] ${context} skipped: missing userId`);
+            return false;
+        }
+        if (!scriptId) {
+            console.warn(`[ChatHistoryManager] ${context} skipped: missing scriptId`);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Clear stored histories and caches
+     */
+    resetHistoryStorage () {
+        this.chatHistories.clear();
+        this.clearCaches();
     }
 
     /**
@@ -75,14 +158,10 @@ export class ChatHistoryManager {
         const previousScriptId = this.currentScriptId;
         this.currentScriptId = script.id;
 
-        debugLog('[ChatHistoryManager] Script changed:', {
-            from: previousScriptId,
-            to: script.id,
-            title: script.title
-        });
-
         // Load history for new script
-        await this.loadScriptHistory(script.id);
+        if (this._hasHistoryScope(script.id, 'handleScriptChange')) {
+            await this.loadScriptHistory(script.id);
+        }
 
         // Emit script change event
         this.emit('scriptChanged', {
@@ -90,6 +169,31 @@ export class ChatHistoryManager {
             currentScriptId: script.id,
             script
         });
+    }
+
+    /**
+     * Handle user/state changes
+     * @param {object|null} user
+     */
+    async handleUserChange (user) {
+        const newUserId = user && user.id ? user.id : null;
+        if (this.currentUserId === newUserId) {
+            return;
+        }
+
+        const previousUserId = this.currentUserId;
+        this.currentUserId = newUserId;
+        this.resetHistoryStorage();
+
+        this.emit('userChanged', {
+            previousUserId,
+            currentUserId: newUserId
+        });
+
+        const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+        if (newUserId && currentScript && currentScript.id) {
+            await this.loadScriptHistory(currentScript.id);
+        }
     }
 
     /**
@@ -104,22 +208,25 @@ export class ChatHistoryManager {
         }
 
         try {
-            // Check if history is already loaded
-            if (this.chatHistories.has(scriptId)) {
-                return this.chatHistories.get(scriptId);
+            if (!this._hasHistoryScope(scriptId, 'loadScriptHistory')) {
+                return [];
             }
 
+            // Check if history is already loaded
+            const cachedEntry = this._getHistoryEntry(scriptId);
+            if (cachedEntry) {
+                return cachedEntry.history;
+            }
 
             // Load from API
             const history = await this.api.getChatMessages(scriptId);
             const processedHistory = this.processHistoryData(history);
 
             // Store in memory
-            this.chatHistories.set(scriptId, processedHistory);
+            this._setHistoryEntry(scriptId, processedHistory);
 
             // Clean up old histories if needed
             this.cleanupOldHistories();
-
 
             return processedHistory;
         } catch (error) {
@@ -143,8 +250,12 @@ export class ChatHistoryManager {
 
         try {
 
+            if (!this._hasHistoryScope(scriptId, 'saveScriptHistory')) {
+                return false;
+            }
+
             // Update local storage
-            this.chatHistories.set(scriptId, history);
+            this._setHistoryEntry(scriptId, history);
             return true;
         } catch (error) {
             console.error('[ChatHistoryManager] Failed to save chat history:', error);
@@ -162,8 +273,7 @@ export class ChatHistoryManager {
      * @returns {Promise<boolean>} - True if added successfully
      */
     async addMessage (message) {
-        if (!this.currentScriptId) {
-            console.warn('[ChatHistoryManager] No current script for adding message');
+        if (!this._hasHistoryScope(this.currentScriptId, 'addMessage')) {
             return false;
         }
 
@@ -183,7 +293,8 @@ export class ChatHistoryManager {
             };
 
             // Get current history
-            let history = this.chatHistories.get(this.currentScriptId) || [];
+            const entry = this._getHistoryEntry(this.currentScriptId);
+            let history = entry ? [...entry.history] : [];
 
             // Add message
             history.push(messageData);
@@ -194,7 +305,7 @@ export class ChatHistoryManager {
             }
 
             // Update local storage
-            this.chatHistories.set(this.currentScriptId, history);
+            this._setHistoryEntry(this.currentScriptId, history);
 
             // Save to API is handled by the chat pipeline server-side
 
@@ -202,12 +313,6 @@ export class ChatHistoryManager {
             this.eventManager.publish('CHAT:MESSAGE_ADDED', {
                 scriptId: this.currentScriptId,
                 message: messageData
-            });
-
-            debugLog('[ChatHistoryManager] Message added:', {
-                scriptId: this.currentScriptId,
-                type: messageData.type,
-                contentLength: messageData.content.length
             });
 
             return true;
@@ -228,7 +333,11 @@ export class ChatHistoryManager {
             return [];
         }
 
-        return this.chatHistories.get(scriptId) || [];
+        if (!this._hasHistoryScope(scriptId, 'getScriptHistory')) {
+            return [];
+        }
+
+        return this._getHistoryEntry(scriptId)?.history || [];
     }
 
     /**
@@ -255,7 +364,7 @@ export class ChatHistoryManager {
             await this.api.clearChatMessages(scriptId);
 
             // Clear from local storage
-            this.chatHistories.delete(scriptId);
+            this._deleteHistoryEntry(scriptId);
 
             // Emit history cleared event
             this.emit('historyCleared', { scriptId });
@@ -318,16 +427,21 @@ export class ChatHistoryManager {
         }
 
 
-        // Keep current script and most recent scripts
+        // Keep current script and most recent scripts across users
         const entries = Array.from(this.chatHistories.entries());
         const sortedEntries = entries.sort((a, b) => {
-            // Keep current script first
-            if (a[0] === this.currentScriptId) return -1;
-            if (b[0] === this.currentScriptId) return 1;
+            const entryA = a[1];
+            const entryB = b[1];
 
-            // Sort by most recent activity (last message timestamp)
-            const aLastMessage = a[1][a[1].length - 1];
-            const bLastMessage = b[1][b[1].length - 1];
+            if (entryA.scriptId === this.currentScriptId && entryB.scriptId !== this.currentScriptId) {
+                return -1;
+            }
+            if (entryB.scriptId === this.currentScriptId && entryA.scriptId !== this.currentScriptId) {
+                return 1;
+            }
+
+            const aLastMessage = entryA.history[entryA.history.length - 1];
+            const bLastMessage = entryB.history[entryB.history.length - 1];
             const aTimestamp = aLastMessage ? aLastMessage.timestamp : 0;
             const bTimestamp = bLastMessage ? bLastMessage.timestamp : 0;
 
@@ -338,8 +452,8 @@ export class ChatHistoryManager {
         const keepEntries = sortedEntries.slice(0, this.maxScripts);
         this.chatHistories.clear();
 
-        keepEntries.forEach(([scriptId, history]) => {
-            this.chatHistories.set(scriptId, history);
+        keepEntries.forEach(([key, entry]) => {
+            this.chatHistories.set(key, entry);
         });
 
     }
@@ -356,9 +470,11 @@ export class ChatHistoryManager {
             scripts: []
         };
 
-        this.chatHistories.forEach((history, scriptId) => {
+        this.chatHistories.forEach((entry, key) => {
+            const history = entry.history || [];
             const scriptStats = {
-                scriptId,
+                scriptId: entry.scriptId,
+                userId: entry.userId,
                 messageCount: history.length,
                 lastMessage: history[history.length - 1] || null,
                 firstMessage: history[0] || null
@@ -435,14 +551,14 @@ export class ChatHistoryManager {
      */
     destroy () {
 
-        // Clear all histories
-        this.chatHistories.clear();
+        this.resetHistoryStorage();
 
         // Clear event handlers
         this.eventHandlers.clear();
 
         // Reset state
         this.currentScriptId = null;
+        this.currentUserId = null;
 
     }
 
@@ -601,46 +717,6 @@ export class ChatHistoryManager {
         this._isBatching = false;
     }
 
-    // ==============================================
-    // Missing Methods for Test Compatibility
-    // ==============================================
-
-    /**
-     * Get current script history
-     * @returns {object} Current script history
-     */
-    getCurrentScriptHistory () {
-        if (!this.currentScriptId) {
-            return { scriptId: null, messages: [], lastUpdated: null };
-        }
-
-        const history = this.chatHistories.get(this.currentScriptId) || [];
-        return {
-            scriptId: this.currentScriptId,
-            messages: history,
-            lastUpdated: new Date().toISOString()
-        };
-    }
-
-    /**
-     * Clear script history
-     * @param {number} scriptId - Script ID
-     */
-    async clearScriptHistory (scriptId) {
-        if (!scriptId) return true;
-
-        this.chatHistories.delete(scriptId);
-        this._historyCache.delete(scriptId);
-
-        // Call API to clear server-side history
-        if (this.api && this.api.clearChatMessages) {
-            await this.api.clearChatMessages(scriptId);
-        }
-
-        this.eventManager.publish('CHAT:HISTORY_CLEARED', { scriptId });
-        return true;
-    }
-
     /**
      * Handle external message addition
      * @param {object} message - Message to add
@@ -648,10 +724,22 @@ export class ChatHistoryManager {
     handleExternalMessage (message) {
         if (!message || !message.scriptId) return;
 
+        if (!this._hasHistoryScope(message.scriptId, 'handleExternalMessage')) {
+            return;
+        }
+
+        if (message.userId && message.userId !== this.currentUserId) {
+            return;
+        }
+
+        if (!message.userId) {
+            console.warn('[ChatHistoryManager] External message missing userId; assuming current user');
+        }
+
         // Add to the appropriate script's history
-        const history = this.chatHistories.get(message.scriptId) || [];
-        history.push(message);
-        this.chatHistories.set(message.scriptId, history);
+        const entry = this._getHistoryEntry(message.scriptId);
+        const history = entry ? [...entry.history, message] : [message];
+        this._setHistoryEntry(message.scriptId, history);
 
         // Update current script if it matches
         if (this.currentScriptId === message.scriptId) {

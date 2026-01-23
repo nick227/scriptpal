@@ -35,15 +35,32 @@ function handleChatError(error) {
 const chatController = {
   getChatMessages: async(req, res) => {
     try {
-      const { userId, query } = req;
+      if (!req.userId) {
+        console.warn('[ChatController] getChatMessages request without userId');
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const { query, userId } = req;
       const { scriptId: scriptIdRaw, limit: limitRaw, offset: offsetRaw } = query;
-      const scriptId = scriptIdRaw ? parseInt(scriptIdRaw, 10) : null;
+
+      if (!scriptIdRaw) {
+        console.warn('[ChatController] getChatMessages missing scriptId', { userId });
+        return res.status(400).json({ error: 'Script ID is required' });
+      }
+
+      const scriptId = parseInt(scriptIdRaw, 10);
+      if (Number.isNaN(scriptId)) {
+        return res.status(400).json({ error: 'Invalid script ID' });
+      }
+
       const limit = limitRaw ? parseInt(limitRaw, 10) : 30;
       const offset = offsetRaw ? parseInt(offsetRaw, 10) : 0;
 
       if (Number.isNaN(limit) || Number.isNaN(offset)) {
         return res.status(400).json({ error: 'Invalid pagination values' });
       }
+
+      console.log('[ChatController] getChatMessages', { userId, scriptId });
 
       const rows = await chatMessageRepository.listByUser(userId, scriptId, limit, offset);
       const orderedRows = rows.slice().reverse();
@@ -92,16 +109,23 @@ const chatController = {
   addChatMessage: async(req, res) => {
     try {
       const { userId, body } = req;
+      if (!userId) {
+        console.warn('[ChatController] addChatMessage request without userId');
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
       const { scriptId, message } = body;
-      
+
       if (!scriptId || !message) {
         return res.status(400).json({ error: 'Script ID and message are required' });
       }
-      
+
       const parsedScriptId = parseInt(scriptId, 10);
       if (Number.isNaN(parsedScriptId)) {
         return res.status(400).json({ error: 'Invalid script ID' });
       }
+
+      console.log('[ChatController] addChatMessage', { userId, scriptId: parsedScriptId });
 
       const role = message.type === 'assistant' ? 'assistant' : 'user';
       const content = message.content || '';
@@ -112,7 +136,7 @@ const chatController = {
         content,
         metadata: null
       });
-      
+
       res.status(201).json({ id: result.id, ...message });
     } catch (error) {
       console.error('Error adding chat message:', error);
@@ -126,10 +150,16 @@ const chatController = {
   clearChatMessages: async(req, res) => {
     try {
       const scriptId = parseInt(req.params.scriptId, 10);
+      if (!req.userId) {
+        console.warn('[ChatController] clearChatMessages request without userId');
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
       if (isNaN(scriptId)) {
         return res.status(400).json({ error: 'Invalid script ID' });
       }
-      
+
+      console.log('[ChatController] clearChatMessages', { userId: req.userId, scriptId });
       const result = await chatMessageRepository.clearByUserAndScript(req.userId, scriptId);
       res.status(200).json({ success: result });
     } catch (error) {
@@ -148,9 +178,19 @@ const chatController = {
         return res.status(400).json({ error: 'Missing prompt' });
       }
 
+      if (!req.userId) {
+        console.warn('[ChatController] startChat request without userId');
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
       // Handle enhanced context
-      const context = req.body.context || {};
-      
+      const rawContext = req.body.context || {};
+      const context = {
+        ...rawContext,
+        userId: req.userId,
+        scriptId
+      };
+
       // Handle scriptId - check both req.body.scriptId and context.scriptId
       let scriptId = null;
       const scriptIdSource = req.body.scriptId || context.scriptId;
@@ -162,6 +202,7 @@ const chatController = {
       }
 
       // 2. Create and execute chat
+      console.log('[ChatController] startChat', { userId: req.userId, scriptId, requestId: req.headers['x-correlation-id'] || null });
       const chat = new Chat(req.userId, scriptId);
       const result = await chat.processMessage(req.body.prompt, context);
 

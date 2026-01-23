@@ -5,8 +5,11 @@
     "type": "module",
     "main": "server.js",
     "scripts": {
-        "start": "node server.js",
+    "start": "npm run prisma:migrate && node server.js",
         "dev": "nodemon server.js",
+    "prisma:migrate": "npx prisma migrate deploy",
+    "prisma:generate": "npx prisma generate",
+    "build": "npm run prisma:generate",
         "seed:scripts": "node scripts/seedScriptVersionsAndCommands.js",
         "test": "jest",
         "test:watch": "jest --watch",

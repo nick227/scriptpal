@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '.env') });
+const clientBuildPath = path.join(__dirname, '..', 'public', 'dist');
 
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -163,8 +164,11 @@ class ScriptPalServer {
 
     this.app.use(cors({
       origin: (origin, callback) => {
+        if (!origin) {
+          return callback(null, false);
+        }
         if (isOriginAllowed(origin)) {
-          return callback(null, true);
+          return callback(null, origin);
         }
         return callback(new Error('Not allowed by CORS'));
       },
@@ -187,6 +191,9 @@ class ScriptPalServer {
 
     // Cookie parsing middleware
     this.app.use(cookieParser());
+
+    // Serve built frontend assets
+    this.app.use(express.static(clientBuildPath));
 
     this.app.use((req, res, next) => {
       req.aiClient = this.aiClient;
@@ -264,6 +271,14 @@ class ScriptPalServer {
       } else {
         route.handler(req, res);
       }
+    });
+
+    // Frontend fallback (non-API GET routes)
+    this.app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      return res.sendFile(path.join(clientBuildPath, 'index.html'));
     });
 
     // 404 handler for unmatched routes

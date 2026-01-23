@@ -132,10 +132,6 @@ export class ScriptStore extends BaseManager {
             this.scripts = scripts.map(script => this.standardizeScript(script));
             this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
 
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.LIST_UPDATED, {
-                scripts: this.scripts
-            });
-
             return this.scripts;
         } catch (error) {
             console.error('[ScriptStore] Failed to load scripts:', error);
@@ -483,6 +479,10 @@ export class ScriptStore extends BaseManager {
         const standardized = this.standardizeScript(script);
         const index = this.scripts.findIndex(s => String(s.id) === String(standardized.id));
         if (index === -1) {
+            const pendingIndex = this.scripts.findIndex(item => item.pending && item.title === standardized.title);
+            if (pendingIndex !== -1) {
+                this.scripts.splice(pendingIndex, 1);
+            }
             this.scripts.unshift(standardized);
         } else {
             this.scripts[index] = standardized;

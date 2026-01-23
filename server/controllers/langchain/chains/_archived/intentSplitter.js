@@ -62,7 +62,7 @@ Return ONLY a JSON object in this exact format:
 
     const content = result.data.choices[0].message.content;
     const splitIntents = JSON.parse(content);
-    
+
     return validateSplitIntents(splitIntents);
 
   } catch (error) {

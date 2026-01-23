@@ -1,6 +1,6 @@
+import { SYSTEM_PROMPTS_MAP } from '../../../../shared/systemPrompts.js';
 import { MESSAGE_TYPES } from '../../constants.js';
 import { EventManager } from '../../core/EventManager.js';
-import { SYSTEM_PROMPTS_MAP } from '../../../../shared/systemPrompts.js';
 
 const STATUS_LINE_STEP = 10;
 const IDEAS_LINE_THRESHOLD = 150;
@@ -77,11 +77,6 @@ export class SystemPromptOrchestrator {
         const lineCount = context?.contentStats?.lines || context?.contentLength || 0;
         const state = this.ensurePromptState(scriptId);
 
-        if (!state.initialTriggeredAt) {
-            await this.triggerPrompt('initial', scriptId, context);
-            return;
-        }
-
         if (this.shouldTriggerStatus(state, lineCount)) {
             await this.triggerPrompt('status', scriptId, context);
             return;
@@ -97,7 +92,8 @@ export class SystemPromptOrchestrator {
             this.promptHistoryByScript.set(scriptId, {
                 initialTriggeredAt: null,
                 statusNextLine: STATUS_LINE_STEP,
-                ideasLastTriggeredAt: null
+                ideasLastTriggeredAt: null,
+                fingerprints: {}
             });
         }
         return this.promptHistoryByScript.get(scriptId);
@@ -164,6 +160,15 @@ export class SystemPromptOrchestrator {
             clientCopy: definition.clientCopy
         });
 
+        const fingerprint = this.computeFingerprint(context);
+        if (fingerprint) {
+            const previousFingerprint = state.fingerprints[promptId];
+            if (previousFingerprint && previousFingerprint === fingerprint) {
+                return null;
+            }
+            state.fingerprints[promptId] = fingerprint;
+        }
+
         const requestContext = {
             ...context,
             lineCount: context?.contentStats?.lines || context?.contentLength || 0,
@@ -219,5 +224,23 @@ export class SystemPromptOrchestrator {
                 }
             });
         }
+    }
+
+    computeFingerprint (context = {}) {
+        const lineCount = context?.contentStats?.lines ?? context?.contentLength ?? 0;
+        const content = typeof context?.content === 'string' ? context.content : '';
+        if (!content) {
+            return `${lineCount}:`;
+        }
+
+        const lines = content.split('\n');
+        const snippetCount = 3;
+        const lastLines = lines
+            .slice(-snippetCount)
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+
+        const snippet = lastLines.join('|');
+        return `${lineCount}:${snippet}`;
     }
 }

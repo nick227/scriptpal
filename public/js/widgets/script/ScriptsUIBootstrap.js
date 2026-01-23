@@ -78,12 +78,13 @@ export class ScriptsUIBootstrap {
 
         this.scriptWidget = new ScriptWidget();
         this.scriptWidget.setManagers(this.stateManager, this.eventManager);
+        this.scriptWidget.setScriptStore(this.scriptStore);
         await this.scriptWidget.initialize();
 
         this.scriptListWidget = new ScriptListWidget({
             container: this.dropdownContainer,
             stateManager: this.stateManager,
-            eventManager: this.eventManager
+            scriptStore: this.scriptStore
         });
 
         this.stateManager.subscribe(StateManager.KEYS.USER, this.handleUserChange.bind(this));

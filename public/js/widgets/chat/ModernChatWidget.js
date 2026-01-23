@@ -441,7 +441,7 @@ export class ModernChatWidget extends BaseWidget {
         const minimizeButton = this.elements.minimizeButton || container.querySelector('[data-action="minimize"]');
         const icon = minimizeButton ? minimizeButton.querySelector('i') : null;
         if (icon) {
-            icon.classList.toggle('fa-plus', isMinimized);
+            icon.classList.toggle('fa-comment-dots', isMinimized);
             icon.classList.toggle('fa-minus', !isMinimized);
         }
 

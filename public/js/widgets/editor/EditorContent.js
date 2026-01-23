@@ -1,5 +1,5 @@
 // Event types
-import { EventEmitter } from '../../core/EventEmitter.js';
+import { EventManager } from '../../core/EventManager.js';
 import { debugLog } from '../../core/logger.js';
 
 // Autocomplete functionality now consolidated into EditorToolbar.js
@@ -10,14 +10,12 @@ import { ScriptDocument } from './model/ScriptDocument.js';
 /**
  *
  */
-export class EditorContent extends EventEmitter {
+export class EditorContent {
     /**
      *
      * @param options
      */
     constructor (options) {
-        super();
-
         this.container = options.container;
         this.stateManager = options.stateManager;
         this.pageManager = options.pageManager;
@@ -25,6 +23,7 @@ export class EditorContent extends EventEmitter {
         this.lineFormatter = options.lineFormatter;
         this.domHandler = options.domHandler;
         this.document = new ScriptDocument();
+        this.events = new EventManager();
 
         debugLog('[EditorContent] Dependencies:', {
             container: !!this.container,
@@ -83,6 +82,22 @@ export class EditorContent extends EventEmitter {
         this.handleClick = this.handleClick.bind(this);
 
         // Format changes are now command-based via document updates
+    }
+
+    on (eventType, handler) {
+        return this.events.subscribe(eventType, handler);
+    }
+
+    off (eventType, handler) {
+        this.events.unsubscribe(eventType, handler);
+    }
+
+    emit (eventType, data) {
+        this.events.publish(eventType, data);
+    }
+
+    removeAllListeners () {
+        this.events.clear();
     }
 
     /**
@@ -844,6 +859,7 @@ export class EditorContent extends EventEmitter {
         this.keyboardManager = null;
         this.autocomplete = null;
         this.callbacks = null;
+        this.events = null;
     }
 
     // ==============================================

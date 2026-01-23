@@ -371,7 +371,7 @@ export class KeyboardManager {
 
         switch (event.key) {
             case 'ArrowUp':
-            case 'ArrowDown':
+            case 'ArrowDown': {
                 event.preventDefault();
                 // Clear any existing selection
                 this._clearLineSelection();
@@ -386,6 +386,7 @@ export class KeyboardManager {
                     this._updateLineAndFocus(nextLine);
                 }
                 return true;
+            }
 
             case 'ArrowLeft':
             case 'ArrowRight':
@@ -408,7 +409,7 @@ export class KeyboardManager {
                 this._handleEnter(scriptLine, event);
                 return true;
 
-            case 'Tab':
+            case 'Tab': {
                 event.preventDefault();
                 const targetLine = event.shiftKey ?
                     this.pageManager.operations.getPreviousLine(scriptLine) :
@@ -418,9 +419,10 @@ export class KeyboardManager {
                     this._updateLineAndFocus(targetLine);
                 }
                 return true;
+            }
 
             case 'Backspace':
-            case 'Delete':
+            case 'Delete': {
                 // Check if we have selected lines
                 const selectedLines = this.editorArea.querySelectorAll('.script-line.selected');
                 if (selectedLines.length > 1) {
@@ -440,6 +442,7 @@ export class KeyboardManager {
                     return true;
                 }
                 return false;
+            }
 
             default:
                 return false;
@@ -1021,15 +1024,4 @@ export class KeyboardManager {
         }
     }
 
-    /**
-     *
-     */
-    destroy () {
-        if (this.editorArea) {
-            this.editorArea.removeEventListener('keydown', this._boundHandlers.keydown);
-            this.editorArea.removeEventListener('click', this._boundHandlers.click);
-        }
-        this._boundHandlers = null;
-        // this.formatFSM = null;
-    }
 }

@@ -5,7 +5,7 @@ import { ChainHelper } from '../helpers/ChainHelper.js';
 export class DefaultChain extends BaseChain {
   constructor() {
     super({
-      type: INTENT_TYPES.EVERYTHING_ELSE,
+      type: INTENT_TYPES.GENERAL_CONVERSATION,
       temperature: 0.5,
       modelConfig: {
         response_format: { type: 'text' }
@@ -22,7 +22,8 @@ Your task is to provide general assistance and answer questions about scriptwrit
 Keep responses focused on scriptwriting and storytelling.
 Be concise but informative.`;
 
-    const scriptContent = context && context.scriptContent ? context.scriptContent : '';
+    const includeScriptContext = context && context.includeScriptContext;
+    const scriptContent = includeScriptContext && context?.scriptContent ? context.scriptContent : '';
     const userContent = scriptContent
       ? `${prompt}\n\nScript content:\n${scriptContent}`
       : prompt;
@@ -46,7 +47,7 @@ Be concise but informative.`;
   formatResponse(response) {
     return {
       response: typeof response === 'string' ? response : response.response || response,
-      type: INTENT_TYPES.EVERYTHING_ELSE,
+      type: INTENT_TYPES.GENERAL_CONVERSATION,
       metadata: {
         timestamp: new Date().toISOString()
       }
@@ -89,7 +90,7 @@ Be concise but informative.`;
       // Return a basic response on error
       return {
         response: 'I\'m here to help with your script. What would you like to do?',
-        type: INTENT_TYPES.EVERYTHING_ELSE,
+        type: INTENT_TYPES.GENERAL_CONVERSATION,
         metadata: {
           error: error.message,
           timestamp: new Date().toISOString()

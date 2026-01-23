@@ -40,26 +40,6 @@ export class ScriptsController {
      */
     setupEventSubscriptions () {
         this.eventManager.subscribe(
-            EventManager.EVENTS.SCRIPT.SELECT_REQUESTED,
-            this.handleSelectRequested.bind(this)
-        );
-
-        this.eventManager.subscribe(
-            EventManager.EVENTS.SCRIPT.CREATE_REQUESTED,
-            this.handleCreateRequested.bind(this)
-        );
-
-        this.eventManager.subscribe(
-            EventManager.EVENTS.SCRIPT.DELETE_REQUESTED,
-            this.handleDeleteRequested.bind(this)
-        );
-
-        this.eventManager.subscribe(
-            EventManager.EVENTS.SCRIPT.LIST_REQUESTED,
-            this.handleListRequested.bind(this)
-        );
-
-        this.eventManager.subscribe(
             EventManager.EVENTS.SCRIPT.SELECTED,
             this.handleScriptSelected.bind(this)
         );
@@ -105,66 +85,6 @@ export class ScriptsController {
 
         await this.scriptStore.ensureUserHasScripts(user.id);
         await this.scriptStore.selectInitialScript({ source: 'startup' });
-    }
-
-    /**
-     * Handle selection requests.
-     * @param {object} data - Selection payload.
-     */
-    async handleSelectRequested (data) {
-        const scriptId = data && typeof data === 'object' ? data.scriptId : data;
-        if (!scriptId) {
-            return;
-        }
-
-        await this.scriptStore.selectScript(scriptId, {
-            source: data && data.source ? data.source : 'selection',
-            preserveState: data && data.preserveState
-        });
-    }
-
-    /**
-     * Handle create requests.
-     * @param {object} data - Script creation payload.
-     */
-    async handleCreateRequested (data = {}) {
-        const user = this.stateManager.getState(StateManager.KEYS.USER);
-        if (!user || !user.id) {
-            return;
-        }
-
-        const title = data.title ? String(data.title) : 'Untitled Script';
-        const content = data.content ? String(data.content) : '';
-
-        await this.scriptStore.createScript(user.id, { title, content });
-    }
-
-    /**
-     * Handle delete requests.
-     * @param {object} data - Script deletion payload.
-     */
-    async handleDeleteRequested (data = {}) {
-        const scriptId = data.scriptId || data.id;
-        if (!scriptId) {
-            return;
-        }
-
-        await this.scriptStore.deleteScript(scriptId);
-    }
-
-    /**
-     * Handle list requests.
-     * @param {object} data - Script list payload.
-     */
-    async handleListRequested (data = {}) {
-        const user = this.stateManager.getState(StateManager.KEYS.USER);
-        if (!user || !user.id) {
-            return;
-        }
-
-        await this.scriptStore.loadScripts(user.id, {
-            force: Boolean(data.force)
-        });
     }
 
     /**

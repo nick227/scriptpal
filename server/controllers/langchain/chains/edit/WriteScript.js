@@ -4,6 +4,7 @@ import { EditScriptLoader } from './EditScriptLoader.js';
 import { WriteScriptMessages } from './WriteScriptMessages.js';
 import { ScriptVersionService } from '../../../scripts/ScriptVersionService.js';
 import scriptModel from '../../../../models/script.js';
+import { ai } from '../../../../lib/ai.js';
 
 export class WriteScriptChain extends BaseChain {
   constructor(config = {}) {
@@ -21,14 +22,29 @@ export class WriteScriptChain extends BaseChain {
     try {
       const { scriptId, _prompt } = metadata;
 
-      // Get commands from LLM
-      const llmResponse = await this.llm.invoke(messages, {
+      const completionParams = {
+        messages,
         functions: [WriteScriptMessages.getFunctionSchema()],
         function_call: { name: 'write_script' }
-      });
+      };
 
-      // Parse commands from response
-      const editCommands = JSON.parse(llmResponse.additional_kwargs.function_call.arguments);
+      const chainConfig = metadata.chainConfig || {};
+      if (chainConfig.modelConfig) {
+        Object.assign(completionParams, chainConfig.modelConfig);
+      }
+
+      const result = await ai.generateCompletion(completionParams);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'AI completion failed');
+      }
+
+      const choice = result.data?.choices?.[0];
+      const functionCallArgs = choice?.message?.function_call?.arguments;
+      if (!functionCallArgs) {
+        throw new Error('AI response is missing write_script function call');
+      }
+
+      const editCommands = JSON.parse(functionCallArgs);
       const commands = Array.isArray(editCommands.commands) ? editCommands.commands : [];
 
       console.log('Generated commands:', commands);

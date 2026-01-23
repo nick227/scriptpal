@@ -1,4 +1,5 @@
 import { API_ENDPOINTS, API_HEADERS, ERROR_MESSAGES, SERVER_PORT } from '../constants.js';
+import { getApiBaseUrl, getApiOrigin } from '../config.js';
 import { utils } from '../utils.js';
 import { debugLog } from '../core/logger.js';
 
@@ -10,7 +11,7 @@ export class ScriptPalAPI {
      *
      */
     constructor () {
-        this.baseUrl = `http://localhost:${SERVER_PORT}/api`;
+        this.baseUrl = getApiBaseUrl();
         this.isLoading = false;
         this.requestQueue = new Set();
         this.abortControllers = new Map();
@@ -56,8 +57,10 @@ export class ScriptPalAPI {
      * @param event
      */
     _handlePostMessage (event) {
+        const apiOrigin = getApiOrigin();
         const allowedOrigins = [
             window.location.origin,
+            apiOrigin,
             `http://localhost:${SERVER_PORT}`,
             `http://127.0.0.1:${SERVER_PORT}`
         ];

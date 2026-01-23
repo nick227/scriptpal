@@ -67,11 +67,13 @@
     height: 6vh;
 }
 .user-scripts {
-    width: 5vw;
+    width: 300px;
     height: 94vh;
     position:fixed;
     left: 0;
     z-index: 1;
+    padding: 10px;
+    background: beige;
 
 }
 .editor-container {
@@ -81,11 +83,12 @@
     z-index: 0;
 }
 .chatbot-container {
-    width: 25vw;
+    width: 15vw;
     height: 100vh;
     position:fixed;
     right: 0;
     z-index: 1;
+    overflow: visible;
 }
 
     /* Rows and Columns */

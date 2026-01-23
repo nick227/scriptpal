@@ -230,12 +230,6 @@ export class EditorToolbar extends BaseWidget {
     createFormatButtons () {
         const container = this.createElement('div', 'format-buttons-container');
 
-        // Create format dropdown trigger
-        const formatDropdown = this.createElement('button', 'format-button format-dropdown-trigger');
-        formatDropdown.innerHTML = '<i class="fas fa-font"></i> Format';
-        formatDropdown.title = 'Select Format';
-        container.appendChild(formatDropdown);
-
         // Create format buttons for each valid format
         if (this.formats && this.formatDisplayNames) {
             Object.entries(this.formats).forEach(([key, value]) => {
@@ -243,7 +237,6 @@ export class EditorToolbar extends BaseWidget {
                 button.dataset.format = value;
                 button.textContent = this.formatDisplayNames[value] || key.toLowerCase();
                 button.title = `Format as ${this.formatDisplayNames[value] || key.toLowerCase()}`;
-                button.style.display = 'none'; // Hidden by default, shown in dropdown
                 container.appendChild(button);
 
                 // Store reference for easy access
@@ -252,27 +245,6 @@ export class EditorToolbar extends BaseWidget {
         } else {
             console.warn('[EditorToolbar] Format types not properly initialized');
         }
-
-        // Add click handler for dropdown
-        formatDropdown.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this._toggleFormatDropdown(container);
-        });
-
-        // Add click handlers for format options
-        container.addEventListener('click', (e) => {
-            const { target } = e;
-            if (target.classList.contains('format-option')) {
-                const { format } = target.dataset;
-                this._handleFormatSelection(format);
-                this._hideFormatDropdown(container);
-            }
-        });
-
-        // Hide dropdown when clicking outside
-        document.addEventListener('click', () => {
-            this._hideFormatDropdown(container);
-        });
 
         this.toolbar.appendChild(container);
     }
@@ -485,72 +457,10 @@ export class EditorToolbar extends BaseWidget {
     }
 
     /**
-     * Toggle format dropdown visibility
-     * @param {HTMLElement} container - The format buttons container
-     * @private
-     */
-    _toggleFormatDropdown (container) {
-        const isVisible = container.classList.contains('dropdown-open');
-        if (isVisible) {
-            this._hideFormatDropdown(container);
-        } else {
-            this._showFormatDropdown(container);
-        }
-    }
-
-    /**
-     * Show format dropdown
-     * @param {HTMLElement} container - The format buttons container
-     * @private
-     */
-    _showFormatDropdown (container) {
-        container.classList.add('dropdown-open');
-        const formatOptions = container.querySelectorAll('.format-option');
-        formatOptions.forEach(option => {
-            option.style.display = 'block';
-        });
-    }
-
-    /**
-     * Hide format dropdown
-     * @param {HTMLElement} container - The format buttons container
-     * @private
-     */
-    _hideFormatDropdown (container) {
-        container.classList.remove('dropdown-open');
-        const formatOptions = container.querySelectorAll('.format-option');
-        formatOptions.forEach(option => {
-            option.style.display = 'none';
-        });
-    }
-
-    /**
-     * Handle format selection
-     * @param {string} format - The selected format
-     * @private
-     */
-    _handleFormatSelection (format) {
-
-        // Update active format
-        this.updateActiveFormat(format);
-
-        // Trigger format change
-        if (typeof this._handlers.formatSelected === 'function') {
-            this._handlers.formatSelected(format);
-        }
-    }
-
-    /**
      * Update active format button
      * @param {string} format - The active format
      */
     updateActiveFormat (format) {
-        // Update format dropdown trigger text
-        const dropdownTrigger = this.toolbar.querySelector('.format-dropdown-trigger');
-        if (dropdownTrigger && this.formatDisplayNames[format]) {
-            dropdownTrigger.innerHTML = `<i class="fas fa-font"></i> ${this.formatDisplayNames[format]}`;
-        }
-
         // Update format option buttons
         const formatOptions = this.toolbar.querySelectorAll('.format-option');
         formatOptions.forEach(button => {

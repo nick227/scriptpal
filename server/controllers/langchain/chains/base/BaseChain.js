@@ -1,5 +1,5 @@
 import { ChatOpenAI as _ChatOpenAI } from '@langchain/openai';
-import { CHAIN_CONFIG, ERROR_TYPES, INTENT_TYPES as _INTENT_TYPES, COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
+import { CHAIN_CONFIG, ERROR_TYPES, COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 import chatMessageRepository from '../../../../repositories/chatMessageRepository.js';
 import { ai } from '../../../../lib/ai.js';
 import { ChainHelper } from '../helpers/ChainHelper.js';
@@ -187,7 +187,7 @@ export class BaseChain {
     try {
       console.log('BaseChain.execute starting...');
       const processedMessages = this.addCommonInstructions(messages);
-      
+
       const context = {
         ...metadata,
         ...this.extractMetadata(metadata, ['scriptId', 'scriptTitle', 'userId', 'intent'])
@@ -209,7 +209,7 @@ export class BaseChain {
       console.log('Making API call via AIClient...');
       const chainConfig = context.chainConfig || {};
       const modelConfig = chainConfig.modelConfig || {};
-      
+
       const completionParams = {
         model: modelConfig.model || this.config.model || 'gpt-4-turbo-preview',
         messages: allMessages,
@@ -252,10 +252,6 @@ export class BaseChain {
   async buildMessageChain(currentMessages, context) {
     try {
       if (!Array.isArray(currentMessages)) currentMessages = [currentMessages];
-      if (context.intent === 'ANALYZE_SCRIPT') {
-        return currentMessages.map(msg => this.validateMessage(msg, 'current_messages')).filter(Boolean);
-      }
-
       const history = (context.userId && !context.disableHistory) ?
         await this.getChatHistory(context) : [];
 

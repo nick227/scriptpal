@@ -2,7 +2,6 @@
 
 .title-page {
     width: 100%;
-    min-height: 100vh;
     background: white;
     border: 1px solid var(--color-border);
     border-radius: 8px;

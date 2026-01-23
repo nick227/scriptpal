@@ -73,11 +73,6 @@
     border-left: 4px solid var(--color-border, #ddd);
 }
 
-.message.user {
-    background: var(--color-accent, #c3e3eb);
-    border-left-color: #007bff;
-}
-
 .message.assistant {
     background: var(--color-bg-light, #f5f5f5);
     border-left-color: #28a745;

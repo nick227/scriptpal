@@ -6,13 +6,31 @@ export class ChatHistoryManager {
     this.scriptId = scriptId;
   }
 
+  _ensureHistoryScope(scriptId, context) {
+    if (!this.userId) {
+      console.warn(`[ChatHistoryManager] Cannot ${context} without userId`);
+      return false;
+    }
+    if (!scriptId) {
+      console.warn(`[ChatHistoryManager] Cannot ${context} without scriptId`);
+      return false;
+    }
+    return true;
+  }
+
   async saveInteraction(userPrompt, assistantResponse, scriptId = null, intent = null) {
     try {
       const targetScriptId = scriptId || this.scriptId;
-      
+
+      if (!this._ensureHistoryScope(targetScriptId, 'save interaction')) {
+        return;
+      }
+
       const assistantContent = typeof assistantResponse === 'string' ?
         assistantResponse :
         JSON.stringify(assistantResponse);
+
+      console.log('[ChatHistoryManager] saveInteraction', { userId: this.userId, scriptId: targetScriptId });
 
       await chatMessageRepository.create({
         userId: this.userId,
@@ -33,6 +51,14 @@ export class ChatHistoryManager {
   async getHistory(limit = 3, scriptId = null) {
     try {
       const targetScriptId = scriptId || this.scriptId;
+      if (!this._ensureHistoryScope(targetScriptId, 'fetch history')) {
+        return [];
+      }
+      console.log('[ChatHistoryManager] fetchHistory', {
+        userId: this.userId,
+        scriptId: targetScriptId,
+        limit
+      });
       const rows = await chatMessageRepository.listByUser(this.userId, targetScriptId, limit, 0);
       return rows.flatMap((row) => {
         const list = [];
@@ -73,6 +99,13 @@ export class ChatHistoryManager {
 
   async getScriptHistory(scriptId) {
     try {
+      if (!this._ensureHistoryScope(scriptId, 'fetch script history')) {
+        return [];
+      }
+      console.log('[ChatHistoryManager] getScriptHistory', {
+        userId: this.userId,
+        scriptId
+      });
       const rows = await chatMessageRepository.listByUser(this.userId, scriptId, 30, 0);
       return rows.flatMap((row) => {
         const list = [];
@@ -113,6 +146,13 @@ export class ChatHistoryManager {
 
   async clearScriptHistory(scriptId) {
     try {
+      if (!this._ensureHistoryScope(scriptId, 'clear history')) {
+        return false;
+      }
+      console.log('[ChatHistoryManager] clearScriptHistory', {
+        userId: this.userId,
+        scriptId
+      });
       return await chatMessageRepository.clearByUserAndScript(this.userId, scriptId);
     } catch (error) {
       console.error('Failed to clear script chat history:', error);

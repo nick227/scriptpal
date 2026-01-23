@@ -1,5 +1,4 @@
 import { UI_ELEMENTS } from '../../constants.js';
-import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
 import { RendererFactory } from '../../renderers.js';
 import { BaseWidget } from '../BaseWidget.js';
@@ -21,6 +20,7 @@ export class ScriptWidget extends BaseWidget {
     constructor (elements, stateManager, eventManager) {
         super(elements);
         this.renderer = null;
+        this.scriptStore = null;
         this.setManagers(stateManager, eventManager);
     }
 
@@ -28,7 +28,10 @@ export class ScriptWidget extends BaseWidget {
      *
      * @param scriptStore
      */
-    async initialize () {
+    async initialize (options = {}) {
+        if (options.scriptStore) {
+            this.scriptStore = options.scriptStore;
+        }
         await super.initialize();
 
         // Initialize renderer
@@ -106,12 +109,8 @@ export class ScriptWidget extends BaseWidget {
      * @param scriptId
      */
     handleScriptSelect (scriptId) {
-        if (scriptId) {
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.SELECT_REQUESTED, {
-                scriptId,
-                source: 'panel'
-            });
-        }
+        if (!scriptId || !this.scriptStore) return;
+        this.scriptStore.selectScript(scriptId, { source: 'panel' });
     }
 
     /**
@@ -119,18 +118,25 @@ export class ScriptWidget extends BaseWidget {
      */
     async handleCreateScript () {
         try {
-            const user = this.stateManager.getState(StateManager.KEYS.USER);
-            if (!user || !user.id) {
-                throw new Error('No current user');
+            if (!this.scriptStore) {
+                throw new Error('No ScriptStore available');
             }
-
-            this.eventManager.publish(EventManager.EVENTS.SCRIPT.CREATE_REQUESTED, {
+            const user = this.stateManager.getState(StateManager.KEYS.USER);
+            await this.scriptStore.createScript(user.id, {
                 title: 'Untitled Script',
                 content: ''
             });
         } catch (error) {
             console.error('[SCRIPT_WIDGET] Failed to create script:', error);
         }
+    }
+
+    /**
+     *
+     * @param {object} orchestrator
+     */
+    setScriptStore (scriptStore) {
+        this.scriptStore = scriptStore;
     }
 
     /**

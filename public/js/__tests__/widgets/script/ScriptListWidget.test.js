@@ -8,7 +8,7 @@ describe('ScriptListWidget - Script List Management', () => {
     let scriptListWidget;
     let mockContainer;
     let mockStateManager;
-    let mockEventManager;
+    let mockScriptStore;
 
     beforeEach(() => {
         // Create mock container and attach to document
@@ -22,17 +22,18 @@ describe('ScriptListWidget - Script List Management', () => {
             subscribe: jest.fn()
         };
 
-        // Create mock event manager
-        mockEventManager = {
-            subscribe: jest.fn(),
-            publish: jest.fn()
+        mockScriptStore = {
+            selectScript: jest.fn(),
+            createScript: jest.fn(),
+            deleteScript: jest.fn(),
+            loadScripts: jest.fn()
         };
 
         // Create script list widget
         scriptListWidget = new ScriptListWidget({
             container: mockContainer,
             stateManager: mockStateManager,
-            eventManager: mockEventManager
+            scriptStore: mockScriptStore
         });
     });
 
@@ -73,7 +74,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleCreateScript();
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:CREATE_REQUESTED', {
+            expect(mockScriptStore.createScript).toHaveBeenCalledWith(1, {
                 title: 'New Test Script',
                 content: ''
             });
@@ -87,10 +88,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleDeleteScript(scriptToDelete);
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:DELETE_REQUESTED', {
-                scriptId: 1,
-                title: 'Test Script 1'
-            });
+            expect(mockScriptStore.deleteScript).toHaveBeenCalledWith(1);
         });
 
         test('should allow switching between scripts', async () => {
@@ -100,10 +98,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleSelectScript(script2);
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:SELECT_REQUESTED', {
-                scriptId: 2,
-                source: 'list'
-            });
+            expect(mockScriptStore.selectScript).toHaveBeenCalledWith(2, { source: 'list' });
         });
 
         test('should show loading state during operations', () => {
@@ -118,14 +113,14 @@ describe('ScriptListWidget - Script List Management', () => {
         test('should initialize with required dependencies', () => {
             expect(scriptListWidget.container).toBe(mockContainer);
             expect(scriptListWidget.stateManager).toBe(mockStateManager);
-            expect(scriptListWidget.eventManager).toBe(mockEventManager);
+            expect(scriptListWidget.scriptStore).toBe(mockScriptStore);
         });
 
         test('should require container', () => {
             expect(() => {
                 new ScriptListWidget({
                     stateManager: mockStateManager,
-                    eventManager: mockEventManager
+                    scriptStore: mockScriptStore
                 });
             }).toThrow('Container is required for ScriptListWidget');
         });
@@ -134,18 +129,18 @@ describe('ScriptListWidget - Script List Management', () => {
             expect(() => {
                 new ScriptListWidget({
                     container: mockContainer,
-                    eventManager: mockEventManager
+                    scriptStore: mockScriptStore
                 });
             }).toThrow('StateManager is required for ScriptListWidget');
         });
 
-        test('should require event manager', () => {
+        test('should require script store', () => {
             expect(() => {
                 new ScriptListWidget({
                     container: mockContainer,
-                    stateManager: mockStateManager
+                    stateManager: mockStateManager,
                 });
-            }).toThrow('EventManager is required for ScriptListWidget');
+            }).toThrow('ScriptStore is required for ScriptListWidget');
         });
 
         test('should create UI elements', () => {
@@ -158,7 +153,6 @@ describe('ScriptListWidget - Script List Management', () => {
 
         test('should set up event listeners', () => {
             expect(mockStateManager.subscribe).toHaveBeenCalled();
-            expect(mockEventManager.subscribe).toHaveBeenCalled();
         });
     });
 
@@ -213,10 +207,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleSelectScript(script);
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:SELECT_REQUESTED', {
-                scriptId: 1,
-                source: 'list'
-            });
+            expect(mockScriptStore.selectScript).toHaveBeenCalledWith(1, { source: 'list' });
         });
 
         test('should update dropdown trigger text from state', () => {
@@ -246,7 +237,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleCreateScript();
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:CREATE_REQUESTED', {
+            expect(mockScriptStore.createScript).toHaveBeenCalledWith(1, {
                 title: 'New Script Title',
                 content: ''
             });
@@ -257,7 +248,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleCreateScript();
 
-            expect(mockEventManager.publish).not.toHaveBeenCalledWith('SCRIPT:CREATE_REQUESTED', expect.anything());
+            expect(mockScriptStore.createScript).not.toHaveBeenCalled();
         });
 
         test('should handle cancelled prompt', async () => {
@@ -265,7 +256,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleCreateScript();
 
-            expect(mockEventManager.publish).not.toHaveBeenCalledWith('SCRIPT:CREATE_REQUESTED', expect.anything());
+            expect(mockScriptStore.createScript).not.toHaveBeenCalled();
         });
     });
 
@@ -278,10 +269,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleDeleteScript(script);
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:DELETE_REQUESTED', {
-                scriptId: 1,
-                title: 'Test Script'
-            });
+            expect(mockScriptStore.deleteScript).toHaveBeenCalledWith(1);
         });
 
         test('should handle deletion cancellation', async () => {
@@ -291,7 +279,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             await scriptListWidget.handleDeleteScript(script);
 
-            expect(mockEventManager.publish).not.toHaveBeenCalledWith('SCRIPT:DELETE_REQUESTED', expect.anything());
+            expect(mockScriptStore.deleteScript).not.toHaveBeenCalled();
         });
     });
 
@@ -342,27 +330,13 @@ describe('ScriptListWidget - Script List Management', () => {
 
             expect(scriptListWidget.currentScript).toBe(script);
         });
-
-        test('should handle script list update from event manager', () => {
-            const newScripts = [
-                { id: 1, title: 'Script 1', status: 'draft' },
-                { id: 2, title: 'Script 2', status: 'active' }
-            ];
-
-            scriptListWidget.handleScriptListUpdate({ scripts: newScripts });
-
-            expect(scriptListWidget.scripts).toBe(newScripts);
-        });
     });
 
     describe('Utility Methods', () => {
         test('should refresh script list', () => {
             scriptListWidget.refresh();
 
-            expect(mockEventManager.publish).toHaveBeenCalledWith('SCRIPT:LIST_REQUESTED', {
-                source: 'refresh',
-                force: true
-            });
+            expect(mockScriptStore.loadScripts).toHaveBeenCalledWith(1, { force: true });
         });
 
         test('should get current scripts', () => {
@@ -421,7 +395,7 @@ describe('ScriptListWidget - Script List Management', () => {
 
             expect(scriptListWidget.container).toBeNull();
             expect(scriptListWidget.stateManager).toBeNull();
-            expect(scriptListWidget.eventManager).toBeNull();
+            expect(scriptListWidget.scriptStore).toBeNull();
             expect(scriptListWidget.scripts).toHaveLength(0);
             expect(scriptListWidget.currentScript).toBeNull();
         });

@@ -1,4 +1,4 @@
-import { EventEmitter } from '../../../core/EventEmitter.js';
+import { EventManager } from '../../../core/EventManager.js';
 import { RendererFactory } from '../../../renderers.js';
 import { EDITOR_EVENTS } from '../constants.js';
 import { LineFormatter } from '../LineFormatter.js';
@@ -8,13 +8,12 @@ import { debugLog } from '../../../core/logger.js';
 /**
  *
  */
-export class EditorDOMHandler extends EventEmitter {
+export class EditorDOMHandler {
     /**
      *
      * @param options
      */
     constructor (options) {
-        super();
         if (!options.container || !options.stateManager || !options.pageManager) {
             throw new Error('Required options not provided to EditorDOMHandler');
         }
@@ -38,7 +37,7 @@ export class EditorDOMHandler extends EventEmitter {
         });
 
         // Event handling
-        this.eventHandlers = new Map();
+        this.events = new EventManager();
         this._eventsBound = false;
         this.onFormatCommand = null;
     }
@@ -106,10 +105,7 @@ export class EditorDOMHandler extends EventEmitter {
      * @param handler
      */
     on (eventType, handler) {
-        if (!this.eventHandlers.has(eventType)) {
-            this.eventHandlers.set(eventType, new Set());
-        }
-        this.eventHandlers.get(eventType).add(handler);
+        return this.events.subscribe(eventType, handler);
     }
 
     /**
@@ -118,9 +114,7 @@ export class EditorDOMHandler extends EventEmitter {
      * @param handler
      */
     off (eventType, handler) {
-        if (this.eventHandlers.has(eventType)) {
-            this.eventHandlers.get(eventType).delete(handler);
-        }
+        this.events.unsubscribe(eventType, handler);
     }
 
     /**
@@ -129,9 +123,7 @@ export class EditorDOMHandler extends EventEmitter {
      * @param data
      */
     emit (eventType, data) {
-        if (this.eventHandlers.has(eventType)) {
-            this.eventHandlers.get(eventType).forEach(handler => handler(data));
-        }
+        this.events.publish(eventType, data);
     }
 
     /**
@@ -471,7 +463,9 @@ export class EditorDOMHandler extends EventEmitter {
         }
 
         // Clear event handlers
-        this.eventHandlers.clear();
+        if (this.events) {
+            this.events.clear();
+        }
 
         // Cleanup line formatter
         if (this.lineFormatter) {
@@ -484,7 +478,7 @@ export class EditorDOMHandler extends EventEmitter {
         this.isInitialized = false;
         this.lineFormatter = null;
         this.renderer = null;
-        this.removeAllListeners();
+        this.events = null;
     }
 
     /**

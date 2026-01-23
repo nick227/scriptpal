@@ -8,7 +8,7 @@ const configSchema = Joi.object({
   // Server configuration
   NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
   PORT: Joi.number().port().default(3000),
-  HOST: Joi.string().default('localhost'),
+  HOST: Joi.string().default('0.0.0.0'),
 
   // Database configuration
   DATABASE_URL: Joi.string().optional(),

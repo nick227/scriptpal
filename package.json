@@ -6,7 +6,9 @@
     "dev": "concurrently -k -n client,server \"vite\" \"npm run dev --prefix server\"",
     "dev:client": "vite",
     "dev:server": "npm run dev --prefix server",
-    "build": "vite build",
+    "start": "npm run start --prefix server",
+    "postinstall": "npm install --prefix server",
+    "build": "npm run build --prefix server && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -283,20 +283,11 @@ export class ChainHelper {
 
   static getDefaultQuestions() {
     return [{
-      text: 'Brainstorm some ideas',
-      intent: INTENT_TYPES.GET_INSPIRATION
+      text: 'Continue developing the current script',
+      intent: INTENT_TYPES.SCRIPT_CONVERSATION
     }, {
-      text: 'Analyze your current script',
-      intent: INTENT_TYPES.ANALYZE_SCRIPT
-    }, {
-      text: 'What is the story about?',
-      intent: INTENT_TYPES.SCRIPT_QUESTIONS
-    }, {
-      text: 'Make the script funnier',
-      intent: INTENT_TYPES.EDIT_SCRIPT
-    }, {
-      text: 'Start a new chapter',
-      intent: INTENT_TYPES.WRITE_SCRIPT
+      text: 'Switch to a general conversational topic',
+      intent: INTENT_TYPES.GENERAL_CONVERSATION
     }];
   }
 }

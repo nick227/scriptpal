@@ -5,7 +5,6 @@
 import { CommandBus } from './application/Commands/CommandBus.js';
 import { QueryBus } from './application/Queries/QueryBus.js';
 import { AppController } from './core/AppController.js';
-import { ChatController } from './presentation/Chat/ChatController.js';
 import { EditorController } from './presentation/Editor/EditorController.js';
 
 /**
@@ -28,13 +27,9 @@ export class App {
     async init () {
         if (this.isInitialized) return;
 
-        const startTime = performance.now();
-
         try {
             await this.setupCoreSystems();
             await this.setupControllers();
-
-            const endTime = performance.now();
 
             this.isInitialized = true;
         } catch (error) {
@@ -57,10 +52,8 @@ export class App {
     async setupControllers () {
 
         const editorController = new EditorController();
-        const chatController = new ChatController();
 
         this.appController.addController('editor', editorController);
-        this.appController.addController('chat', chatController);
 
         this.appController.setActiveView('editor');
 

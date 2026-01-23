@@ -111,7 +111,7 @@ INSTRUCTIONS:
 
     const intent = result.data.choices[0].message.content.trim();
     console.log('Final Intent Classification:', intent);
-    
+
     return processResponse(intent);
 
   } catch (error) {
