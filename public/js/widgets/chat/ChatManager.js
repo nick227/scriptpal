@@ -7,10 +7,7 @@ import { ScriptContextManager } from '../editor/context/ScriptContextManager.js'
 import { debugLog } from '../../core/logger.js';
 
 import { ChatHistoryManager } from './ChatHistoryManager.js';
-import { MessageProcessor } from './MessageProcessor.js';
 import { ScriptOperationsHandler } from './ScriptOperationsHandler.js';
-import { ChatValidator } from './ChatValidator.js';
-import { ChatPerformanceManager } from './ChatPerformanceManager.js';
 
 const PAGE_LOAD_WELCOME_MESSAGE = 'Welcome to ScriptPal. I can help you write, edit, and explore your script. Select or create a script to get started.';
 
@@ -43,15 +40,6 @@ export class ChatManager extends BaseManager {
         this.isProcessing = false;
         this.currentScriptId = null;
 
-        this.messageProcessor = new MessageProcessor({
-            messageIdFactory: this.generateMessageId.bind(this)
-        });
-        this.performanceManager = new ChatPerformanceManager();
-        this.chatValidator = new ChatValidator({
-            rendererGetter: () => this.renderer,
-            apiGetter: () => this.api,
-            processingFlagGetter: () => this.isProcessing
-        });
         this.scriptOperationsHandler = new ScriptOperationsHandler({
             getScriptOrchestrator: () => this.scriptOrchestrator,
             eventManager: this.eventManager,
@@ -156,12 +144,17 @@ export class ChatManager extends BaseManager {
         }
 
         try {
-            const result = this.messageProcessor.process(messageData, type);
-            if (!result) {
+            const parsedData = this.parseMessageData(messageData);
+            const content = this.extractMessageContent(parsedData);
+            if (!content) {
+                console.warn('[ChatManager] No content extracted from message data:', messageData);
                 return null;
             }
 
-            const { parsedData, normalizedMessage } = result;
+            const normalizedMessage = this.normalizeMessage({
+                ...((typeof parsedData === 'object' && parsedData) ? parsedData : {}),
+                content
+            }, type);
 
             await this.safeRenderMessage(normalizedMessage);
             this.processQuestionButtons(parsedData);
@@ -260,7 +253,7 @@ export class ChatManager extends BaseManager {
             this.processQuestionButtons(data.response);
 
             // Extract response content and metadata
-            const responseContent = this.messageProcessor.extractResponseContent(data);
+            const responseContent = this.extractResponseContent(data);
             if (!responseContent) {
                 console.warn('[ChatManager] No content found in response');
                 return null;
@@ -442,6 +435,90 @@ export class ChatManager extends BaseManager {
         return MESSAGE_TYPES.USER;
     }
 
+    parseMessageData (data) {
+        if (typeof data === 'string') {
+            try {
+                return JSON.parse(data);
+            } catch (error) {
+                return data;
+            }
+        }
+        return data;
+    }
+
+    extractMessageContent (data) {
+        if (typeof data === 'string') {
+            return data.trim();
+        }
+
+        if (!data) {
+            return '';
+        }
+
+        if (typeof data === 'object') {
+            if (data.response && typeof data.response === 'string') {
+                return data.response.trim();
+            }
+
+            const messageFields = ['message', 'text', 'content', 'details', 'answer', 'reply'];
+            for (const field of messageFields) {
+                if (data[field] && typeof data[field] === 'string') {
+                    return data[field].trim();
+                }
+            }
+
+            if (data.response && typeof data.response === 'object') {
+                return this.extractMessageContent(data.response);
+            }
+
+            if (data.content && typeof data.content === 'string') {
+                return data.content.trim();
+            }
+
+            if (typeof data.toString === 'function' && data.toString() !== '[object Object]') {
+                return data.toString().trim();
+            }
+        }
+
+        console.warn('[ChatManager] Could not extract content from response:', data);
+        return '';
+    }
+
+    normalizeMessage (messageData, type) {
+        const data = (messageData && typeof messageData === 'object') ? messageData : { content: messageData };
+        const role = data.role || data.type || type || MESSAGE_TYPES.USER;
+
+        return {
+            id: data.id || this.generateMessageId(),
+            role,
+            type: role,
+            content: data.content || '',
+            timestamp: data.timestamp || new Date().toISOString(),
+            status: data.status,
+            metadata: data.metadata || {},
+            intent: data.intent || (data.metadata && data.metadata.intent)
+        };
+    }
+
+    extractResponseContent (data) {
+        if (!data || !data.response) {
+            return null;
+        }
+
+        if (typeof data.response === 'string') {
+            return data.response;
+        }
+
+        if (typeof data.response === 'object') {
+            return data.response.response ||
+                   data.response.message ||
+                   data.response.content ||
+                   data.response;
+        }
+
+        return null;
+    }
+
     /**
      * ==============================================
      * Validation and State Management
@@ -451,7 +528,43 @@ export class ChatManager extends BaseManager {
      * @returns {boolean} - True if validation passes
      */
     validateSendConditions (message) {
-        return this.chatValidator.validateSend(message);
+        if (!this.renderer) {
+            console.error('[ChatManager] No renderer available');
+            return false;
+        }
+
+        if (!this.renderer.container) {
+            console.error('[ChatManager] No renderer container available');
+            return false;
+        }
+
+        if (!message || typeof message !== 'string') {
+            console.error('[ChatManager] Invalid message format:', typeof message);
+            return false;
+        }
+
+        const trimmedMessage = message.trim();
+        if (!trimmedMessage) {
+            console.warn('[ChatManager] Empty message provided');
+            return false;
+        }
+
+        if (trimmedMessage.length > 10000) {
+            console.warn('[ChatManager] Message too long:', trimmedMessage.length);
+            return false;
+        }
+
+        if (this.isProcessing) {
+            console.warn('[ChatManager] Message processing already in progress');
+            return false;
+        }
+
+        if (!this.api || typeof this.api.getChatResponse !== 'function') {
+            console.error('[ChatManager] API not available or invalid');
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -459,7 +572,15 @@ export class ChatManager extends BaseManager {
      * @param messages
      */
     validateHistoryConditions (messages) {
-        return this.chatValidator.validateHistory(messages);
+        if (!Array.isArray(messages)) {
+            console.warn('[ChatManager] Messages is not an array:', messages);
+            return false;
+        }
+        if (!this.renderer || !this.renderer.container) {
+            console.error('[ChatManager] No renderer or container available');
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -618,54 +739,4 @@ export class ChatManager extends BaseManager {
         super.destroy();
     }
 
-    // ==============================================
-    // Performance Optimization Methods
-    // ==============================================
-
-    /**
-     * Batch multiple operations for better performance
-     * @param operation
-     */
-    batchOperation (operation) {
-        this.performanceManager.batchOperation(operation);
-    }
-
-    /**
-     * Optimized message processing with caching
-     * @param message
-     * @param type
-     */
-    async processMessageOptimized (message, type) {
-        const cacheKey = `${type}_${message}`;
-        const cached = this.performanceManager.getCachedMessage(cacheKey);
-
-        if (cached) {
-            return cached;
-        }
-
-        const result = await this.processAndRenderMessage(message, type);
-
-        if (result) {
-            this.performanceManager.cacheMessage(cacheKey, result);
-        }
-
-        return result;
-    }
-
-    /**
-     * Get chat performance statistics
-     */
-    getPerformanceStats () {
-        return {
-            ...this.performanceManager.getStats(),
-            isProcessing: this.isProcessing
-        };
-    }
-
-    /**
-     * Clear all caches
-     */
-    clearCaches () {
-        this.performanceManager.clearCaches();
-    }
 }

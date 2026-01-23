@@ -185,21 +185,22 @@ const chatController = {
 
       // Handle enhanced context
       const rawContext = req.body.context || {};
-      const context = {
-        ...rawContext,
-        userId: req.userId,
-        scriptId
-      };
 
       // Handle scriptId - check both req.body.scriptId and context.scriptId
       let scriptId = null;
-      const scriptIdSource = req.body.scriptId || context.scriptId;
+      const scriptIdSource = req.body.scriptId || rawContext.scriptId;
       if (scriptIdSource !== null && scriptIdSource !== undefined) {
         scriptId = parseInt(scriptIdSource, 10);
         if (isNaN(scriptId)) {
           return res.status(400).json({ error: 'Invalid script ID' });
         }
       }
+
+      const context = {
+        ...rawContext,
+        userId: req.userId,
+        scriptId
+      };
 
       // 2. Create and execute chat
       console.log('[ChatController] startChat', { userId: req.userId, scriptId, requestId: req.headers['x-correlation-id'] || null });
