@@ -448,6 +448,10 @@ export class ChatManager extends BaseManager {
 
     extractMessageContent (data) {
         if (typeof data === 'string') {
+            const parsed = this.tryParseJsonString(data);
+            if (parsed) {
+                return this.extractMessageContent(parsed);
+            }
             return data.trim();
         }
 
@@ -463,6 +467,10 @@ export class ChatManager extends BaseManager {
             const messageFields = ['message', 'text', 'content', 'details', 'answer', 'reply'];
             for (const field of messageFields) {
                 if (data[field] && typeof data[field] === 'string') {
+                    const parsed = this.tryParseJsonString(data[field]);
+                    if (parsed) {
+                        return this.extractMessageContent(parsed);
+                    }
                     return data[field].trim();
                 }
             }
@@ -482,6 +490,22 @@ export class ChatManager extends BaseManager {
 
         console.warn('[ChatManager] Could not extract content from response:', data);
         return '';
+    }
+
+    tryParseJsonString (value) {
+        if (!value || typeof value !== 'string') {
+            return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) {
+            return null;
+        }
+        try {
+            const parsed = JSON.parse(trimmed);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (error) {
+            return null;
+        }
     }
 
     normalizeMessage (messageData, type) {
