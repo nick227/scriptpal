@@ -1,6 +1,12 @@
 const SHARED_TOPBAR_HTML = `
-    <div class="navbar">
-        <h1 class="title">ScriptPal</h1>
+    <header class="site-header">
+        <div class="site-brand">
+            <h1 class="title">ScriptPal</h1>
+        </div>
+        <nav class="site-nav">
+            <a href="public-scripts.html" class="site-nav__link">All</a>
+            <a href="index.html" class="site-nav__link">Mine</a>
+        </nav>
         <div class="auth-widget">
             <div class="user-info auth-user" aria-live="polite" style="display: none;">
                 <span class="auth-avatar" aria-hidden="true"></span>
@@ -15,7 +21,7 @@ const SHARED_TOPBAR_HTML = `
             <div class="user-forms auth-forms"></div>
         </div>
         <div class="script-selector hidden"></div>
-    </div>
+    </header>
 `;
 
 export const renderSharedTopBar = (containerId = 'shared-topbar') => {

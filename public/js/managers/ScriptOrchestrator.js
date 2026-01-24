@@ -1,5 +1,6 @@
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
+import { isValidFormat } from '../constants/formats.js';
 
 /**
  *
@@ -153,11 +154,33 @@ export class ScriptOrchestrator {
                 throw new Error('Editor content component not available');
             }
 
-            const lines = String(data.content).split(/\r?\n/);
-            const lineItems = lines.map((line) => ({
-                content: line,
-                format: this.determineContentFormat(line)
-            }));
+            const rawLines = String(data.content).split(/\r?\n/);
+            const lines = rawLines
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+            console.log('[ScriptOrchestrator] append line normalization', {
+                rawLineCount: rawLines.length,
+                normalizedLineCount: lines.length
+            });
+            const lineItems = lines.map((line) => {
+                const parsed = this.parseTaggedLine(line);
+                if (parsed) {
+                    return parsed;
+                }
+                return {
+                    content: line,
+                    format: this.determineContentFormat(line)
+                };
+            });
+            const formatCounts = lineItems.reduce((acc, item) => {
+                const key = item.format || 'unknown';
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+            console.log('[ScriptOrchestrator] append format breakdown', {
+                formatCounts,
+                sample: lineItems.slice(0, 5)
+            });
 
             console.log('[ScriptOrchestrator] append lines', {
                 totalLines: lineItems.length
@@ -219,6 +242,42 @@ export class ScriptOrchestrator {
 
         // Default to action
         return 'action';
+    }
+
+    parseTaggedLine (line) {
+        if (typeof line !== 'string') {
+            return null;
+        }
+        const trimmedLine = line.trim();
+        if (!trimmedLine) {
+            return null;
+        }
+        const selfClosingMatch = trimmedLine.match(/^<([\w-]+)\s*\/>$/);
+        if (selfClosingMatch) {
+            const format = selfClosingMatch[1].toLowerCase();
+            if (!isValidFormat(format)) {
+                return null;
+            }
+            if (format !== 'chapter-break') {
+                return null;
+            }
+            return {
+                format,
+                content: ''
+            };
+        }
+        const match = trimmedLine.match(/^<([\w-]+)>([\s\S]*)<\/\1>$/);
+        if (!match) {
+            return null;
+        }
+        const format = match[1].toLowerCase();
+        if (!isValidFormat(format)) {
+            return null;
+        }
+        return {
+            format,
+            content: match[2].trim()
+        };
     }
 
     /**

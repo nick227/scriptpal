@@ -47,7 +47,7 @@ const configSchema = Joi.object({
   OPENAI_MODEL: Joi.string().default('gpt-3.5-turbo'),
   OPENAI_MAX_TOKENS: Joi.number().min(1).max(4000).default(1000),
   OPENAI_TEMPERATURE: Joi.number().min(0).max(2).default(0.7),
-  OPENAI_TIMEOUT: Joi.number().min(1000).default(30000),
+  OPENAI_TIMEOUT: Joi.number().min(1000).default(90000),
   OPENAI_MAX_RETRIES: Joi.number().min(0).max(5).default(3),
 
   // Logging configuration

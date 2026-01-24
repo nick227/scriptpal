@@ -94,14 +94,6 @@ export class ModernChatWidget extends BaseWidget {
 
             <div class="chat-input-area">
                 <div class="chat-input-container">
-                    <div class="chat-input-actions">
-                        <button class="chat-input-btn" title="Emoji" data-action="emoji" aria-label="Add emoji">
-                            <i class="fas fa-smile"></i>
-                        </button>
-                        <button class="chat-input-btn" title="Attach File" data-action="attach" aria-label="Attach file">
-                            <i class="fas fa-paperclip"></i>
-                        </button>
-                    </div>
                     <div class="chat-input-wrapper">
                         <textarea
                             id="user-input"
@@ -111,9 +103,6 @@ export class ModernChatWidget extends BaseWidget {
                         ></textarea>
                     </div>
                     <div class="chat-input-actions">
-                        <button class="chat-input-btn" title="Voice Message" data-action="voice" aria-label="Voice message">
-                            <i class="fas fa-microphone"></i>
-                        </button>
                         <button class="chat-input-btn primary" title="Send" data-action="send" aria-label="Send message">
                             <i class="fas fa-paper-plane"></i>
                         </button>

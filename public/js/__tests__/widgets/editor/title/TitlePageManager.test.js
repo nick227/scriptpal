@@ -3,6 +3,7 @@
  */
 
 import { TitlePageManager } from '../../../../widgets/editor/title/TitlePageManager.js';
+import { StateManager } from '../../../../core/StateManager.js';
 
 describe('TitlePageManager - Title Page Management', () => {
     let titlePageManager;
@@ -448,6 +449,45 @@ describe('TitlePageManager - Title Page Management', () => {
             const titlePage = mockContainer.querySelector('.title-page');
             expect(titlePage).toBeTruthy();
             expect(mockContainer.contains(titlePage)).toBe(true);
+        });
+    });
+
+    describe('Visibility handling', () => {
+        test('retains the last known visibility when script payload lacks it', () => {
+            titlePageManager.titlePageData.visibility = 'public';
+            titlePageManager.visibilitySelect.value = 'public';
+
+            const scriptWithoutVisibility = {
+                id: 1,
+                title: 'Updated Title',
+                author: 'Updated Author',
+                content: '<script></script>',
+                createdAt: '2026-01-01T00:00:00Z'
+            };
+
+            titlePageManager.handleScriptChange(scriptWithoutVisibility);
+
+            expect(titlePageManager.titlePageData.visibility).toBe('public');
+            expect(titlePageManager.visibilitySelect.value).toBe('public');
+        });
+
+        test('updates the visibility when the script payload includes it', () => {
+            titlePageManager.titlePageData.visibility = 'private';
+            titlePageManager.visibilitySelect.value = 'private';
+
+            const scriptWithPublicVisibility = {
+                id: 1,
+                title: 'Updated Title',
+                author: 'Updated Author',
+                content: '<script></script>',
+                visibility: 'public',
+                createdAt: '2026-01-01T00:00:00Z'
+            };
+
+            titlePageManager.handleScriptChange(scriptWithPublicVisibility);
+
+            expect(titlePageManager.titlePageData.visibility).toBe('public');
+            expect(titlePageManager.visibilitySelect.value).toBe('public');
         });
     });
 

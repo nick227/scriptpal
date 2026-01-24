@@ -4,21 +4,41 @@
 
 import { MESSAGE_TYPES, ERROR_MESSAGES } from '../../../constants.js';
 import { ChatManager } from '../../../widgets/chat/ChatManager.js';
+import { StateManager } from '../../../core/StateManager.js';
+
+const defaultScript = { id: 'script-1', title: 'My Script', versionNumber: 1 };
+const defaultUser = { id: 'user-1', name: 'Test User' };
 
 describe('Requirement #6: AI Script Discussion', () => {
     let chatManager;
     let mockStateManager;
+    let stateStorage;
     let mockApi;
     let mockEventManager;
     let mockElements;
     let mockRenderer;
 
     beforeEach(() => {
-        // Create mock state manager
+        stateStorage = {
+            [StateManager.KEYS.CURRENT_SCRIPT]: { ...defaultScript },
+            [StateManager.KEYS.USER]: { ...defaultUser },
+            [StateManager.KEYS.CURRENT_SCRIPT_ID]: defaultScript.id,
+            [StateManager.KEYS.EDITOR_READY]: true,
+            [StateManager.KEYS.LOADING]: false,
+            [StateManager.KEYS.ERROR]: null
+        };
+
         mockStateManager = {
-            subscribe: jest.fn(),
-            setState: jest.fn(),
-            getState: jest.fn().mockReturnValue(null)
+            subscribe: jest.fn((key, listener) => {
+                if (typeof listener === 'function') {
+                    listener(stateStorage[key]);
+                }
+                return () => {};
+            }),
+            setState: jest.fn((key, value) => {
+                stateStorage[key] = value;
+            }),
+            getState: jest.fn((key) => stateStorage[key])
         };
 
         // Create mock API
@@ -31,7 +51,8 @@ describe('Requirement #6: AI Script Discussion', () => {
 
         // Create mock event manager
         mockEventManager = {
-            publish: jest.fn()
+            publish: jest.fn(),
+            subscribe: jest.fn().mockReturnValue(() => {})
         };
 
         // Create mock elements
@@ -134,8 +155,10 @@ describe('Requirement #6: AI Script Discussion', () => {
             expect(mockEventManager.publish).toHaveBeenCalledWith(
                 'CHAT:MESSAGE_ADDED',
                 expect.objectContaining({
-                    content: userMessage,
-                    type: MESSAGE_TYPES.USER
+                    message: expect.objectContaining({
+                        content: userMessage,
+                        type: MESSAGE_TYPES.USER
+                    })
                 })
             );
         });
@@ -210,6 +233,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should process and render user messages', async () => {
@@ -274,6 +300,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should send message and process response', async () => {
@@ -287,7 +316,13 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             const result = await chatManager.handleSend(message);
 
-            expect(mockApi.getChatResponse).toHaveBeenCalledWith(message);
+            expect(mockApi.getChatResponse).toHaveBeenCalledWith(
+                message,
+                expect.objectContaining({
+                    scriptContent: expect.any(String),
+                    scriptTitle: expect.any(String)
+                })
+            );
             expect(mockRenderer.render).toHaveBeenCalledWith(message, MESSAGE_TYPES.USER);
             expect(mockRenderer.render).toHaveBeenCalledWith('Hello, user!', MESSAGE_TYPES.ASSISTANT);
             expect(mockEventManager.publish).toHaveBeenCalled();
@@ -306,9 +341,9 @@ describe('Requirement #6: AI Script Discussion', () => {
 
         test('should validate message before sending', async () => {
             // Test invalid messages
-            await expect(chatManager.handleSend(null)).resolves.toBeUndefined();
-            await expect(chatManager.handleSend('')).resolves.toBeUndefined();
-            await expect(chatManager.handleSend(123)).resolves.toBeUndefined();
+            await expect(chatManager.handleSend(null)).resolves.toBeNull();
+            await expect(chatManager.handleSend('')).resolves.toBeNull();
+            await expect(chatManager.handleSend(123)).resolves.toBeNull();
 
             expect(mockApi.getChatResponse).not.toHaveBeenCalled();
         });
@@ -322,7 +357,7 @@ describe('Requirement #6: AI Script Discussion', () => {
             // Try to send second message while first is processing
             const secondPromise = chatManager.handleSend('Second message');
 
-            await expect(secondPromise).resolves.toBeUndefined();
+            await expect(secondPromise).resolves.toBeNull();
             await firstPromise;
         });
 
@@ -350,7 +385,7 @@ describe('Requirement #6: AI Script Discussion', () => {
             expect(mockOrchestrator.handleScriptEdit).toHaveBeenCalledWith({
                 content: '<script><action>New content</action></script>',
                 isFromEdit: true,
-                version_number: 2
+                versionNumber: 2
             });
         });
     });
@@ -359,6 +394,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should load chat history', async () => {
@@ -405,6 +443,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should handle script changes', () => {
@@ -418,8 +459,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         test('should not add title message for same script', () => {
             const script = { id: 'script-1', title: 'My Script' };
 
-            // Set current script
-            mockStateManager.getState.mockReturnValue(script);
+            // Keep the current script in state and mark it as selected
+            stateStorage[StateManager.KEYS.CURRENT_SCRIPT] = script;
+            chatManager.currentScriptId = script.id;
 
             chatManager.handleScriptChange(script);
 
@@ -437,6 +479,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should handle renderer errors gracefully', async () => {
@@ -479,6 +524,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should set loading state during message processing', async () => {
@@ -515,6 +563,9 @@ describe('Requirement #6: AI Script Discussion', () => {
         beforeEach(() => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            mockRenderer.render.mockClear();
+            mockRenderer.renderButtons.mockClear();
+            mockRenderer.clear.mockClear();
         });
 
         test('should handle button clicks', async () => {
@@ -524,7 +575,13 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             await chatManager.handleButtonClick(buttonText);
 
-            expect(mockApi.getChatResponse).toHaveBeenCalledWith(buttonText);
+            expect(mockApi.getChatResponse).toHaveBeenCalledWith(
+                buttonText,
+                expect.objectContaining({
+                    scriptContent: expect.any(String),
+                    scriptTitle: expect.any(String)
+                })
+            );
         });
 
         test('should handle empty button text', () => {

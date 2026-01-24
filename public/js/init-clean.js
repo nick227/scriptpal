@@ -14,6 +14,8 @@ import { AuthWidget } from './widgets/auth/AuthWidget.js';
 import { ChatIntegration } from './widgets/chat/ChatIntegration.js';
 import { ScriptsUIBootstrap } from './widgets/script/ScriptsUIBootstrap.js';
 import { renderSharedTopBar, getTopBarElements } from './layout/sharedLayout.js';
+import { ScriptSyncService } from './managers/ScriptSyncService.js';
+import { ScriptOrchestrator } from './managers/ScriptOrchestrator.js';
 
 // Global app instance
 window.scriptPalApp = null;
@@ -59,6 +61,7 @@ async function initScriptPal () {
             authenticatedViewsInitialized = true;
             await initScriptsUI(api, stateManager, eventManager, scriptStore);
             await initChat(api, stateManager, eventManager);
+            wireScriptOrchestrator(scriptStore, eventManager);
             setAuthLockState(true);
         };
 
@@ -85,6 +88,54 @@ async function initScriptPal () {
 
         // Show error to user
         showError('Failed to initialize ScriptPal. Please refresh the page.');
+    }
+}
+
+let orchestratorWireSubscribed = false;
+let orchestratorScriptSelectedSubscribed = false;
+
+function wireScriptOrchestrator (scriptStore, eventManager) {
+    const scriptsUI = window.scriptPalScriptsUI;
+    const chat = window.scriptPalChat;
+    if (!scriptsUI || !chat) {
+        console.warn('[init] Cannot wire orchestrator: missing scripts UI or chat');
+        return;
+    }
+
+    const editorWidget = scriptsUI.getEditorWidget && scriptsUI.getEditorWidget();
+    if (!editorWidget || !scriptsUI.isEditorReady || !scriptsUI.isEditorReady()) {
+        console.debug('[init] Editor not ready for orchestrator wiring');
+        if (!orchestratorWireSubscribed && eventManager?.subscribe) {
+            orchestratorWireSubscribed = true;
+            eventManager.subscribe(EventManager.EVENTS.EDITOR.EDITOR_AREA_READY, () => {
+                if (window.scriptPalApp?.stateManager) {
+                    window.scriptPalApp.stateManager.setState(StateManager.KEYS.EDITOR_READY, true);
+                }
+                wireScriptOrchestrator(scriptStore, eventManager);
+            });
+        }
+        if (!orchestratorScriptSelectedSubscribed && eventManager?.subscribe) {
+            orchestratorScriptSelectedSubscribed = true;
+            eventManager.subscribe(EventManager.EVENTS.SCRIPT.SELECTED, () => {
+                wireScriptOrchestrator(scriptStore, eventManager);
+            });
+        }
+        return;
+    }
+
+    if (!window.scriptPalOrchestrator) {
+        const syncService = new ScriptSyncService(scriptStore, eventManager);
+        window.scriptPalOrchestrator = new ScriptOrchestrator(
+            scriptStore,
+            syncService,
+            editorWidget.container,
+            editorWidget
+        );
+        console.log('[init] ScriptOrchestrator wired');
+    }
+
+    if (typeof chat.setScriptOrchestrator === 'function') {
+        chat.setScriptOrchestrator(window.scriptPalOrchestrator);
     }
 }
 

@@ -88,7 +88,7 @@ export class ScriptsUIBootstrap {
         });
 
         this.stateManager.subscribe(StateManager.KEYS.USER, this.handleUserChange.bind(this));
-        this.handleUserChange(this.stateManager.getState(StateManager.KEYS.USER));
+        await this.handleUserChange(this.stateManager.getState(StateManager.KEYS.USER));
     }
 
     /**
@@ -111,12 +111,23 @@ export class ScriptsUIBootstrap {
                     this.stateManager
                 );
                 this.scriptsController.setEditorWidget(this.editorWidget, this.editorReady);
+                if (this.editorReady) {
+                    this.stateManager.setState(StateManager.KEYS.EDITOR_READY, true);
+                }
             }
             return;
         }
 
         this.hideScriptsUI();
         this.scriptStore.clearState();
+    }
+
+    getEditorWidget () {
+        return this.editorWidget;
+    }
+
+    isEditorReady () {
+        return Boolean(this.editorReady);
     }
 
     /**

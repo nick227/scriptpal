@@ -8,7 +8,7 @@ const toScriptWithVersion = (script, version) => {
     ...script,
     versionNumber: version ? version.versionNumber : 1,
     content: version ? version.content : '',
-    visibility: script.visibility || 'private',
+    visibility: script.visibility ?? 'private',
     updatedAt: script.updatedAt,
     createdAt: script.createdAt
   };
@@ -25,6 +25,12 @@ const scriptModel = {
     }
 
     const version = await scriptVersionRepository.getLatestByScriptId(id);
+    console.log('[ScriptModel] getScript', {
+      scriptId: id,
+      visibility: script.visibility,
+      requestedVersion: versionNumber,
+      latestVersion: version?.versionNumber
+    });
     return toScriptWithVersion(script, version);
   },
   createScript: async(script) => {
@@ -116,6 +122,7 @@ const scriptModel = {
         title: true,
         author: true,
         status: true,
+        visibility: true,
         createdAt: true,
         updatedAt: true,
         versions: {

@@ -255,8 +255,28 @@ export class ScriptListWidget extends BaseWidget {
         }
 
         try {
+            const currentScriptId = this.currentScript ? String(this.currentScript.id) : null;
+            const scriptId = String(script.id);
 
-            await this.scriptStore.deleteScript(script.id);
+            const deletionMarked = await this.scriptStore.deleteScript(script.id);
+            if (!deletionMarked) {
+                return;
+            }
+
+            const remainingScripts = this.scripts.filter(item => String(item.id) !== scriptId);
+            if (remainingScripts.length !== this.scripts.length) {
+                this.scripts = remainingScripts;
+                this.updateScriptList();
+            }
+
+            if (currentScriptId && currentScriptId === scriptId) {
+                const nextScript = remainingScripts[0] || null;
+                if (nextScript) {
+                    await this.scriptStore.selectScript(nextScript.id, { source: 'delete' });
+                } else {
+                    this.setCurrentScript(null);
+                }
+            }
 
         } catch (error) {
             console.error('[ScriptListWidget] Failed to delete script:', error);

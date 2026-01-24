@@ -9,7 +9,6 @@ export class PublicScriptsWidget {
         this.api = api;
         this.container = document.querySelector('.public-scripts-panel');
         this.listContainer = null;
-        this.viewerContainer = null;
         this.sortControl = null;
         this.refreshButton = null;
         this.loadMoreButton = null;
@@ -22,7 +21,6 @@ export class PublicScriptsWidget {
         this.sortBy = 'updatedAt';
         this.order = 'desc';
         this.isLoading = false;
-        this.selectedScriptId = null;
     }
 
     async initialize () {
@@ -32,14 +30,13 @@ export class PublicScriptsWidget {
         }
 
         this.listContainer = this.container.querySelector('.public-scripts-list');
-        this.viewerContainer = this.container.querySelector('.public-script-viewer');
         this.sortControl = this.container.querySelector('.public-scripts-sort');
         this.refreshButton = this.container.querySelector('.public-scripts-refresh');
         this.loadMoreButton = this.container.querySelector('.public-scripts-load-more');
         this.metaLabel = this.container.querySelector('.public-scripts-meta');
 
-        if (!this.listContainer || !this.viewerContainer) {
-            console.warn('[PublicScriptsWidget] List or viewer container is missing');
+        if (!this.listContainer) {
+            console.warn('[PublicScriptsWidget] List container is missing');
             return;
         }
 
@@ -75,7 +72,6 @@ export class PublicScriptsWidget {
 
             if (reset) {
                 this.publicScripts = response.scripts || [];
-                this.selectedScriptId = null;
             } else {
                 this.publicScripts = [
                     ...this.publicScripts,
@@ -119,102 +115,35 @@ export class PublicScriptsWidget {
     }
 
     createScriptCard (script) {
-        const card = document.createElement('div');
+        const card = document.createElement('article');
         card.className = 'public-script-card';
         card.dataset.scriptId = script.id;
 
-        const header = document.createElement('div');
-        header.className = 'public-script-card__header';
-
-        const title = document.createElement('h3');
-        title.textContent = script.title || 'Untitled Script';
-
-        const badge = document.createElement('span');
-        badge.className = `public-script-badge public-script-badge--${script.visibility || 'private'}`;
-        badge.textContent = (script.visibility || 'private').toUpperCase();
-
-        header.appendChild(title);
-        header.appendChild(badge);
-        card.appendChild(header);
-
-        const summary = document.createElement('p');
-        summary.className = 'public-script-card__summary';
-        summary.textContent = script.summary || 'No preview available.';
-        card.appendChild(summary);
+        const titleLink = document.createElement('a');
+        titleLink.className = 'public-script-card__title';
+        titleLink.textContent = script.title || 'Untitled Script';
+        titleLink.href = `public-script.html?id=${encodeURIComponent(script.id || '')}`;
+        titleLink.target = '_blank';
+        titleLink.rel = 'noopener noreferrer';
 
         const meta = document.createElement('div');
-        meta.className = 'public-script-meta';
-        meta.innerHTML = `
-            <span>By ${script.author || 'Unknown'}</span>
-            <span>v${script.versionNumber || 1}</span>
-            <span>${this.formatDate(script.updatedAt)}</span>
-        `;
+        meta.className = 'public-script-card__meta';
+
+        const authorSpan = document.createElement('span');
+        authorSpan.textContent = script.author || 'Unknown author';
+
+        const versionSpan = document.createElement('span');
+        versionSpan.textContent = `Version ${script.versionNumber || 1}`;
+
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = this.formatDate(script.updatedAt);
+
+        meta.append(authorSpan, versionSpan, dateSpan);
+
+        card.appendChild(titleLink);
         card.appendChild(meta);
 
-        const action = document.createElement('button');
-        action.className = 'public-script-card__action';
-        action.type = 'button';
-        action.textContent = 'View read-only';
-        action.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.handleCardSelect(script.id);
-        });
-
-        card.appendChild(action);
-
-        card.addEventListener('click', () => this.handleCardSelect(script.id));
-
         return card;
-    }
-
-    async handleCardSelect (scriptId) {
-        if (!scriptId || !this.viewerContainer) return;
-        if (this.selectedScriptId === scriptId) {
-            return;
-        }
-
-        this.selectedScriptId = scriptId;
-        this.viewerContainer.innerHTML = '<div class="public-scripts-loading">Loading script preview...</div>';
-
-        try {
-            const script = await this.api.getPublicScript(scriptId);
-            if (!script) {
-                this.viewerContainer.innerHTML = '<div class="public-script-error">Script details unavailable.</div>';
-                return;
-            }
-            this.renderViewer(script);
-        } catch (error) {
-            console.error('[PublicScriptsWidget] Failed to load script:', error);
-            this.viewerContainer.innerHTML = '<div class="public-script-error">Unable to load script preview.</div>';
-        }
-    }
-
-    renderViewer (script) {
-        if (!this.viewerContainer) return;
-
-        const ownerEmail = script.owner?.email ? ` (${script.owner.email})` : '';
-        this.viewerContainer.innerHTML = `
-            <h3 class="public-script-viewer__title">${script.title || 'Untitled Script'}</h3>
-            <div class="public-script-viewer__metadata">
-                <span>${script.author || 'Unknown author'}</span>
-                <span>v${script.versionNumber || 1}</span>
-                <span>${this.formatDate(script.updatedAt)}</span>
-                <span>Owner ID: ${script.owner?.id || 'N/A'}${ownerEmail}</span>
-            </div>
-            <div class="public-script-viewer__content">${this.escapeHtml(script.content)}</div>
-        `;
-    }
-
-    escapeHtml (value) {
-        if (typeof value !== 'string') {
-            return '';
-        }
-        return value
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
     }
 
     updateMeta () {

@@ -151,7 +151,7 @@ export class ChatHistoryManager {
      */
     async handleScriptChange (script) {
         if (!script || !script.id) {
-            console.warn('[ChatHistoryManager] Invalid script provided');
+            console.debug('[ChatHistoryManager] Script not selected yet');
             return;
         }
 

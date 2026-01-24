@@ -47,6 +47,20 @@ window.history = {
   forward: jest.fn(),
 };
 
+const noop = jest.fn();
+global.alert = noop;
+global.confirm = jest.fn(() => true);
+global.prompt = jest.fn(() => '');
+window.alert = global.alert;
+window.confirm = global.confirm;
+window.prompt = global.prompt;
+
+window.getSelection = jest.fn(() => ({
+  removeAllRanges: jest.fn(),
+  addRange: jest.fn(),
+  toString: jest.fn(() => '')
+}));
+
 // Mock console methods to reduce noise in tests
 const originalConsole = { ...console };
 global.console = {

@@ -1,14 +1,4 @@
-// Valid script tags - cached for performance
-const VALID_TAGS = Object.freeze([
-  'header',
-  'action',
-  'speaker',
-  'dialog',
-  'directions',
-  'chapter-break',
-  'parenthetical',
-  'transition'
-]);
+import { VALID_FORMAT_VALUES } from '../../constants.js';
 
 // Error types for better error handling
 const EditErrors = {
@@ -129,8 +119,8 @@ export class ScriptEditHelper {
     }
 
     const [, tag, content] = match;
-    if (!VALID_TAGS.includes(tag)) {
-      throw new Error(`${EditErrors.INVALID_TAG}: Invalid tag '${tag}'. Must be one of: ${VALID_TAGS.join(', ')}`);
+    if (!VALID_FORMAT_VALUES.includes(tag)) {
+      throw new Error(`${EditErrors.INVALID_TAG}: Invalid tag '${tag}'. Must be one of: ${VALID_FORMAT_VALUES.join(', ')}`);
     }
 
     return { tag, content: content.trim() };

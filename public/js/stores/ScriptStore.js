@@ -30,6 +30,17 @@ export class ScriptStore extends BaseManager {
         this.activePatches = new Set();
         this.patchFlushDelay = 5000; // milliseconds
         this.maxPatchRetryDelay = 30000; // milliseconds
+        this.visibilityFilter = 'all';
+    }
+
+    normalizeVisibility (value) {
+        const defaultValue = 'private';
+        if (!value || typeof value !== 'string') {
+            return defaultValue;
+        }
+        const normalized = value.toLowerCase();
+        const allowedVisibilities = new Set(['private', 'public']);
+        return allowedVisibilities.has(normalized) ? normalized : defaultValue;
     }
 
     handleAuthError (error) {
@@ -100,8 +111,28 @@ export class ScriptStore extends BaseManager {
             content: script.content || '',
             title: script.title || 'UNKNOWN',
             author: script.author || '',
+            visibility: this.normalizeVisibility(script.visibility),
             timestamp: Date.now()
         };
+    }
+
+    getFilteredScripts () {
+        if (this.visibilityFilter === 'all') {
+            return [...this.scripts];
+        }
+        return this.scripts.filter((script) => String(script.visibility || 'private') === this.visibilityFilter);
+    }
+
+    updateScriptsState () {
+        this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.getFilteredScripts());
+    }
+
+    setVisibilityFilter (filter) {
+        const allowedFilters = new Set(['all', 'private', 'public']);
+        const normalized = allowedFilters.has(filter) ? filter : 'all';
+        if (this.visibilityFilter === normalized) return;
+        this.visibilityFilter = normalized;
+        this.updateScriptsState();
     }
 
     /**
@@ -125,18 +156,20 @@ export class ScriptStore extends BaseManager {
 
             if (!scripts || !Array.isArray(scripts)) {
                 this.scripts = [];
-                this.stateManager.setState(StateManager.KEYS.SCRIPTS, []);
+                this.updateScriptsState();
                 return [];
             }
 
             this.scripts = scripts.map(script => this.standardizeScript(script));
-            this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+            this.updateScriptsState();
 
             return this.scripts;
         } catch (error) {
             console.error('[ScriptStore] Failed to load scripts:', error);
             this.handleAuthError(error);
             this.handleError(error, 'script');
+            this.scripts = [];
+            this.updateScriptsState();
             return [];
         } finally {
             this.setLoading(false);
@@ -174,6 +207,7 @@ export class ScriptStore extends BaseManager {
             const script = shouldUseCache
                 ? cached
                 : await this.api.getScript(scriptId);
+            console.log('[ScriptStore] loadScript raw api response', { scriptId, script });
 
             if (!script || !script.id) {
                 console.warn('[ScriptStore] Invalid script data received');
@@ -192,7 +226,7 @@ export class ScriptStore extends BaseManager {
             } else {
                 this.scripts[index] = standardized;
             }
-            this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+            this.updateScriptsState();
 
             if (options.forceFresh) {
                 this.eventManager.publish(EventManager.EVENTS.SCRIPT.CONTENT_UPDATED, {
@@ -259,6 +293,13 @@ export class ScriptStore extends BaseManager {
             if (Object.prototype.hasOwnProperty.call(effectivePatch, 'author')
                 && effectivePatch.author === currentScript.author) {
                 delete effectivePatch.author;
+            }
+            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'visibility')) {
+                effectivePatch.visibility = this.normalizeVisibility(effectivePatch.visibility);
+                const currentVisibility = this.normalizeVisibility(currentScript.visibility);
+                if (effectivePatch.visibility === currentVisibility) {
+                    delete effectivePatch.visibility;
+                }
             }
             if (Object.prototype.hasOwnProperty.call(effectivePatch, 'versionNumber')
                 && effectivePatch.versionNumber === currentScript.versionNumber) {
@@ -327,7 +368,8 @@ export class ScriptStore extends BaseManager {
             title: entry.patch.title ?? currentScript.title,
             author: entry.patch.author ?? currentScript.author,
             content: entry.patch.content ?? currentScript.content ?? '',
-            versionNumber: entry.patch.versionNumber ?? currentScript.versionNumber ?? 1
+            versionNumber: entry.patch.versionNumber ?? currentScript.versionNumber ?? 1,
+            visibility: entry.patch.visibility ?? currentScript.visibility ?? 'private'
         };
 
         this.activePatches.add(scriptId);
@@ -354,6 +396,11 @@ export class ScriptStore extends BaseManager {
         }
     }
 
+    async flushPatchImmediately (scriptId) {
+        if (!scriptId) return;
+        await this.flushPatch(scriptId);
+    }
+
     /**
      * Apply patch data to local script cache and current script state
      * @param {number|string} scriptId
@@ -370,8 +417,8 @@ export class ScriptStore extends BaseManager {
                 ...this.scripts[index],
                 ...patch
             };
-            this.scripts[index] = updatedScript;
-            this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+        this.scripts[index] = updatedScript;
+        this.updateScriptsState();
         }
 
         const currentScript = this.getCurrentScript();
@@ -424,6 +471,9 @@ export class ScriptStore extends BaseManager {
             };
             if (scriptData.author !== undefined) {
                 updateData.author = scriptData.author;
+            }
+            if (scriptData.visibility !== undefined) {
+                updateData.visibility = this.normalizeVisibility(scriptData.visibility);
             }
 
             const updatedScript = await this.api.updateScript(id, updateData);
@@ -487,7 +537,7 @@ export class ScriptStore extends BaseManager {
         } else {
             this.scripts[index] = standardized;
         }
-        this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+        this.updateScriptsState();
     }
 
     /**
@@ -530,15 +580,16 @@ export class ScriptStore extends BaseManager {
     async deleteScript (id) {
         if (!id || this.isLoading) {
             console.warn('[ScriptStore] Invalid script ID or already loading:', id);
-            return;
+            return false;
         }
 
+        let wasDeleted = false;
         try {
             this.setLoading(true);
             await this.api.deleteScript(id);
 
             this.scripts = this.scripts.filter(s => String(s.id) !== String(id));
-            this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+            this.updateScriptsState();
 
             if (String(this.currentScriptId) === String(id)) {
                 this.setCurrentScript(null, { source: 'delete' });
@@ -548,12 +599,14 @@ export class ScriptStore extends BaseManager {
                 scriptId: id,
                 remainingScripts: this.scripts.length
             });
+            wasDeleted = true;
         } catch (error) {
             console.error('[ScriptStore] Delete failed:', error);
             this.handleError(error, 'script');
         } finally {
             this.setLoading(false);
         }
+        return wasDeleted;
     }
 
     /**
@@ -574,7 +627,7 @@ export class ScriptStore extends BaseManager {
         };
 
         this.scripts[index] = updatedScript;
-        this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+        this.updateScriptsState();
 
         if (String(this.currentScriptId) === normalizedId) {
             this.setCurrentScript({
@@ -602,7 +655,7 @@ export class ScriptStore extends BaseManager {
         };
 
         this.scripts[index] = updatedScript;
-        this.stateManager.setState(StateManager.KEYS.SCRIPTS, this.scripts);
+        this.updateScriptsState();
 
         if (String(this.currentScriptId) === normalizedId) {
             this.setCurrentScript({
@@ -621,6 +674,7 @@ export class ScriptStore extends BaseManager {
         if (script && script.id) {
             this.currentScriptId = script.id;
             this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT_ID, Number(script.id));
+            console.log('[ScriptStore] setCurrentScript', script.id, script.visibility);
             this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT, script);
 
             this.eventManager.publish(EventManager.EVENTS.SCRIPT.SELECTED, {
@@ -737,7 +791,7 @@ export class ScriptStore extends BaseManager {
     clearState () {
         this.scripts = [];
         this.setCurrentScript(null);
-        this.stateManager.setState(StateManager.KEYS.SCRIPTS, []);
+        this.updateScriptsState();
         this.clearAllPatchState();
     }
 

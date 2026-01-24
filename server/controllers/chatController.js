@@ -2,10 +2,13 @@ import { ERROR_TYPES } from './langchain/constants.js';
 import { Chat } from './chat/Chat.js';
 import chatMessageRepository from '../repositories/chatMessageRepository.js';
 import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
+import { generateFullScript, FULL_SCRIPT_GENERATION_MODE } from './scripts/FullScriptService.js';
 
 const APPEND_PAGE_PATTERNS = [
   /\bnext page\b/i,
+  /\bnext scene\b/i,
   /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bpage\b/i,
+  /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bscene\b/i,
   /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscript\b/i,
   /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscreenplay\b/i
 ];
@@ -16,6 +19,25 @@ const isAppendPageRequest = (prompt) => {
   }
 
   return APPEND_PAGE_PATTERNS.some(pattern => pattern.test(prompt));
+};
+
+const FULL_SCRIPT_PATTERNS = [
+  /\b(generate|write|create)\b[\s\S]{0,50}\bfull script\b/i,
+  /\b(generate|write|create)\b[\s\S]{0,50}\bfull screenplay\b/i,
+  /\b(generate|write|create)\b[\s\S]{0,50}\blong script\b/i,
+  /\blong[- ]form script\b/i,
+  /\b(full story arc)\b/i,
+  /\b(10|ten|11|eleven|12|twelve|13|thirteen|14|fourteen|15|fifteen)\s*[- ]?\s*(page|pages)\b/i,
+  /\b(continue|expand)\b[\s\S]{0,50}\bseries\b/i,
+  /\b(generate|write|create)\b[\s\S]{0,50}\bnovel\b/i
+];
+
+const isFullScriptRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return FULL_SCRIPT_PATTERNS.some(pattern => pattern.test(prompt));
 };
 
 // Move handleChatError to be a standalone function
@@ -37,6 +59,14 @@ function handleChatError(error) {
   } else if (error.message.includes(Chat.CHAT_ERRORS.INVALID_INTENT)) {
     errorResponse.status = 400;
     errorResponse.body.error = 'Invalid intent';
+  } else if (
+    error.message.includes('Rate limit exceeded') ||
+    error.message.includes('insufficient_quota') ||
+    error.message.includes('429')
+  ) {
+    errorResponse.status = 429;
+    errorResponse.body.error = 'AI rate limit exceeded';
+    errorResponse.body.details = 'The AI service is temporarily unavailable. Please try again shortly.';
   } else if (error.message === 'insufficient_content') {
     errorResponse.status = 400;
     errorResponse.body.error = 'Insufficient content for analysis';
@@ -223,7 +253,46 @@ const chatController = {
         prompt: req.body.prompt
       });
 
-      if (scriptId && isAppendPageRequest(req.body.prompt)) {
+      const forceFullScript = Boolean(context.forceFullScript);
+      const shouldGenerateFullScript = scriptId && (forceFullScript || isFullScriptRequest(req.body.prompt));
+      if (shouldGenerateFullScript) {
+        console.log('[ChatController] full script request detected, generating', {
+          scriptId,
+          forceFullScript
+        });
+        const fullScriptResult = await generateFullScript({
+          scriptId,
+          userId: req.userId,
+          prompt: req.body.prompt
+        });
+
+        console.log('[ChatController] full script generated', {
+          scriptId,
+          responseLength: fullScriptResult.responseText?.length || 0
+        });
+
+      return res.status(200).json({
+        success: true,
+        intent: APPEND_SCRIPT_INTENT,
+        confidence: 1,
+        target: null,
+        value: null,
+        scriptId,
+        scriptTitle: fullScriptResult.scriptTitle,
+        timestamp: new Date().toISOString(),
+        response: {
+          content: fullScriptResult.responseText,
+          metadata: {
+            generationMode: FULL_SCRIPT_GENERATION_MODE,
+            fullScript: true,
+            forceFullScript
+          }
+        }
+      });
+      }
+
+      const forceAppend = Boolean(context.forceAppend);
+      if (scriptId && (forceAppend || isAppendPageRequest(req.body.prompt))) {
         console.log('[ChatController] append-page detected, generating');
         const appendResult = await generateAppendPage({
           scriptId,
@@ -248,7 +317,8 @@ const chatController = {
           response: {
             content: appendResult.responseText,
             metadata: {
-              generationMode: APPEND_PAGE_INTENT
+              generationMode: APPEND_PAGE_INTENT,
+              forceAppend
             }
           }
         });

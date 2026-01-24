@@ -644,6 +644,15 @@ export class EditorDOMHandler {
 
         this._rebuildLineElementMap();
 
+        if (options.source === 'append') {
+            const domLines = Array.from(this.container.querySelectorAll('.script-line')).slice(0, 5);
+            console.log('[EditorDOMHandler] append render sample', domLines.map(line => ({
+                format: line.getAttribute('data-format'),
+                className: line.className,
+                text: line.textContent
+            })));
+        }
+
         this._restoreCurrentLine(preferredLineId, options);
 
         return true;

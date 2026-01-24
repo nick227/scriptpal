@@ -15,6 +15,7 @@
 @import 'components/title-page.css';
 @import 'components/fullscreen.css';
 @import 'components/authentication.css';
+@import 'components/site-header.css';
 @import 'components/public-scripts.css';
 @import 'components/clean-architecture.css';
 

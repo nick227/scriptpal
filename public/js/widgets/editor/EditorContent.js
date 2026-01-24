@@ -916,7 +916,12 @@ export class EditorContent {
             }
 
             console.log('[EditorContent] appendLines', {
-                lineCount: lines.length
+                lineCount: lines.length,
+                formatCounts: lines.reduce((acc, line) => {
+                    const key = line?.format || 'unknown';
+                    acc[key] = (acc[key] || 0) + 1;
+                    return acc;
+                }, {})
             });
 
             let lastLine = null;

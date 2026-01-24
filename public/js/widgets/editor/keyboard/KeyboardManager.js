@@ -344,19 +344,25 @@ export class KeyboardManager {
             return true;
         }
 
-        // Shift+Arrow should change format (not selection)
-        if (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        // Shift+Arrow should extend selection (not change format)
+        if (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
             event.preventDefault();
             event.stopPropagation();
 
-            const direction = (event.key === 'ArrowUp' || event.key === 'ArrowLeft') ? -1 : 1;
-            const currentFormat = scriptLine.getAttribute('data-format');
-            const newFormat = getCircularFormat(currentFormat, direction);
+            if (!this.selectionStart) {
+                this.selectionStart = scriptLine;
+            }
 
-            this._clearLineSelection();
-            const selectionState = this._captureSelection(scriptLine);
-            this._applyFormatCommand(scriptLine, newFormat);
-            this._restoreSelection(scriptLine, selectionState);
+            const nextLine = event.key === 'ArrowUp' ?
+                this.pageManager.operations.getPreviousLine(scriptLine) :
+                this.pageManager.operations.getNextLine(scriptLine);
+
+            if (nextLine) {
+                this.selectionEnd = nextLine;
+                this._updateLineSelection(this.selectionStart, this.selectionEnd);
+                return true;
+            }
+
             return true;
         }
 

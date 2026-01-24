@@ -158,6 +158,25 @@ export class LineFormatter {
 
         return line;
     }
+    /**
+     * Create a static line element for read-only viewers.
+     * @param {object} options
+     * @param {string} [options.format]
+     * @param {string} [options.content]
+     */
+    static createStaticLine ({ format = DEFAULT_FORMAT, content = '' } = {}) {
+        const safeFormat = validateFormat(format) ? format : DEFAULT_FORMAT;
+        const line = document.createElement('div');
+        line.className = `script-line format-${safeFormat}`;
+        line.dataset.format = safeFormat;
+        line.setAttribute('role', 'presentation');
+        line.setAttribute('aria-label', `${safeFormat} line`);
+        line.setAttribute('data-static-line', 'true');
+        line.contentEditable = 'false';
+        line.tabIndex = -1;
+        line.textContent = content || '';
+        return line;
+    }
 
     /**
      *

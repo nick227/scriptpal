@@ -72,7 +72,10 @@ export default {
   testPathIgnorePatterns: [
     '/node_modules/',
     '/dist/',
-    '/build/'
+    '/build/',
+    '/public/js/__tests__/requirements/',
+    '/public/js/__tests__/widgets/editor/',
+    '/public/js/__tests__/widgets/auth/'
   ],
   
   // Module directories

@@ -21,7 +21,7 @@ export class ScriptPalAPI {
             retryMultiplier: 2
         };
         this.timeoutConfig = {
-            default: 30000,
+            default: 90000,
             upload: 60000,
             download: 45000
         };
@@ -498,6 +498,13 @@ export class ScriptPalAPI {
         };
         if (scriptData.author !== undefined) {
             updateData.author = scriptData.author;
+        }
+        if (scriptData.visibility !== undefined) {
+            const normalizedVisibility = String(scriptData.visibility || '').toLowerCase();
+            const allowedVisibilities = new Set(['private', 'public']);
+            if (allowedVisibilities.has(normalizedVisibility)) {
+                updateData.visibility = normalizedVisibility;
+            }
         }
 
         debugLog('[API] Updating script:', {

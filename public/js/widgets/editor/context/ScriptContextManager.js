@@ -182,11 +182,17 @@ export class ScriptContextManager {
                 ...(includeAnalysis && await this.getScriptAnalysis())
             };
 
+            const normalizedContext = {
+                ...context,
+                scriptContent: context.content || '',
+                scriptTitle: context.title || 'Untitled Script'
+            };
+
             // Cache the context
-            this.contextCache.set(cacheKey, context);
+            this.contextCache.set(cacheKey, normalizedContext);
             this.lastContextUpdate = Date.now();
 
-            return context;
+            return normalizedContext;
         } catch (error) {
             console.error('[ScriptContextManager] Failed to get script context:', error);
             throw error;
@@ -207,6 +213,7 @@ export class ScriptContextManager {
             id: script.id,
             scriptId: script.id,
             title: script.title || 'Untitled Script',
+            scriptTitle: script.title || 'Untitled Script',
             status: script.status || 'active',
             version: script.versionNumber || 1,
             createdAt: script.createdAt,
@@ -403,9 +410,11 @@ export class ScriptContextManager {
             scriptId: null,
             timestamp: new Date().toISOString(),
             title: 'No Script',
+            scriptTitle: 'No Script',
             status: 'none',
             version: 0,
             content: '',
+            scriptContent: '',
             contentLength: 0,
             hasContent: false,
             pageInfo: { pageCount: 0, currentPage: 0, hasPages: false },

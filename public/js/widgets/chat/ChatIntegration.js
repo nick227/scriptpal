@@ -26,6 +26,7 @@ export class ChatIntegration {
         this.eventManager = eventManager;
         this.chatWidget = null;
         this.chatManager = null;
+        this.scriptOrchestrator = null;
         this.systemPromptBridge = null;
         this.chatEventUnsubscribers = [];
         this.isInitialized = false;
@@ -77,6 +78,13 @@ export class ChatIntegration {
         } catch (error) {
             console.error('[ChatIntegration] Failed to initialize:', error);
             throw error;
+        }
+    }
+
+    setScriptOrchestrator (orchestrator) {
+        this.scriptOrchestrator = orchestrator;
+        if (this.chatManager && orchestrator) {
+            this.chatManager.setScriptOrchestrator(orchestrator);
         }
     }
 

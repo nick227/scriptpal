@@ -31,6 +31,7 @@ export class ScriptOperationsHandler {
         const orchestrator = this.getScriptOrchestrator && this.getScriptOrchestrator();
         const content = data.response && data.response.content;
         const commands = data.response && data.response.commands;
+        const versionNumber = data.response && (data.response.versionNumber ?? data.response.version_number);
 
         if (!content) {
             console.warn('[ScriptOperationsHandler] No content provided for script edit');
@@ -46,7 +47,7 @@ export class ScriptOperationsHandler {
             await orchestrator.handleScriptEdit({
                 content,
                 isFromEdit: true,
-                versionNumber: data.response.versionNumber,
+                versionNumber,
                 commands
             });
         } catch (error) {
@@ -80,18 +81,40 @@ export class ScriptOperationsHandler {
 
     async _handleScriptAppend (data) {
         const orchestrator = this.getScriptOrchestrator && this.getScriptOrchestrator();
+        const metadata = data?.response?.metadata || null;
 
         if (this._hasLineInsertionData(data)) {
             await this._handleLineInsertion(data);
             return;
         }
 
-        const content = data.response && data.response.content;
+        const content = typeof data.response === 'string'
+            ? data.response
+            : data.response && data.response.content;
+        if (typeof content === 'string') {
+            const lines = content.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+            const taggedCount = lines.filter(line =>
+                /^<([\w-]+)>([\s\S]*)<\/\1>$/.test(line) ||
+                /^<chapter-break\s*\/>$/.test(line)
+            ).length;
+            console.log('[ScriptOperationsHandler] append content format check', {
+                totalLines: lines.length,
+                taggedLines: taggedCount,
+                sample: lines.slice(0, 5)
+            });
+        }
         console.log('[ScriptOperationsHandler] append intent received', {
             hasContent: !!content,
             contentLength: typeof content === 'string' ? content.length : null,
-            hasOrchestrator: !!orchestrator
+            hasOrchestrator: !!orchestrator,
+            validationError: metadata?.validationError || null
         });
+        if (metadata?.validationError) {
+            console.warn('[ScriptOperationsHandler] Append blocked due to validation error', {
+                validationError: metadata.validationError
+            });
+            return;
+        }
         if (!orchestrator) {
             console.warn('[ScriptOperationsHandler] No script orchestrator available for append');
             return;

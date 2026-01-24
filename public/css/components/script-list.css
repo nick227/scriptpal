@@ -6,11 +6,19 @@
     min-width: 200px;
 }
 
+.script-panel-header__controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 /* Dropdown Container */
 .script-list-dropdown {
     position: relative;
     display: inline-block;
     width: 100%;
+    max-width: 365px;
+    background-color: white;
 }
 
 /* Dropdown Trigger */
@@ -27,11 +35,6 @@
     transition: all 0.2s ease;
     font-size: 14px;
     color: var(--color-text);
-}
-
-.script-dropdown-trigger:hover {
-    border-color: var(--color-primary);
-    background: var(--color-background-hover);
 }
 
 .script-dropdown-trigger.has-script {
@@ -58,6 +61,31 @@
     color: var(--color-text-secondary);
 }
 
+.visibility-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+.visibility-picker__label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted, #6b7280);
+}
+
+.visibility-picker__select {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    font-size: 14px;
+    background: var(--color-background, #fff);
+    color: var(--color-text, #1a1a1a);
+    min-width: 150px;
+}
+
 .dropdown-icon.open {
     transform: rotate(180deg);
 }
@@ -68,19 +96,20 @@
     top: 100%;
     left: 0;
     right: 0;
-    background: var(--color-background);
+    background: white;
     border: 1px solid var(--color-border);
     border-radius: 4px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
-    max-height: 300px;
     overflow-y: auto;
     margin-top: 2px;
+    padding: 15px;
 }
 
 /* Script List */
 .script-list {
     padding: 4px 0;
+    background-color: white;
 }
 
 /* Script Item */
@@ -91,24 +120,16 @@
     cursor: pointer;
     transition: background-color 0.2s ease;
     border-bottom: 1px solid var(--color-border-light);
+    background-color: white;
 }
 
 .script-item:last-child {
     border-bottom: none;
 }
 
-.script-item:hover {
-    background: var(--color-background-hover);
-}
-
 .script-item.selected {
     background: var(--color-primary-light);
     color: var(--color-primary-dark);
-}
-
-.script-item.selected:hover {
-    background: var(--color-primary);
-    color: white;
 }
 
 /* Script Info */
@@ -229,83 +250,4 @@
     margin: 4px;
     font-size: 12px;
     text-align: center;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .script-list-widget {
-        min-width: 150px;
-    }
-    
-    .script-dropdown-trigger {
-        padding: 6px 8px;
-        font-size: 13px;
-    }
-    
-    .script-item {
-        padding: 6px 8px;
-    }
-    
-    .script-item-title {
-        font-size: 13px;
-    }
-    
-    .script-item-meta {
-        font-size: 11px;
-    }
-    
-    .script-actions {
-        gap: 2px;
-    }
-    
-    .select-script-button,
-    .delete-script-button {
-        width: 20px;
-        height: 20px;
-        font-size: 10px;
-    }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    .script-dropdown-trigger {
-        background: var(--color-background-dark);
-        border-color: var(--color-border-dark);
-        color: var(--color-text-dark);
-    }
-    
-    .script-dropdown-trigger:hover {
-        background: var(--color-background-hover-dark);
-        border-color: var(--color-primary);
-    }
-    
-    .script-dropdown-menu {
-        background: var(--color-background-dark);
-        border-color: var(--color-border-dark);
-    }
-    
-    .script-item {
-        border-bottom-color: var(--color-border-light-dark);
-    }
-    
-    .script-item:hover {
-        background: var(--color-background-hover-dark);
-    }
-    
-    .script-item.selected {
-        background: var(--color-primary-light-dark);
-        color: var(--color-primary-dark);
-    }
-    
-    .script-item-meta {
-        color: var(--color-text-secondary-dark);
-    }
-    
-    .empty-state {
-        color: var(--color-text-secondary-dark);
-    }
-    
-    .loading-indicator {
-        color: var(--color-text-secondary-dark);
-    }
 }

@@ -141,7 +141,10 @@ export class PersistenceManager {
         const snapshot = {
             scriptId: script.id ? Number(script.id) : null,
             cursorPosition: this.getCursorPosition(),
-            scrollPosition: this.getScrollPosition()
+            scrollPosition: this.getScrollPosition(),
+            title: script.title || '',
+            author: script.author || '',
+            visibility: script.visibility || 'private'
         };
 
         if (!snapshot.scriptId) {
@@ -149,6 +152,7 @@ export class PersistenceManager {
         }
 
         debugLog('[PersistenceManager] Script changed, saving context for script:', snapshot.scriptId);
+        console.log('[PersistenceManager] snapshot', snapshot);
 
         if (this.isSnapshotEqual(this.lastPersistedScriptSnapshot, snapshot)) {
             return;
@@ -161,7 +165,10 @@ export class PersistenceManager {
         this.saveToStorage(this.storageKeys.CURRENT_SCRIPT_STATE, {
             scriptId: snapshot.scriptId,
             cursorPosition: snapshot.cursorPosition,
-            scrollPosition: snapshot.scrollPosition
+            scrollPosition: snapshot.scrollPosition,
+            title: snapshot.title,
+            author: snapshot.author,
+            visibility: snapshot.visibility
         });
 
         saveJsonToStorage(this.storageKeys.SCRIPT_CURSOR_POSITION, snapshot.cursorPosition);
@@ -637,6 +644,7 @@ export class PersistenceManager {
 
         try {
             debugLog('[PersistenceManager] Restoring script context for script:', scriptState.scriptId);
+            console.log('[PersistenceManager] restoring scriptState', scriptState);
 
             const scriptId = scriptState.scriptId || scriptState.id;
             if (this.stateManager && scriptId) {
@@ -728,7 +736,10 @@ export class PersistenceManager {
 
         return a.scriptId === b.scriptId &&
             JSON.stringify(a.cursorPosition) === JSON.stringify(b.cursorPosition) &&
-            JSON.stringify(a.scrollPosition) === JSON.stringify(b.scrollPosition);
+            JSON.stringify(a.scrollPosition) === JSON.stringify(b.scrollPosition) &&
+            a.title === b.title &&
+            a.author === b.author &&
+            a.visibility === b.visibility;
     }
 
     /**

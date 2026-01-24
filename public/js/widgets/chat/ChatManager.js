@@ -1,13 +1,26 @@
 import { MESSAGE_TYPES, ERROR_MESSAGES } from '../../constants.js';
 import { BaseManager } from '../../core/BaseManager.js';
 import { EventManager } from '../../core/EventManager.js';
+import { debugLog } from '../../core/logger.js';
 import { StateManager } from '../../core/StateManager.js';
 import { RendererFactory } from '../../renderers.js';
 import { ScriptContextManager } from '../editor/context/ScriptContextManager.js';
-import { debugLog } from '../../core/logger.js';
 
 import { ChatHistoryManager } from './ChatHistoryManager.js';
 import { ScriptOperationsHandler } from './ScriptOperationsHandler.js';
+
+const createDefaultRenderer = () => {
+    const container = typeof document !== 'undefined' && document.createElement
+        ? document.createElement('div')
+        : {};
+
+    return {
+        container,
+        render: () => Promise.resolve(true),
+        renderButtons: () => {},
+        clear: () => {}
+    };
+};
 
 const PAGE_LOAD_WELCOME_MESSAGE = 'Welcome to ScriptPal. I can help you write, edit, and explore your script. Select or create a script to get started.';
 
@@ -39,6 +52,7 @@ export class ChatManager extends BaseManager {
         this.eventManager = eventManager;
         this.isProcessing = false;
         this.currentScriptId = null;
+        this.appendQueue = new Map();
 
         this.scriptOperationsHandler = new ScriptOperationsHandler({
             getScriptOrchestrator: () => this.scriptOrchestrator,
@@ -61,6 +75,13 @@ export class ChatManager extends BaseManager {
         });
     }
 
+    ensureRenderer () {
+        if (this.renderer && this.renderer.container) {
+            return;
+        }
+        this.renderer = createDefaultRenderer();
+    }
+
     /**
      *
      * @param refreshManager
@@ -75,6 +96,7 @@ export class ChatManager extends BaseManager {
      */
     setScriptOrchestrator (orchestrator) {
         this.scriptOrchestrator = orchestrator;
+        this.flushAppendQueue();
     }
 
     /**
@@ -96,13 +118,14 @@ export class ChatManager extends BaseManager {
      * @param script
      */
     async handleScriptChange (script) {
+        const scriptId = script?.id || null;
+        const previousScriptId = this.currentScriptId;
+        const isNewScript = !previousScriptId || (scriptId && previousScriptId !== scriptId);
+        this.currentScriptId = scriptId;
+
         if (!script || !this.renderer) {
             return;
         }
-
-        const previousScriptId = this.currentScriptId;
-        this.currentScriptId = script.id;
-        const isNewScript = !previousScriptId || previousScriptId !== script.id;
 
         // Only add title message if it's a different script (by ID)
         if (isNewScript) {
@@ -115,6 +138,77 @@ export class ChatManager extends BaseManager {
                 this.renderWelcomeMessage();
             }
         }
+
+        this.dropQueueForOtherScripts(script.id);
+        this.flushAppendQueue();
+    }
+
+    flushAppendQueue () {
+        if (!this.scriptOrchestrator || this.appendQueue.size === 0) {
+            return;
+        }
+
+        if (!this.isEditorReady()) {
+            return;
+        }
+
+        const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+        if (!currentScript || !currentScript.id) {
+            return;
+        }
+
+        this.processAppendQueueForScript(currentScript.id);
+    }
+
+    async processAppendQueueForScript (scriptId) {
+        const queued = this.appendQueue.get(scriptId) || [];
+        if (queued.length === 0) {
+            return;
+        }
+
+        const remaining = [...queued];
+        while (remaining.length > 0) {
+            const payload = remaining[0];
+            try {
+                await this.scriptOperationsHandler.handleIntent('APPEND_SCRIPT', payload);
+                remaining.shift();
+            } catch (error) {
+                this.processAndRenderMessage(
+                    'Append replay failed. Please try again.',
+                    MESSAGE_TYPES.ASSISTANT
+                );
+                break;
+            }
+        }
+
+        if (remaining.length > 0) {
+            this.appendQueue.set(scriptId, remaining);
+            return;
+        }
+
+        this.appendQueue.delete(scriptId);
+    }
+
+    dropQueueForOtherScripts (activeScriptId) {
+        const activeId = String(activeScriptId);
+        const dropped = [];
+        for (const [scriptId, entries] of this.appendQueue.entries()) {
+            if (String(scriptId) !== activeId) {
+                dropped.push(...entries);
+                this.appendQueue.delete(scriptId);
+            }
+        }
+
+        if (dropped.length > 0) {
+            this.processAndRenderMessage(
+                'Append discarded because you switched scripts before the editor was ready.',
+                MESSAGE_TYPES.ASSISTANT
+            );
+        }
+    }
+
+    isEditorReady () {
+        return this.stateManager.getState(StateManager.KEYS.EDITOR_READY) === true;
     }
 
     /**
@@ -140,7 +234,7 @@ export class ChatManager extends BaseManager {
     async processAndRenderMessage (messageData, type) {
         if (!messageData) {
             console.warn('[ChatManager] No message data provided');
-            return null;
+            return '';
         }
 
         try {
@@ -156,7 +250,7 @@ export class ChatManager extends BaseManager {
                 content
             }, type);
 
-            await this.safeRenderMessage(normalizedMessage);
+            await this.safeRenderMessage(normalizedMessage.content, normalizedMessage.type);
             this.processQuestionButtons(parsedData);
 
             debugLog('[ChatManager] Message processed successfully:', {
@@ -165,7 +259,7 @@ export class ChatManager extends BaseManager {
                 hasButtons: this.hasQuestionButtons(parsedData)
             });
 
-            return normalizedMessage;
+            return normalizedMessage.content;
         } catch (error) {
             console.error('[ChatManager] Failed to process and render message:', error);
             this.handleError(error, 'processAndRenderMessage');
@@ -216,6 +310,8 @@ export class ChatManager extends BaseManager {
      * @returns {Promise<object|null>} - The API response or null if failed
      */
     async handleSend (message) {
+        this.ensureRenderer();
+
         if (!this.validateSendConditions(message)) {
             console.warn('[ChatManager] Message validation failed:', message);
             return null;
@@ -253,10 +349,14 @@ export class ChatManager extends BaseManager {
             this.processQuestionButtons(data.response);
 
             // Extract response content and metadata
-            const responseContent = this.extractResponseContent(data);
+            let responseContent = this.extractResponseContent(data);
             if (!responseContent) {
                 console.warn('[ChatManager] No content found in response');
                 return null;
+            }
+
+            if (data.intent === 'APPEND_SCRIPT') {
+                responseContent = 'I have added that to your script.';
             }
 
             // Process and render assistant response
@@ -302,7 +402,7 @@ export class ChatManager extends BaseManager {
      * @returns {Promise<object|null>} - The API response or null if failed
      */
     async getApiResponseWithTimeout (message) {
-        const timeout = 30000; // 30 seconds timeout
+        const timeout = 90000; // 90 seconds timeout
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Request timeout')), timeout);
         });
@@ -313,9 +413,16 @@ export class ChatManager extends BaseManager {
                 includeHistory: true,
                 maxTokens: 1000
             });
+            const forceAppend = this._isAppendRequest(message);
+            if (forceAppend) {
+                console.warn('[ChatManager] Forcing append routing for message', { message });
+            }
 
             return await Promise.race([
-                this.api.getChatResponse(message, scriptContext),
+                this.api.getChatResponse(message, {
+                    ...scriptContext,
+                    forceAppend
+                }),
                 timeoutPromise
             ]);
         } catch (error) {
@@ -331,7 +438,9 @@ export class ChatManager extends BaseManager {
      * @param {object} data - The API response data
      */
     async handleScriptOperations (data) {
-        const intent = data.intent || (data.response && data.response.intent);
+        let intent = data.intent || (data.response && data.response.intent);
+        const metadata = data.response?.metadata || {};
+        const isFullScriptResponse = metadata.fullScript === true;
 
         if (!intent) {
             return;
@@ -343,7 +452,107 @@ export class ChatManager extends BaseManager {
             responseType: typeof data.response
         });
 
+        if (intent === 'SCRIPT_CONVERSATION' && this._looksLikeTaggedScript(data)) {
+            console.warn('[ChatManager] Detected tagged script output in SCRIPT_CONVERSATION response. Forcing append.', {
+                scriptId: data.scriptId,
+                responseType: typeof data.response
+            });
+            intent = 'APPEND_SCRIPT';
+            if (typeof data.response === 'string') {
+                data.response = { content: data.response };
+            }
+        }
+
+        if (isFullScriptResponse && intent !== 'APPEND_SCRIPT') {
+            console.log('[ChatManager] Full script response detected, forcing append handling', {
+                scriptId: data.scriptId,
+                previousIntent: intent,
+                metadata
+            });
+            intent = 'APPEND_SCRIPT';
+        }
+
+        if (intent === 'APPEND_SCRIPT') {
+            const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+            if (!currentScript || !currentScript.id) {
+                await this.processAndRenderMessage(
+                    'Select a script before appending new content.',
+                    MESSAGE_TYPES.ASSISTANT
+                );
+                return;
+            }
+
+            if (!this.isEditorReady()) {
+                console.debug('[ChatManager] Editor not ready, queueing append');
+                const existing = this.appendQueue.get(currentScript.id) || [];
+                this.appendQueue.set(currentScript.id, [
+                    ...existing,
+                    { ...data, scriptId: currentScript.id, timestamp: Date.now() }
+                ]);
+                return;
+            }
+
+            if (!this.scriptOrchestrator) {
+                await this.processAndRenderMessage(
+                    'Append failed: editor not ready.',
+                    MESSAGE_TYPES.ASSISTANT
+                );
+                return;
+            }
+
+            const rawContent = typeof data.response === 'string'
+                ? data.response
+                : data?.response?.content;
+            if (typeof rawContent === 'string') {
+                const sample = rawContent.split(/\r?\n/).slice(0, 5);
+                console.log('[ChatManager] append content sample', {
+                    lineCount: rawContent.split(/\r?\n/).length,
+                    sample
+                });
+            }
+        }
+
         await this.scriptOperationsHandler.handleIntent(intent, data);
+    }
+
+    _isAppendRequest (message) {
+        if (!message || typeof message !== 'string') {
+            return false;
+        }
+        const text = message.trim();
+        if (!text) {
+            return false;
+        }
+        const patterns = [
+            /\bnext page\b/i,
+            /\bnext scene\b/i,
+            /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bpage\b/i,
+            /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bscene\b/i,
+            /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscript\b/i,
+            /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscreenplay\b/i
+        ];
+        return patterns.some(pattern => pattern.test(text));
+    }
+
+    _looksLikeTaggedScript (data) {
+        const raw = typeof data?.response === 'string'
+            ? data.response
+            : data?.response?.content;
+        if (!raw || typeof raw !== 'string') {
+            return false;
+        }
+        const lines = raw
+            .split(/\r?\n/)
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+        if (lines.length === 0) {
+            return false;
+        }
+        const taggedLines = lines.filter(line =>
+            /^<([\w-]+)>([\s\S]*)<\/\1>$/.test(line) ||
+            /^<chapter-break\s*\/>$/.test(line)
+        );
+        return taggedLines.length >= Math.min(3, lines.length);
     }
 
     /**

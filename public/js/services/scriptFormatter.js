@@ -1,3 +1,4 @@
+import { VALID_FORMAT_VALUES } from '../constants/formats.js';
 import { debugLog } from '../core/logger.js';
 
 /**
@@ -8,14 +9,7 @@ export class ScriptFormatter {
      *
      */
     constructor () {
-        this.validTags = [
-            'header',
-            'speaker',
-            'dialog',
-            'action',
-            'directions',
-            'chapter-break'
-        ];
+        this.validTags = VALID_FORMAT_VALUES;
     }
 
     /**
@@ -56,7 +50,13 @@ export class ScriptFormatter {
      * @param content
      */
     containsMarkup (content) {
-        return content.includes('</') || content.includes('/>');
+        return content
+            .split('\n')
+            .some(line => {
+                const trimmed = line.trim();
+                return /^<([a-zA-Z-]+)>[\s\S]*<\/\1>$/.test(trimmed) ||
+                    /^<chapter-break\s*\/>$/.test(trimmed);
+            });
     }
 
     /**
@@ -68,6 +68,9 @@ export class ScriptFormatter {
         let formatted = content
             .replace(/<\?xml[^>]*\?>/g, '')
             .replace(/<!DOCTYPE[^>]*>/g, '');
+
+        // Normalize known self-closing tags to canonical form
+        formatted = formatted.replace(/<chapter-break\s*\/>/gi, '<chapter-break></chapter-break>');
 
         // Clean up whitespace between tags
         formatted = formatted
@@ -124,7 +127,7 @@ export class ScriptFormatter {
 
         // Check for special case first
         if (line === '---') {
-            return '<chapter-break/>';
+            return this.createTaggedLine('chapter-break', '');
         }
 
         // Check against format rules
@@ -233,26 +236,7 @@ export class ScriptFormatter {
      * @param content
      */
     validateContentStructure (content) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(content, 'text/html');
-        const body = doc.body;
-
-        // Get all elements at the root level
-        const elements = Array.from(body.children);
-        const validElements = elements.filter(element =>
-            this.validTags.includes(element.tagName.toLowerCase())
-        );
-
-        debugLog('[SCRIPT] Validation found tags:', {
-            uniqueTags: [...new Set(validElements.map(el => el.tagName.toLowerCase()))],
-            validElementCount: validElements.length
-        });
-
-        if (validElements.length === 0) {
-            return this.validateTextContent(content);
-        }
-
-        return true;
+        return this.validateTextContent(content);
     }
 
     /**
@@ -264,13 +248,16 @@ export class ScriptFormatter {
 
         for (const line of lines) {
             const trimmed = line.trim();
-            if (this.isValidTagLine(trimmed)) {
-                return true;
+            if (!trimmed) {
+                continue;
+            }
+            if (!this.isValidTagLine(trimmed)) {
+                console.warn('[SCRIPT] Invalid tag line detected');
+                return false;
             }
         }
 
-        console.warn('[SCRIPT] No valid content tags found in text content');
-        return false;
+        return true;
     }
 
     /**
@@ -280,7 +267,7 @@ export class ScriptFormatter {
     isValidTagLine (line) {
         if (!line.startsWith('<') || !line.endsWith('>')) return false;
 
-        const tagMatch = line.match(/<\/?([a-zA-Z-]+)/);
+        const tagMatch = line.match(/^<([a-zA-Z-]+)>[\s\S]*<\/\1>$/);
         return tagMatch && this.validTags.includes(tagMatch[1].toLowerCase());
     }
 

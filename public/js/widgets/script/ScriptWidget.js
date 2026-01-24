@@ -21,6 +21,7 @@ export class ScriptWidget extends BaseWidget {
         super(elements);
         this.renderer = null;
         this.scriptStore = null;
+        this.visibilityPicker = null;
         this.setManagers(stateManager, eventManager);
     }
 
@@ -63,6 +64,14 @@ export class ScriptWidget extends BaseWidget {
             listContainer,
             this.handleScriptSelect.bind(this)
         );
+
+        this.visibilityPicker = this.createVisibilityPicker();
+        const controls = document.createElement('div');
+        controls.className = 'script-panel-header__controls';
+        controls.appendChild(createButton);
+        controls.appendChild(this.visibilityPicker);
+        header.innerHTML = '';
+        header.appendChild(controls);
 
         // Set up state subscriptions
         this.setupStateSubscriptions();
@@ -137,6 +146,44 @@ export class ScriptWidget extends BaseWidget {
      */
     setScriptStore (scriptStore) {
         this.scriptStore = scriptStore;
+    }
+
+    /**
+     * Build visibility filter picker for user scripts
+     * @returns {HTMLElement}
+     */
+    createVisibilityPicker () {
+        const picker = document.createElement('div');
+        picker.className = 'visibility-picker';
+
+        const select = document.createElement('select');
+        select.className = 'visibility-picker__select';
+
+        const options = [
+            { value: 'all', label: 'All' },
+            { value: 'private', label: 'Private' },
+            { value: 'public', label: 'Public' }
+        ];
+
+        options.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.value;
+            option.textContent = opt.label;
+            select.appendChild(option);
+        });
+
+        select.value = this.scriptStore ? this.scriptStore.visibilityFilter : 'all';
+
+        select.addEventListener('change', (event) => {
+            const filteredValue = event.target.value;
+            if (this.scriptStore) {
+                this.scriptStore.setVisibilityFilter(filteredValue);
+            }
+        });
+
+        picker.appendChild(select);
+
+        return picker;
     }
 
     /**
