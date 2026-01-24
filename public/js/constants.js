@@ -13,6 +13,7 @@ export const API_ENDPOINTS = {
     USER: '/user',
     SYSTEM_PROMPTS: '/system-prompts'
 };
+API_ENDPOINTS.PUBLIC_SCRIPTS = '/public/scripts';
 
 export const API_HEADERS = {
     'Content-Type': 'application/json'
@@ -48,6 +49,9 @@ export const UI_ELEMENTS = {
     MINIMAP_CONTAINER: '.minimap-container',
     EDITOR_AREA: '.editor-area'
 };
+UI_ELEMENTS.PUBLIC_SCRIPTS_PANEL = '.public-scripts-panel';
+UI_ELEMENTS.PUBLIC_SCRIPTS_LIST = '.public-scripts-list';
+UI_ELEMENTS.PUBLIC_SCRIPT_VIEWER = '.public-script-viewer';
 
 export const UI_COMPONENTS = {
     SCRIPT_PAL_UI: 'ScriptPalUI'

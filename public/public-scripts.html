@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal · Public Scripts</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
+</head>
+
+<body class="auth-locked">
+    <div id="shared-topbar"></div>
+
+    <main class="public-scripts-page">
+        <section class="public-scripts-panel" aria-live="polite">
+            <header class="public-scripts-header">
+                <div>
+                    <h2>Public Scripts</h2>
+                    <p>Browse scripts that creators have published for the community.</p>
+                </div>
+                <div class="public-scripts-controls">
+                    <label>
+                        Sort by
+                        <select class="public-scripts-sort">
+                            <option value="updatedAt" selected>Newest</option>
+                            <option value="createdAt">Oldest</option>
+                            <option value="title">Title</option>
+                        </select>
+                    </label>
+                    <button class="public-scripts-refresh" type="button">Refresh list</button>
+                </div>
+            </header>
+
+            <div class="public-scripts-main">
+                <div class="public-scripts-list"></div>
+                <div class="public-script-viewer">
+                    <div class="public-script-viewer__empty">
+                        <h3>Select a public script to preview</h3>
+                        <p>Public scripts are read-only. You can copy the content but editing is restricted to the owner.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="public-scripts-footer">
+                <button class="public-scripts-load-more" type="button">Load more public scripts</button>
+                <span class="public-scripts-meta"></span>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="js/pages/publicScriptsPage.js"></script>
+</body>
+
+</html>

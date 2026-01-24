@@ -642,8 +642,8 @@ export class EditorContent {
 
         this.stateManager.setCurrentFormat(command.format);
         const content = this.getContent();
-        this.emit(this.constructor.EVENTS.CHANGE, content);
-        this.emit(this.constructor.EVENTS.FORMAT_CHANGE, command.format);
+        this.emit(EDITOR_EVENTS.CONTENT_CHANGE, content);
+        this.emit(EDITOR_EVENTS.FORMAT_CHANGE, command.format);
         this.debouncedContentUpdate();
 
         return updated;
@@ -900,6 +900,59 @@ export class EditorContent {
             return { success: true, element: domLine, line: newLine };
         } catch (error) {
             console.error('[EditorContent] Failed to append content:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Append multiple lines to the end of the script
+     * @param {Array<{content: string, format: string}>} lines - Lines to append
+     * @returns {Promise<object>} - Result of the operation
+     */
+    async appendLines (lines = []) {
+        try {
+            if (!Array.isArray(lines) || lines.length === 0) {
+                return { success: false };
+            }
+
+            console.log('[EditorContent] appendLines', {
+                lineCount: lines.length
+            });
+
+            let lastLine = null;
+            for (const line of lines) {
+                const content = typeof line?.content === 'string' ? line.content : '';
+                const format = typeof line?.format === 'string' ? line.format : 'action';
+                lastLine = this.document.insertLineAt(this.document.lines.length, {
+                    format,
+                    content
+                });
+            }
+
+            await this.domHandler.renderDocument(this.document, { source: 'append' });
+
+            const domLine = lastLine ?
+                this.domHandler.focusLineById(lastLine.id, { position: 'end' }) :
+                null;
+
+            this.emit('contentChanged', {
+                type: 'append',
+                content: lines.map(line => line?.content || '').join('\n'),
+                format: lastLine?.format || 'action',
+                element: domLine
+            });
+            const contentValue = this.getContent();
+            this.emit(EDITOR_EVENTS.CONTENT_CHANGE, contentValue);
+            this.debouncedContentUpdate();
+
+            return {
+                success: true,
+                element: domLine,
+                line: lastLine,
+                format: lastLine?.format || 'action'
+            };
+        } catch (error) {
+            console.error('[EditorContent] Failed to append lines:', error);
             throw error;
         }
     }

@@ -5,6 +5,7 @@ import personaController from './controllers/personaController.js';
 import systemPromptController from './controllers/systemPromptController.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import chatController from './controllers/chatController.js';
+import publicScriptController from './controllers/publicScriptController.js';
 
 const routes = [
 
@@ -28,6 +29,16 @@ const routes = [
     path: '/welcome/buttons',
     method: 'get',
     handler: chatController.getWelcomeButtons
+  },
+  {
+    path: '/public/scripts',
+    method: 'get',
+    handler: publicScriptController.list
+  },
+  {
+    path: '/public/scripts/:id',
+    method: 'get',
+    handler: publicScriptController.get
   },
 
   // Protected routes (require auth)
@@ -101,6 +112,12 @@ const routes = [
     path: '/script/:id',
     method: 'put',
     handler: scriptController.updateScript,
+    middleware: [validateSession]
+  },
+  {
+    path: '/script/:id/append-page',
+    method: 'post',
+    handler: scriptController.appendPage,
     middleware: [validateSession]
   },
   {

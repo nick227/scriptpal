@@ -337,6 +337,12 @@ export class ChatManager extends BaseManager {
             return;
         }
 
+        console.log('[ChatManager] handleScriptOperations', {
+            intent,
+            hasResponse: !!data.response,
+            responseType: typeof data.response
+        });
+
         await this.scriptOperationsHandler.handleIntent(intent, data);
     }
 

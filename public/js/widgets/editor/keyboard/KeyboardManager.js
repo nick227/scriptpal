@@ -1,4 +1,4 @@
-import { VALID_FORMAT_VALUES, getNextFormat, FORMAT_FLOW } from '../../../constants/formats.js';
+import { getCircularFormat, getNextFormat, FORMAT_FLOW } from '../../../constants/formats.js';
 import { EDITOR_EVENTS } from '../constants.js';
 import { debugLog } from '../../../core/logger.js';
 // EditorFormatFSM functionality now consolidated into EditorToolbar.js
@@ -327,9 +327,7 @@ export class KeyboardManager {
             // Format FSM functionality now handled by EditorToolbar
             // this.formatFSM.setState(currentFormat, false);
 
-            const newFormat = this.lineFormatter ?
-                this.lineFormatter.getNextFormatInFlow(currentFormat, direction) :
-                getNextFormat(currentFormat, direction);
+            const newFormat = getCircularFormat(currentFormat, direction);
 
             this._debugLog('[KeyboardManager] FSM format transition:', {
                 from: currentFormat,
@@ -353,9 +351,7 @@ export class KeyboardManager {
 
             const direction = (event.key === 'ArrowUp' || event.key === 'ArrowLeft') ? -1 : 1;
             const currentFormat = scriptLine.getAttribute('data-format');
-            const newFormat = this.lineFormatter ?
-                this.lineFormatter.getNextFormatInFlow(currentFormat, direction) :
-                getNextFormat(currentFormat, direction);
+            const newFormat = getCircularFormat(currentFormat, direction);
 
             this._clearLineSelection();
             const selectionState = this._captureSelection(scriptLine);
@@ -477,9 +473,7 @@ export class KeyboardManager {
             // Use FSM for format transitions
             // Format FSM functionality now handled by EditorToolbar
             // this.formatFSM.setState(currentFormat, false);
-            const newFormat = this.lineFormatter ?
-                this.lineFormatter.getNextFormatInFlow(currentFormat, direction) :
-                getNextFormat(currentFormat, direction);
+            const newFormat = getCircularFormat(currentFormat, direction);
 
             const selectionState = this._captureSelection(scriptLine);
             this._applyFormatCommand(scriptLine, newFormat);

@@ -1,4 +1,6 @@
 import scriptModel from '../models/script.js';
+import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
+import scriptRepository from '../repositories/scriptRepository.js';
 
 const VALID_FORMATS = new Set([
   'header',
@@ -41,6 +43,9 @@ const scriptController = {
       if (!script) {
         return res.status(404).json({ error: 'Script not found' });
       }
+      if (script.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
       res.json(script);
     } catch (error) {
       console.error('Error getting script:', error);
@@ -50,15 +55,17 @@ const scriptController = {
 
   createScript: async(req, res) => {
     try {
-      const { userId, title, status, content, author } = req.body;
-      if (!userId || !title) {
-        return res.status(400).json({ error: 'User ID and title are required' });
+      const { title, status, content, author, visibility } = req.body;
+      if (!title) {
+        return res.status(400).json({ error: 'Title is required' });
       }
+      const visibilityValue = visibility === 'public' ? 'public' : 'private';
       const script = await scriptModel.createScript({
-        userId,
+        userId: req.userId,
         title,
         author,
         status: status || 'draft',
+        visibility: visibilityValue,
         content: content || JSON.stringify({
           version: 2,
           lines: []
@@ -79,7 +86,7 @@ const scriptController = {
     });
 
     try {
-      const { title, status, content, author } = req.body;
+      const { title, status, content, author, visibility } = req.body;
 
       if (!title) {
         console.warn('Update rejected: missing title');
@@ -135,12 +142,27 @@ const scriptController = {
       console.log('Validation passed, updating script...');
 
       // Update script in database
-      const script = await scriptModel.updateScript(req.params.id, {
+      const existingScript = await scriptRepository.getById(Number(req.params.id));
+      if (!existingScript) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      if (existingScript.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const sanitizedVisibility = visibility === 'public' ? 'public'
+        : visibility === 'private' ? 'private' : undefined;
+
+      const updatePayload = {
         title,
         author,
         content,
         status
-      });
+      };
+      if (sanitizedVisibility) {
+        updatePayload.visibility = sanitizedVisibility;
+      }
+
+      const script = await scriptModel.updateScript(req.params.id, updatePayload);
 
       if (!script) {
         console.warn('Update failed: script not found');
@@ -157,9 +179,61 @@ const scriptController = {
     }
   },
 
+  appendPage: async(req, res) => {
+    try {
+      const scriptId = Number(req.params.id);
+      if (!scriptId) {
+        return res.status(400).json({ error: 'Invalid script ID' });
+      }
+
+      const existingScript = await scriptRepository.getById(scriptId);
+      if (!existingScript) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      if (existingScript.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const { prompt } = req.body;
+      if (!prompt || typeof prompt !== 'string') {
+        return res.status(400).json({ error: 'Prompt is required' });
+      }
+
+      const result = await generateAppendPage({
+        scriptId,
+        userId: req.userId,
+        prompt
+      });
+
+      res.json({
+        success: true,
+        scriptId,
+        scriptTitle: result.scriptTitle,
+        intent: APPEND_SCRIPT_INTENT,
+        response: {
+          content: result.responseText,
+          metadata: {
+            generationMode: APPEND_PAGE_INTENT
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error appending page:', error);
+      if (error.message === 'Script not found') {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   getAllScriptsByUser: async(req, res) => {
     try {
-      const scripts = await scriptModel.getAllScriptsByUser(req.query.userId);
+      const requestedUserId = Number(req.query.userId);
+      const targetUserId = Number.isFinite(requestedUserId) ? requestedUserId : req.userId;
+      if (targetUserId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const scripts = await scriptModel.getAllScriptsByUser(targetUserId);
       res.json(scripts);
     } catch (error) {
       console.error('Error getting all scripts:', error);
@@ -171,6 +245,12 @@ const scriptController = {
     try {
       console.log('getScriptProfile');
       const script = await scriptModel.getScriptProfile(req.params.id);
+      if (!script) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      if (script.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
       res.json(script);
     } catch (error) {
       console.error('Error getting script profile:', error);
@@ -180,10 +260,15 @@ const scriptController = {
 
   getScriptStats: async(req, res) => {
     try {
+      const script = await scriptModel.getScript(req.params.id);
+      if (!script) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      if (script.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
       const stats = await scriptModel.getScriptStats(req.params.id);
       res.json(stats);
-
-
     } catch (error) {
       console.error('Error getting script stats:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -195,6 +280,14 @@ const scriptController = {
       const scriptId = Number(req.params.id);
       if (!scriptId) {
         return res.status(400).json({ error: 'Invalid script ID' });
+      }
+
+      const existingScript = await scriptRepository.getById(scriptId);
+      if (!existingScript) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      if (existingScript.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       const deleted = await scriptModel.deleteScript(scriptId);

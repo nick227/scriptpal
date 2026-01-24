@@ -92,6 +92,28 @@ export function getNextFormat (currentFormat, direction = 1) {
 }
 
 /**
+ * Cycle through every valid format in both directions.
+ * This helper is meant for keyboard toggles (arrow keys, toolbar)
+ * where we expect a symmetrical walk through the format list.
+ */
+export function getCircularFormat (currentFormat, direction = 1) {
+    const cycle = VALID_FORMAT_VALUES;
+    if (!cycle.length) {
+        return DEFAULT_FORMAT;
+    }
+
+    const normalizedDirection = direction >= 0 ? 1 : -1;
+    const defaultIndex = cycle.indexOf(DEFAULT_FORMAT);
+    const currentIndex = cycle.indexOf(currentFormat);
+    const startIndex = currentIndex === -1 ? (defaultIndex === -1 ? 0 : defaultIndex) : currentIndex;
+    const nextIndex = normalizedDirection === 1 ?
+        (startIndex + 1) % cycle.length :
+        (startIndex - 1 + cycle.length) % cycle.length;
+
+    return cycle[nextIndex];
+}
+
+/**
  * XML tag mapping for formats
  * Used for serialization/deserialization
  */

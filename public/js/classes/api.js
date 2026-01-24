@@ -536,6 +536,28 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT}?userId=${userId}`, 'GET');
     }
 
+    async getPublicScripts (options = {}) {
+        const params = new URLSearchParams();
+        if (options.page) params.set('page', options.page);
+        if (options.pageSize) params.set('pageSize', options.pageSize);
+        if (options.sortBy) params.set('sortBy', options.sortBy);
+        if (options.order) params.set('order', options.order);
+
+        const query = params.toString();
+        const endpoint = query
+            ? `${API_ENDPOINTS.PUBLIC_SCRIPTS}?${query}`
+            : API_ENDPOINTS.PUBLIC_SCRIPTS;
+
+        return this._makeRequest(endpoint, 'GET');
+    }
+
+    async getPublicScript (id) {
+        if (!id) {
+            throw new Error('Public script ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS}/${id}`, 'GET');
+    }
+
     /**
      * Cancel a specific request by correlation ID
      * @param {string} correlationId - Correlation ID of request to cancel

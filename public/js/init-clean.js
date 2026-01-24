@@ -13,6 +13,7 @@ import { ScriptStore } from './stores/ScriptStore.js';
 import { AuthWidget } from './widgets/auth/AuthWidget.js';
 import { ChatIntegration } from './widgets/chat/ChatIntegration.js';
 import { ScriptsUIBootstrap } from './widgets/script/ScriptsUIBootstrap.js';
+import { renderSharedTopBar, getTopBarElements } from './layout/sharedLayout.js';
 
 // Global app instance
 window.scriptPalApp = null;
@@ -22,6 +23,7 @@ window.scriptPalApp = null;
  */
 async function initScriptPal () {
     try {
+        renderSharedTopBar();
         setAuthLockState(false);
 
         // Create app instance
@@ -94,10 +96,9 @@ async function initScriptPal () {
  * @param eventManager
  */
 async function initAuthWidget (api, user, stateManager, eventManager) {
+    const sharedElements = getTopBarElements();
     const elements = {
-        formsContainer: document.querySelector(UI_ELEMENTS.AUTH_FORMS),
-        logoutButton: document.querySelector(UI_ELEMENTS.LOGOUT_BUTTON),
-        userInfo: document.querySelector(UI_ELEMENTS.USER_INFO),
+        ...sharedElements,
         messagesContainer: document.querySelector(UI_ELEMENTS.MESSAGES_CONTAINER)
     };
 

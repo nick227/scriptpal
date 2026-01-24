@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal · Public Script</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
+</head>
+
+<body class="auth-locked">
+    <div id="shared-topbar"></div>
+
+    <main class="public-script-page">
+        <section class="public-script-view-panel" aria-live="polite">
+            <header class="public-script-view-header">
+                <h2 class="public-script-viewer__title">Loading script...</h2>
+                <p class="public-script-viewer__metadata"></p>
+            </header>
+            <article class="public-script-viewer__content">
+                <div class="public-scripts-loading">Fetching script content...</div>
+            </article>
+            <footer class="public-script-view-footer">
+                <button class="public-script-copy">Copy content</button>
+                <span class="public-script-owner"></span>
+            </footer>
+        </section>
+    </main>
+
+    <script type="module" src="js/pages/publicScriptViewerPage.js"></script>
+</body>
+
+</html>

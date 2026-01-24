@@ -39,9 +39,11 @@ export class ScriptRenderer {
 
         const meta = document.createElement('div');
         meta.className = 'script-meta';
+        const visibility = script.visibility || 'private';
         meta.innerHTML = `
             <span class="script-date">${this.formatDate(script.updatedAt)}</span>
             <span class="script-pages">${script.pageCount || 0} pages</span>
+            <span class="script-visibility script-visibility--${visibility}">${visibility}</span>
         `;
 
         const actions = document.createElement('div');

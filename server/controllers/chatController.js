@@ -1,6 +1,22 @@
 import { ERROR_TYPES } from './langchain/constants.js';
 import { Chat } from './chat/Chat.js';
 import chatMessageRepository from '../repositories/chatMessageRepository.js';
+import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
+
+const APPEND_PAGE_PATTERNS = [
+  /\bnext page\b/i,
+  /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bpage\b/i,
+  /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscript\b/i,
+  /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscreenplay\b/i
+];
+
+const isAppendPageRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return APPEND_PAGE_PATTERNS.some(pattern => pattern.test(prompt));
+};
 
 // Move handleChatError to be a standalone function
 function handleChatError(error) {
@@ -201,6 +217,42 @@ const chatController = {
         userId: req.userId,
         scriptId
       };
+
+      console.log('[ChatController] startChat routing check', {
+        scriptId,
+        prompt: req.body.prompt
+      });
+
+      if (scriptId && isAppendPageRequest(req.body.prompt)) {
+        console.log('[ChatController] append-page detected, generating');
+        const appendResult = await generateAppendPage({
+          scriptId,
+          userId: req.userId,
+          prompt: req.body.prompt
+        });
+
+        console.log('[ChatController] append-page generated', {
+          scriptId,
+          responseLength: appendResult.responseText?.length || 0
+        });
+
+        return res.status(200).json({
+          success: true,
+          intent: APPEND_SCRIPT_INTENT,
+          confidence: 1,
+          target: null,
+          value: null,
+          scriptId,
+          scriptTitle: appendResult.scriptTitle,
+          timestamp: new Date().toISOString(),
+          response: {
+            content: appendResult.responseText,
+            metadata: {
+              generationMode: APPEND_PAGE_INTENT
+            }
+          }
+        });
+      }
 
       // 2. Create and execute chat
       console.log('[ChatController] startChat', { userId: req.userId, scriptId, requestId: req.headers['x-correlation-id'] || null });

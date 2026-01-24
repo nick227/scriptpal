@@ -149,21 +149,28 @@ export class ScriptOrchestrator {
             // Get the editor content component
             const editorContent = this.editorWidgetInstance?.getComponent('content');
             if (!editorContent) {
+                console.warn('[ScriptOrchestrator] Editor content component not available');
                 throw new Error('Editor content component not available');
             }
 
-            // Determine format based on content or use default
-            const format = this.determineContentFormat(data.content);
+            const lines = String(data.content).split(/\r?\n/);
+            const lineItems = lines.map((line) => ({
+                content: line,
+                format: this.determineContentFormat(line)
+            }));
 
-            // Append the content
-            const result = await editorContent.appendContent(data.content, format);
+            console.log('[ScriptOrchestrator] append lines', {
+                totalLines: lineItems.length
+            });
+
+            const result = await editorContent.appendLines(lineItems);
 
             if (result.success) {
 
                 // Emit success event
                 this.eventManager.publish(EventManager.EVENTS.SCRIPT.APPENDED, {
                     content: data.content,
-                    format: format,
+                    format: result.format,
                     element: result.element
                 });
 

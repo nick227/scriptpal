@@ -1,0 +1,282 @@
+.public-scripts-panel {
+    width: 100%;
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+    background: var(--panel-bg, #ffffff);
+    border: 1px solid var(--border-color, #e1e5e9);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.public-scripts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.public-scripts-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.public-scripts-header p {
+    margin: 0.25rem 0 0;
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.95rem;
+}
+
+.public-scripts-controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.public-scripts-controls select,
+.public-scripts-controls button {
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--border-color, #e1e5e9);
+    background: var(--input-bg, #f8f9fa);
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.public-scripts-main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.public-scripts-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 1rem;
+}
+
+.public-script-card {
+    border: 1px solid var(--border-color, #e1e5e9);
+    border-radius: 12px;
+    padding: 0.9rem;
+    background: var(--card-bg, #ffffff);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.public-script-card__action {
+    border: none;
+    border-radius: 999px;
+    background: var(--accent-color, #0066ff);
+    color: #fff;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: opacity 0.2s ease;
+}
+
+.public-script-card__action:hover {
+    opacity: 0.9;
+}
+
+.public-script-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.public-script-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.public-script-card__header h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.2;
+}
+
+.public-script-card__summary {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    min-height: 3rem;
+}
+
+.public-script-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.public-script-badge {
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.public-script-badge--public {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.public-script-badge--private {
+    background: rgba(99, 102, 241, 0.15);
+    color: #6366f1;
+}
+
+.public-script-viewer {
+    border: 1px solid var(--border-color, #e1e5e9);
+    border-radius: 12px;
+    padding: 1rem;
+    background: var(--viewer-bg, #f8f9fb);
+    min-height: 320px;
+    overflow-y: auto;
+    position: relative;
+}
+
+.public-script-viewer__title {
+    margin: 0 0 0.35rem;
+    font-size: 1.25rem;
+}
+
+.public-script-viewer__metadata {
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.public-script-viewer__content {
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+}
+
+.public-scripts-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.public-script-page,
+.public-scripts-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem 1.5rem 2rem;
+}
+
+.public-script-view-panel {
+    background: var(--panel-bg, #ffffff);
+    border: 1px solid var(--border-color, #e1e5e9);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.public-script-view-header h2 {
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+.public-script-viewer__metadata {
+    color: var(--text-secondary, #6b7280);
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.public-script-viewer__content {
+    min-height: 320px;
+    background: var(--viewer-bg, #f8f9fb);
+    border-radius: 12px;
+    padding: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+.public-script-view-footer {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.public-script-copy {
+    border: none;
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    background: var(--accent-color, #0066ff);
+    color: #fff;
+    cursor: pointer;
+}
+
+.public-script-owner {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+}
+
+.public-scripts-footer button {
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: var(--accent-color, #0066ff);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.public-scripts-footer button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.public-scripts-loading,
+.public-script-error {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary, #6b7280);
+}
+
+.public-script-viewer__empty {
+    text-align: center;
+    color: var(--text-secondary, #6b7280);
+}
+
+@media (max-width: 900px) {
+    .public-scripts-panel {
+        padding: 1rem;
+    }
+
+    .public-scripts-main {
+        grid-template-columns: 1fr;
+    }
+
+    .public-scripts-list {
+        grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+    }
+}

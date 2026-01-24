@@ -8,6 +8,7 @@ const toScriptWithVersion = (script, version) => {
     ...script,
     versionNumber: version ? version.versionNumber : 1,
     content: version ? version.content : '',
+    visibility: script.visibility || 'private',
     updatedAt: script.updatedAt,
     createdAt: script.createdAt
   };
@@ -33,7 +34,8 @@ const scriptModel = {
           userId: script.userId,
           title: script.title,
           status: script.status,
-          author: script.author || null
+          author: script.author || null,
+          visibility: script.visibility || 'private'
         }
       });
 
@@ -78,7 +80,8 @@ const scriptModel = {
         data: {
           title: script.title,
           status: script.status,
-          author: script.author || null
+          author: script.author || null,
+          visibility: script.visibility ?? currentScript.visibility
         }
       });
 
@@ -180,6 +183,27 @@ const scriptModel = {
 
       return toScriptWithVersion(deletedScript, null);
     });
+  },
+
+  getPublicScripts: async(options = {}) => {
+    const result = await scriptRepository.getPublicScripts(options);
+    const scripts = (result.scripts || []).map((script) => {
+      const version = Array.isArray(script.versions) ? script.versions[0] : null;
+      return toScriptWithVersion(script, version);
+    });
+    return {
+      scripts,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize
+    };
+  },
+
+  getPublicScript: async(id) => {
+    const script = await scriptRepository.getPublicScriptById(Number(id));
+    if (!script) return null;
+    const version = Array.isArray(script.versions) ? script.versions[0] : null;
+    return toScriptWithVersion(script, version);
   }
 };
 

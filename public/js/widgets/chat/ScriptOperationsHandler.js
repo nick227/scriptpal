@@ -1,4 +1,4 @@
-﻿import { MESSAGE_TYPES } from '../../constants.js';
+import { MESSAGE_TYPES } from '../../constants.js';
 import { EventManager } from '../../core/EventManager.js';
 
 export class ScriptOperationsHandler {
@@ -87,11 +87,23 @@ export class ScriptOperationsHandler {
         }
 
         const content = data.response && data.response.content;
+        console.log('[ScriptOperationsHandler] append intent received', {
+            hasContent: !!content,
+            contentLength: typeof content === 'string' ? content.length : null,
+            hasOrchestrator: !!orchestrator
+        });
+        if (!orchestrator) {
+            console.warn('[ScriptOperationsHandler] No script orchestrator available for append');
+            return;
+        }
         if (content && orchestrator) {
             try {
-                await orchestrator.handleScriptAppend({
+                const appendSuccess = await orchestrator.handleScriptAppend({
                     content,
                     isFromAppend: true
+                });
+                console.log('[ScriptOperationsHandler] append result', {
+                    appendSuccess
                 });
             } catch (error) {
                 console.error('[ScriptOperationsHandler] Script append failed:', error);
