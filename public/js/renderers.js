@@ -266,12 +266,10 @@ export class ScriptRenderer extends BaseRenderer {
     /**
      *
      * @param container
-     * @param onScriptSelect
      */
-    constructor (container, onScriptSelect) {
+    constructor (container) {
         super(container);
-        this.onScriptSelect = onScriptSelect;
-        this.container.className = 'scripts-list-container';
+        this.container.classList.add('scripts-list-container');
     }
 
     /**
@@ -286,6 +284,13 @@ export class ScriptRenderer extends BaseRenderer {
         }
 
         this.clear();
+
+        if (scripts.length === 0) {
+            const emptyState = this.createElement('li', 'empty-state');
+            emptyState.innerHTML = '<i class="fas fa-file-alt"></i><br>No scripts yet';
+            this.appendElement(emptyState);
+            return;
+        }
 
         scripts.forEach(script => {
             const scriptElement = this.createScriptElement(script, currentScriptId);
@@ -304,26 +309,45 @@ export class ScriptRenderer extends BaseRenderer {
      * @param currentScriptId
      */
     createScriptElement (script, currentScriptId) {
-        // Create container
-        const container = this.createElement('li', 'script-item-container');
+        const container = this.createElement('li', 'script-item');
+        container.dataset.scriptId = script.id;
 
-        // Create link
-        const link = this.createElement('a', 'script-item', script.title || 'Add title');
-        link.href = '#';
-        link.dataset.scriptId = script.id;
+        const scriptInfo = this.createElement('div', 'script-info');
 
-        // Set active state
-        this.toggleClass(link, 'active', script.id === currentScriptId);
+        const title = this.createElement('div', 'script-item-title');
+        title.textContent = script.title || 'Untitled Script';
+        scriptInfo.appendChild(title);
 
-        // Add click handler
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (this.onScriptSelect) {
-                this.onScriptSelect(script.id);
-            }
-        });
+        const meta = this.createElement('div', 'script-item-meta');
+        const dateText = this.formatDate(script.updatedAt || script.createdAt);
+        const statusText = (script.status || 'draft').toLowerCase();
+        const visibility = (script.visibility || 'private').toLowerCase();
 
-        container.appendChild(link);
+        const date = this.createElement('span', 'script-date', dateText);
+        const status = this.createElement('span', `script-status ${statusText}`, statusText);
+        const visibilityBadge = this.createElement(
+            'span',
+            `script-visibility script-visibility--${visibility}`,
+            visibility
+        );
+
+        meta.appendChild(date);
+        meta.appendChild(status);
+        meta.appendChild(visibilityBadge);
+        scriptInfo.appendChild(meta);
+
+        const actions = this.createElement('div', 'script-actions');
+        const deleteButton = this.createElement('button', 'delete-script-button');
+        deleteButton.type = 'button';
+        deleteButton.dataset.action = 'delete';
+        deleteButton.title = 'Delete Script';
+        deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+        actions.appendChild(deleteButton);
+
+        container.appendChild(scriptInfo);
+        container.appendChild(actions);
+
+        this.toggleClass(container, 'selected', String(script.id) === String(currentScriptId));
         return container;
     }
 
@@ -332,15 +356,40 @@ export class ScriptRenderer extends BaseRenderer {
      * @param scriptId
      */
     updateActiveScript (scriptId) {
-        // Remove active class from all scripts
         const allScripts = this.container.querySelectorAll('.script-item');
-        allScripts.forEach(script => script.classList.remove('active'));
+        allScripts.forEach(script => script.classList.remove('selected'));
 
-        // Add active class to current script
+        if (!scriptId) {
+            return;
+        }
+
         const activeScript = this.container.querySelector(`[data-script-id="${scriptId}"]`);
         if (activeScript) {
-            activeScript.classList.add('active');
+            activeScript.classList.add('selected');
         }
+    }
+
+    formatDate (dateString) {
+        if (!dateString) {
+            return 'Unknown';
+        }
+
+        const date = new Date(dateString);
+        const now = new Date();
+        const dayMs = 1000 * 60 * 60 * 24;
+        const diffDays = Math.floor((
+            Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
+            Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+        ) / dayMs);
+
+        if (diffDays <= 0) {
+            return 'Today';
+        } else if (diffDays === 1) {
+            return 'Yesterday';
+        } else if (diffDays <= 7) {
+            return `${diffDays - 1} days ago`;
+        }
+        return date.toLocaleDateString();
     }
 }
 
@@ -769,10 +818,9 @@ export class RendererFactory {
     /**
      *
      * @param container
-     * @param onScriptSelect
      */
-    static createScriptRenderer (container, onScriptSelect) {
-        return new ScriptRenderer(container, onScriptSelect);
+    static createScriptRenderer (container) {
+        return new ScriptRenderer(container);
     }
 
     /**

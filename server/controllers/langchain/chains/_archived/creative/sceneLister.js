@@ -1,7 +1,14 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
 import { ERROR_TYPES as _ERROR_TYPES } from '../../constants.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import {
+  extractContext,
+  preprocessScript,
+  validateContent,
+  getErrorResponse,
+  handlePromptFormatting
+} from '../helpers/ChainInputUtils.js';
+import { validateStructuredResponseStrict } from '../helpers/ChainOutputGuards.js';
 
 export class SceneListChain extends BaseChain {
   constructor(config = {}) {
@@ -12,38 +19,17 @@ export class SceneListChain extends BaseChain {
   }
 
   validateSceneList(result) {
-    return ChainHelper.validateStructuredResponse(result, {
+    return validateStructuredResponseStrict(result, {
       requiredArray: 'scenes',
-      alternateArrays: ['story_scenes', 'script_scenes'],
-      defaultValues: {
-        description: 'Scene description',
-        setting: 'Unknown location',
-        characters: [],
-        purpose: 'Advance the story',
-        suggested_placement: null
-      },
+      requiredFields: ['description', 'setting', 'purpose'],
       requireRationale: true
-    });
-  }
-
-  saveSceneElements(scriptId, scenes) {
-    return ChainHelper.saveElements(scriptId, scenes, {
-      type: 'scene',
-      getSubtype: (index) => `scene_${index + 1}`,
-      processElement: (scene) => ({
-        description: scene.description,
-        setting: scene.setting,
-        characters: Array.isArray(scene.characters) ? scene.characters : [],
-        purpose: scene.purpose,
-        suggested_placement: scene.suggested_placement || null
-      })
     });
   }
 
   async run(input, context = {}) {
     try {
       // Extract context with defaults
-      const { scriptId, prompt } = ChainHelper.extractContext(context);
+      const { scriptId, prompt } = extractContext(context);
 
       // Get script content - could be an object, string, or null
       let scriptContent = input;
@@ -54,14 +40,14 @@ export class SceneListChain extends BaseChain {
       }
 
       // Process the script
-      const processedScript = ChainHelper.preprocessScript(scriptContent, {
+      const processedScript = preprocessScript(scriptContent, {
         includeElements: true,
         elementType: 'scenes'
       });
 
       // Validate content
-      if (!ChainHelper.validateContent(processedScript.content)) {
-        return ChainHelper.getErrorResponse(
+      if (!validateContent(processedScript.content)) {
+        return getErrorResponse(
           'I couldn\'t find enough script content to identify scenes. Please provide more content or start with a basic story outline.',
           'error_response'
         );
@@ -81,7 +67,7 @@ export class SceneListChain extends BaseChain {
       }
       ];
 
-      const formattedPrompt = await ChainHelper.handlePromptFormatting(
+      const formattedPrompt = await handlePromptFormatting(
         promptManager,
         'sceneList', {
           content: processedScript.content,
@@ -97,25 +83,17 @@ export class SceneListChain extends BaseChain {
 
       try {
         // Validate the scene list format
-        const validatedScenes = await this.validateSceneList(response);
-
-        // Save if scriptId provided
-        if (scriptId) {
-          await this.saveSceneElements(scriptId, validatedScenes.scenes);
-        }
-
-        return validatedScenes;
+        return await this.validateSceneList(response);
       } catch (validationError) {
         console.error('Scene list validation failed:', validationError);
-        return ChainHelper.getUnstructuredResponse(response, {
-          type: 'unstructured_scenes',
-          emptyArray: 'scenes',
-          prefix: 'I identified some scenes but couldn\'t format them properly. Here\'s what I found: '
-        });
+        return getErrorResponse(
+          'I couldn\'t validate the scene list output. Please try again.',
+          'error_response'
+        );
       }
     } catch (error) {
       console.error('Scene list generation error:', error);
-      return ChainHelper.getErrorResponse(
+      return getErrorResponse(
         'I\'m sorry, I encountered an error identifying scenes. Please try again with a more detailed script or outline.',
         'error_response'
       );

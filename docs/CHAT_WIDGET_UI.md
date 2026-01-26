@@ -7,7 +7,7 @@
 
 ## Primary UI Modules (Code Signature)
 
-### `public/js/widgets/chat/ChatManager.js`
+### `public/js/widgets/chat/core/ChatManager.js`
 - Export: `ChatManager extends BaseManager`
 - Constructor: `new ChatManager(stateManager, api, eventManager)`
 - Init: `initialize(elements)`
@@ -21,7 +21,7 @@
 - Utilities: `processAndRenderMessage()`, `extractResponseContent()`, `processQuestionButtons()`
 - Message model (normalized): `{ id, role, type, content, timestamp, status, metadata, intent }`
 
-### `public/js/widgets/chat/ModernChatWidget.js`
+### `public/js/widgets/chat/ui/ModernChatWidget.js`
 - Export: `ModernChatWidget extends BaseWidget`
 - Constructor: `new ModernChatWidget({ container }, stateManager, eventManager)`
 - Init: `initialize()`
@@ -35,12 +35,7 @@
 - Events: on send publishes `EventManager.EVENTS.CHAT.REQUEST_SEND`
 - Feature hooks publish intent events (emoji/file/voice, export/history/settings/minimize/close)
 
-### `public/js/widgets/chat/ModernChatManager.js`
-- Export: `ModernChatManager extends ChatManager`
-- Constructor: `new ModernChatManager(stateManager, api, eventManager)`
-- Purpose: thin adapter, no duplicate logic
-
-### `public/js/widgets/chat/ChatIntegration.js`
+### `public/js/widgets/chat/integration/ChatIntegration.js`
 - Export: `ChatIntegration`
 - Constructor: `new ChatIntegration(api, stateManager, eventManager)`
 - Init: `initialize()`

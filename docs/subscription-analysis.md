@@ -55,7 +55,7 @@ This document summarizes the front-end subscription model: EventManager pub/sub,
   - `SCRIPT:SELECTED` -> handleScriptSelected
   - `AI:RESPONSE_RECEIVED` -> handleAIResponse
 
-- `public/js/widgets/chat/SystemPromptBridge.js`
+- `public/js/widgets/chat/PromptHelperBridge.js`
   - `SYSTEM_PROMPT:READY` -> handlePromptReady
   - `SYSTEM_PROMPT:FIRED` -> handlePromptFired
   - `SYSTEM_PROMPT:FAILED` -> handlePromptFailed
@@ -109,8 +109,8 @@ Most frequent keys and consumers:
 ### Chat
 - `ModernChatWidget`
   - Input, keydown, paste, click (send, resize, focus)
-- `SystemPromptUI`
-  - Prompt button click handlers
+- `PromptHelperWidget`
+  - Prompt helper button handlers
 
 ### Scripts
 - `ScriptListWidget` and `ScriptWidget`

@@ -5,6 +5,8 @@ const scriptSelect = {
   userId: true,
   title: true,
   author: true,
+  description: true,
+  slug: true,
   status: true,
   visibility: true,
   createdAt: true,
@@ -12,13 +14,14 @@ const scriptSelect = {
 };
 
 const scriptRepository = {
-  create: async({ userId, title, status, author, visibility }) => {
+  create: async({ userId, title, status, author, description, visibility }) => {
     return await prisma.script.create({
       data: {
         userId,
         title,
         status,
         author,
+        description,
         visibility
       }
     });
@@ -31,6 +34,72 @@ const scriptRepository = {
     });
   },
 
+  getBySlugForUser: async(userId, slug) => {
+    if (!userId || !slug) return null;
+    return await prisma.script.findFirst({
+      where: {
+        userId,
+        slug
+      },
+      select: scriptSelect
+    });
+  },
+
+  getPublicScriptBySlug: async(slug) => {
+    if (!slug) return null;
+    return await prisma.script.findFirst({
+      where: {
+        slug,
+        visibility: 'public'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true
+          }
+        },
+        versions: {
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+          select: {
+            versionNumber: true,
+            content: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+  },
+
+  getPublicSlugById: async(id) => {
+    if (!id) return null;
+    return await prisma.script.findFirst({
+      where: {
+        id,
+        visibility: 'public'
+      },
+      select: {
+        id: true,
+        slug: true
+      }
+    });
+  },
+
+  getSlugByIdForUser: async(id, userId) => {
+    if (!id || !userId) return null;
+    return await prisma.script.findFirst({
+      where: {
+        id,
+        userId
+      },
+      select: {
+        id: true,
+        slug: true
+      }
+    });
+  },
+
   getByUserId: async(userId) => {
     return await prisma.script.findMany({
       where: { userId },
@@ -38,17 +107,39 @@ const scriptRepository = {
     });
   },
 
-  updateMetadata: async(id, { title, status, author }) => {
+  existsSlugForUser: async(userId, slug) => {
+    if (!userId || !slug) return false;
+    const count = await prisma.script.count({
+      where: {
+        userId,
+        slug
+      }
+    });
+    return count > 0;
+  },
+
+  existsPublicSlug: async(slug) => {
+    if (!slug) return false;
+    const count = await prisma.script.count({
+      where: {
+        slug,
+        visibility: 'public'
+      }
+    });
+    return count > 0;
+  },
+
+  updateMetadata: async(id, { title, status, author, description }) => {
     return await prisma.script.update({
       where: { id },
       data: {
         title,
         status,
-        author
+        author,
+        description
       }
     });
-  }
-,
+  },
 
   getPublicScripts: async({ page = 1, pageSize = 10, sortBy = 'updatedAt', sortOrder = 'desc' } = {}) => {
     const allowedSortFields = new Set(['createdAt', 'updatedAt', 'title']);

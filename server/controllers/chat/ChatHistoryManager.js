@@ -26,11 +26,37 @@ export class ChatHistoryManager {
         return;
       }
 
-      const assistantContent = typeof assistantResponse === 'string' ?
-        assistantResponse :
-        JSON.stringify(assistantResponse);
+      const assistantContent = typeof assistantResponse === 'string'
+        ? assistantResponse
+        : JSON.stringify(assistantResponse);
 
-      console.log('[ChatHistoryManager] saveInteraction', { userId: this.userId, scriptId: targetScriptId });
+      const aiUsage = typeof assistantResponse === 'object' && assistantResponse !== null
+        ? assistantResponse.response?.metadata?.aiUsage ??
+          assistantResponse.metadata?.aiUsage ??
+          assistantResponse.aiUsage
+        : null;
+
+      if (aiUsage?.loggedByBaseChain) {
+        console.log('[ChatHistoryManager] Skipping save; BaseChain already logged usage', {
+          userId: this.userId,
+          scriptId: targetScriptId
+        });
+        return;
+      }
+
+      const promptTokens = Number(aiUsage?.promptTokens ?? aiUsage?.prompt_tokens ?? 0);
+      const completionTokens = Number(aiUsage?.completionTokens ?? aiUsage?.completion_tokens ?? 0);
+      const totalTokens = Number(aiUsage?.totalTokens ?? aiUsage?.total_tokens ?? promptTokens + completionTokens);
+      const costUsd = Number(aiUsage?.costUsd ?? aiUsage?.cost_usd ?? 0);
+
+      console.log('[ChatHistoryManager] saveInteraction', {
+        userId: this.userId,
+        scriptId: targetScriptId,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        costUsd
+      });
 
       await chatMessageRepository.create({
         userId: this.userId,
@@ -40,7 +66,11 @@ export class ChatHistoryManager {
         intent,
         metadata: {
           userPrompt
-        }
+        },
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        costUsd
       });
     } catch (error) {
       // Log but don't fail the operation

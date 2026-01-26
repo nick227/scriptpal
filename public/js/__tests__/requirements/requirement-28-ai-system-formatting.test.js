@@ -2,7 +2,7 @@
  * Tests for Requirement #28: AI generated script uses system formatting
  */
 
-import { ScriptFormatter } from '../../services/scriptFormatter.js';
+import { ScriptFormatter } from '../../services/format/ScriptFormatter.js';
 import { AICommandManager } from '../../widgets/editor/ai/AICommandManager.js';
 
 describe('Requirement #28: AI Generated Script Uses System Formatting', () => {

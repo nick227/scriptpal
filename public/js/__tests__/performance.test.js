@@ -109,6 +109,7 @@ describe('Performance Tests', () => {
 
         test('should load DOM elements within acceptable time', async () => {
             const domStart = performance.now();
+            const querySpy = jest.spyOn(document, 'querySelector');
 
             // Mock DOM element queries
             const selectors = [
@@ -130,7 +131,8 @@ describe('Performance Tests', () => {
             loadTimes.domQueries = domTime;
 
             expect(domTime).toBeLessThan(100); // Should query DOM within 100ms
-            expect(document.querySelector).toHaveBeenCalledTimes(selectors.length);
+            expect(querySpy).toHaveBeenCalledTimes(selectors.length);
+            querySpy.mockRestore();
 
         });
 
@@ -146,6 +148,9 @@ describe('Performance Tests', () => {
                 'DOMContentLoaded'
             ];
 
+            const documentSpy = jest.spyOn(document, 'addEventListener');
+            const windowSpy = jest.spyOn(window, 'addEventListener');
+
             // Simulate event listener registration
             events.forEach(event => {
                 document.addEventListener(event, jest.fn());
@@ -158,8 +163,11 @@ describe('Performance Tests', () => {
             loadTimes.eventListeners = eventTime;
 
             expect(eventTime).toBeLessThan(50); // Should register events within 50ms
-            expect(document.addEventListener).toHaveBeenCalledTimes(events.length);
-            expect(window.addEventListener).toHaveBeenCalledTimes(events.length);
+            expect(documentSpy).toHaveBeenCalledTimes(events.length);
+            expect(windowSpy).toHaveBeenCalledTimes(events.length);
+
+            documentSpy.mockRestore();
+            windowSpy.mockRestore();
 
         });
     });

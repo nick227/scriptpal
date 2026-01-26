@@ -58,10 +58,17 @@ The script editor can import scripts from a text file.
         ├── BaseWidget.js
         ├── chat
         │   ├── ChatEvents.js
-        │   ├── ChatManager.js
-        ?",   ?"o?"??"? ChatIntegration.js
-        ?",   ?"o?"??"? ModernChatWidget.js
-        ?",   ?"o?"??"? ModernChatManager.js
+        │   ├── core
+        │   │   ├── ChatHistoryManager.js
+        │   │   ├── ChatManager.js
+        │   │   └── ScriptOperationsHandler.js
+        │   ├── integration
+        │   │   ├── ChatIntegration.js
+        │   │   ├── PromptHelperBridge.js
+        │   │   └── SystemPromptOrchestrator.js
+        │   └── ui
+        │       ├── ModernChatWidget.js
+        │       └── PromptHelperWidget.js
         ├── editor
         │   ├── ai
         │   │   └── AICommandManager.js

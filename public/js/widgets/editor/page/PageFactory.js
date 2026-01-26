@@ -1,6 +1,15 @@
 import { PAGE_STYLES, PAGE_MARGIN, CONTENT_HEIGHT } from '../constants.js';
 
 export class PageFactory {
+    constructor () {
+        this._pageIdCounter = 0;
+    }
+
+    generatePageId () {
+        this._pageIdCounter += 1;
+        return `page-${this._pageIdCounter}`;
+    }
+
     /**
      * Create a new page element.
      * @param {object} options
@@ -15,7 +24,8 @@ export class PageFactory {
         page.setAttribute('role', 'document');
         page.setAttribute('aria-label', 'Script Page');
 
-        page.dataset.pageId = options.pageId;
+        const pageId = options.pageId || this.generatePageId();
+        page.dataset.pageId = pageId;
         page.dataset.pageIndex = String(options.pageIndex);
         page.dataset.loaded = String(options.isLoaded !== false);
 
@@ -24,7 +34,7 @@ export class PageFactory {
         const contentContainer = document.createElement('div');
         contentContainer.className = 'editor-page-content page-content';
         contentContainer.style.height = `${CONTENT_HEIGHT}px`;
-        contentContainer.style.padding = `${PAGE_MARGIN}px`;
+        contentContainer.style.padding = `0 ${PAGE_MARGIN}px`;
 
         page.appendChild(contentContainer);
         return page;

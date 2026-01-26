@@ -2,7 +2,7 @@
  * Tests for Requirement #29: User login/logout/register
  */
 
-import { ScriptPalUser } from '../../classes/user.js';
+import { ScriptPalUser } from '../../services/api/ScriptPalUser.js';
 import { AuthenticationManager } from '../../widgets/auth/AuthenticationManager.js';
 
 describe('Requirement #29: User Login/Logout/Register', () => {

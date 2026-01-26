@@ -1,0 +1,258 @@
+import { BaseChain } from '../base/BaseChain.js';
+import { SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
+
+export const FULL_SCRIPT_INTENT = 'SCRIPT_FULL_SCRIPT';
+
+const MIN_PAGES = 5;
+const MAX_PAGES = 6;
+const MIN_LINES_PER_PAGE = 12;
+const MAX_LINES_PER_PAGE = 22;
+const LINE_MIN = MIN_PAGES * MIN_LINES_PER_PAGE;
+const LINE_MAX = MAX_PAGES * MAX_LINES_PER_PAGE;
+const MAX_ATTEMPTS = 1;
+const FULL_SCRIPT_FUNCTIONS = [{
+  name: 'provide_full_script',
+  description: 'Return new script pages plus a short chat response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      formattedScript: {
+        type: 'string',
+        description: 'New script lines wrapped in validated tags (<header>, <action>, <speaker>, <dialog>, <directions>, <chapter-break>).'
+      },
+      assistantResponse: {
+        type: 'string',
+        description: 'Short, simple chat response under 40 words.'
+      }
+    },
+    required: ['formattedScript', 'assistantResponse']
+  }
+}];
+
+const SYSTEM_INSTRUCTION = `You are a screenplay architect.
+- Respond only in JSON with two keys: "formattedScript" and "assistantResponse".
+  - "formattedScript" must contain 5-6 new pages of script lines using valid tags (${VALID_FORMAT_VALUES.join(', ')} and <chapter-break></chapter-break>).
+  - Treat each "<chapter-break></chapter-break>" as a page boundary and deliver roughly 15-16 lines per page.
+  - "assistantResponse" should be a short, simple chat response (under 40 words).
+- Escape any double quotes inside JSON strings as \\".
+- Focus on a clear story arc (setup, escalation, turning point, resolution).
+- Do not rewrite what has already happened; pick up exactly where the script left off.
+- Do not include markdown, commentary, numbering, or prose outside the JSON envelope.`;
+
+export class ScriptFullChain extends BaseChain {
+  constructor() {
+    super({
+      type: FULL_SCRIPT_INTENT,
+      temperature: 0.45,
+      modelConfig: {
+        response_format: { type: 'json_object' },
+        functions: FULL_SCRIPT_FUNCTIONS,
+        function_call: { name: 'provide_full_script' }
+      }
+    });
+  }
+
+  buildMessages(context, prompt, retryNote = '') {
+    const userPrompt = retryNote ? `${prompt}\n\nCorrection: ${retryNote}` : prompt;
+    const scriptContent = context?.scriptContent || '';
+    const content = scriptContent
+      ? `${userPrompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+      : userPrompt;
+
+    return [{
+      role: 'system',
+      content: SYSTEM_INSTRUCTION
+    }, {
+      role: 'user',
+      content
+    }];
+  }
+
+  normalizeScriptText(text) {
+    if (!text || typeof text !== 'string') {
+      return '';
+    }
+    return text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/<chapter-break\s*\/>/gi, '<chapter-break></chapter-break>')
+      .trim();
+  }
+
+  sanitizeScriptLines(text) {
+    const sanitized = [];
+    let invalidTagCount = 0;
+    let coercedCount = 0;
+    let droppedCount = 0;
+    let extractedCount = 0;
+
+    const tagRegex = /<([\w-]+)\s*\/>|<([\w-]+)>([\s\S]*?)<\/\2>/gi;
+    let match = null;
+
+    while ((match = tagRegex.exec(text)) !== null) {
+      const selfClosingTag = match[1];
+      if (selfClosingTag) {
+        const tag = selfClosingTag.toLowerCase();
+        if (tag === 'chapter-break') {
+          sanitized.push('<chapter-break></chapter-break>');
+          extractedCount += 1;
+        } else {
+          droppedCount += 1;
+        }
+        continue;
+      }
+
+      const tag = (match[2] || '').toLowerCase();
+      const content = (match[3] || '').trim();
+      if (VALID_FORMAT_VALUES.includes(tag)) {
+        if (content || tag === 'chapter-break') {
+          sanitized.push(`<${tag}>${content}</${tag}>`);
+          extractedCount += 1;
+        } else {
+          droppedCount += 1;
+        }
+      } else {
+        invalidTagCount += 1;
+        if (content) {
+          sanitized.push(`<action>${content}</action>`);
+          coercedCount += 1;
+          extractedCount += 1;
+        } else {
+          droppedCount += 1;
+        }
+      }
+    }
+
+    if (extractedCount === 0) {
+      const fallbackLines = text
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      for (const line of fallbackLines) {
+        sanitized.push(`<action>${line}</action>`);
+        coercedCount += 1;
+      }
+    }
+
+    if (invalidTagCount || coercedCount || droppedCount) {
+      console.warn('[ScriptFullChain] Sanitized AI output', {
+        invalidTagCount,
+        coercedCount,
+        droppedCount,
+        extractedCount
+      });
+    }
+
+    return sanitized;
+  }
+
+  validateScriptLines(lines) {
+    if (!Array.isArray(lines)) {
+      return { ok: false, reason: 'Lines missing' };
+    }
+
+    const lineCount = lines.length;
+    const chapterBreakCount = lines
+      .filter(line => line.toLowerCase().startsWith('<chapter-break'))
+      .length;
+    const pageCount = chapterBreakCount + 1;
+
+    if (lineCount < LINE_MIN) {
+      return { ok: false, reason: `Line count ${lineCount} below minimum ${LINE_MIN}`, lineCount, pageCount };
+    }
+
+    if (lineCount > LINE_MAX) {
+      return { ok: false, reason: `Line count ${lineCount} above maximum ${LINE_MAX}`, lineCount, pageCount };
+    }
+
+    if (pageCount < MIN_PAGES) {
+      return { ok: false, reason: `Page count ${pageCount} below minimum ${MIN_PAGES}`, lineCount, pageCount };
+    }
+
+    if (pageCount > MAX_PAGES) {
+      return { ok: false, reason: `Page count ${pageCount} above maximum ${MAX_PAGES}`, lineCount, pageCount };
+    }
+
+    return { ok: true, lineCount, pageCount };
+  }
+
+  formatResponse(responseText, context, validation, assistantResponse = '') {
+    const responseContent = assistantResponse && assistantResponse.trim()
+      ? assistantResponse.trim()
+      : responseText;
+    const metadata = {
+      ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
+      fullScript: true,
+      formattedScript: responseText,
+      timestamp: new Date().toISOString()
+    };
+    if (validation?.lineCount) {
+      metadata.lineCount = validation.lineCount;
+    }
+    if (validation?.pageCount) {
+      metadata.pageCount = validation.pageCount;
+    }
+
+    return {
+      response: responseContent,
+      assistantResponse: responseContent,
+      type: FULL_SCRIPT_INTENT,
+      metadata
+    };
+  }
+
+  async run(context, prompt) {
+    let lastError = '';
+    let lastResponseText = '';
+    let lastAssistantResponse = '';
+
+    const maxAttempts = Number.isInteger(context?.maxAttempts) ? context.maxAttempts : MAX_ATTEMPTS;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const retryNote = lastError
+        ? `${lastError}. Respond only in JSON with "formattedScript" and "assistantResponse". Return exactly ${MIN_PAGES}-${MAX_PAGES} pages separated by <chapter-break></chapter-break> while keeping valid tags (${VALID_FORMAT_VALUES.join(', ')}).`
+        : '';
+      const messages = await this.buildMessages(context, prompt, retryNote);
+      const response = await this.execute(messages, context, false);
+
+      let validated = null;
+      try {
+        validated = this.parseFunctionPayload(response, {
+          required: ['formattedScript', 'assistantResponse']
+        }, 'Invalid JSON payload from function call');
+      } catch (error) {
+        lastError = error.message || 'Invalid full script payload';
+        console.warn('[ScriptFullChain] Invalid full script payload', { attempt, error: lastError });
+        continue;
+      }
+
+      const formattedScript = typeof validated.formattedScript === 'string'
+        ? validated.formattedScript
+        : JSON.stringify(validated.formattedScript);
+      lastAssistantResponse = typeof validated.assistantResponse === 'string'
+        ? validated.assistantResponse
+        : '';
+      lastResponseText = this.normalizeScriptText(formattedScript);
+      const sanitizedLines = this.sanitizeScriptLines(lastResponseText);
+
+      if (sanitizedLines.length > LINE_MAX) {
+        console.warn('[ScriptFullChain] Truncating lines to maximum', {
+          originalCount: sanitizedLines.length,
+          max: LINE_MAX
+        });
+      }
+
+      const finalLines = sanitizedLines.slice(0, LINE_MAX);
+      const validation = this.validateScriptLines(finalLines);
+
+      if (validation.ok) {
+        const finalText = finalLines.join('\n');
+        return this.formatResponse(finalText, context, validation, lastAssistantResponse);
+      }
+
+      lastError = validation.reason || 'Validation failure';
+      console.warn('[ScriptFullChain] Validation failed', { attempt, reason: lastError });
+    }
+
+    throw new Error(`full_script_validation_failed: ${lastError}`);
+  }
+}

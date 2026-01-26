@@ -42,10 +42,10 @@ describe('PageManager - Page Tracking and Rendering', () => {
 
     test('updates page count on add/remove', async () => {
         await pageManager.initialize();
-        pageManager.operations.addPage();
+        pageManager.createNewPage();
         expect(pageManager.getPageCount()).toBe(2);
 
-        pageManager.operations.removePage(pageManager.getPages()[1]);
+        pageManager.removePage(pageManager.getPages()[1]);
         expect(pageManager.getPageCount()).toBe(1);
     });
 
@@ -55,10 +55,10 @@ describe('PageManager - Page Tracking and Rendering', () => {
         line.className = 'script-line';
         line.textContent = 'Test line';
 
-        pageManager.operations.addLine(line);
+        pageManager.addLine(line);
         expect(pageManager.getCurrentPage().querySelector('.script-line')).toBe(line);
 
-        pageManager.operations.removeLine(line);
+        pageManager.removeLine(line);
         expect(pageManager.getCurrentPage().querySelector('.script-line')).toBeNull();
     });
 
@@ -68,32 +68,32 @@ describe('PageManager - Page Tracking and Rendering', () => {
             const line = document.createElement('div');
             line.className = 'script-line';
             line.textContent = `Line ${i + 1}`;
-            pageManager.operations.addLine(line);
+            pageManager.addLine(line);
         }
 
         const extraLine = document.createElement('div');
         extraLine.className = 'script-line';
         extraLine.textContent = 'Extra line';
-        pageManager.operations.addLine(extraLine);
+        pageManager.addLine(extraLine);
 
         expect(pageManager.getPageCount()).toBe(2);
     });
 
     test('navigates between pages', async () => {
         await pageManager.initialize();
-        pageManager.operations.addPage();
+        pageManager.createNewPage();
 
         const firstPage = pageManager.getPages()[0];
         const secondPage = pageManager.getPages()[1];
 
-        expect(pageManager.operations.getNextPage(firstPage)).toBe(secondPage);
-        expect(pageManager.operations.getPreviousPage(secondPage)).toBe(firstPage);
+        expect(pageManager.getNextPage(firstPage)).toBe(secondPage);
+        expect(pageManager.getPreviousPage(secondPage)).toBe(firstPage);
     });
 
     test('maintains page order metadata', async () => {
         await pageManager.initialize();
-        pageManager.operations.addPage();
-        pageManager.operations.addPage();
+        pageManager.createNewPage();
+        pageManager.createNewPage();
 
         pageManager.getPages().forEach((page, index) => {
             expect(page.dataset.pageIndex).toBe(String(index));
@@ -106,7 +106,7 @@ describe('PageManager - Page Tracking and Rendering', () => {
         const handler = jest.fn();
         pageManager.onPageCountChange(handler);
 
-        pageManager.operations.addPage();
+        pageManager.createNewPage();
         expect(handler).toHaveBeenCalledWith(2);
     });
 
@@ -115,7 +115,7 @@ describe('PageManager - Page Tracking and Rendering', () => {
         const handler = jest.fn();
         pageManager.onPageChange(handler);
 
-        const secondPage = pageManager.operations.addPage();
+        const secondPage = pageManager.createNewPage();
         pageManager.setCurrentPage(secondPage);
         expect(handler).toHaveBeenCalledWith(secondPage);
     });

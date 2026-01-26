@@ -10,7 +10,7 @@
     padding: 1rem 2vw 0;
     border-radius: 0;
     background: transparent;
-    border: none;
+    border: 1px solid var(--border-color);
     box-shadow: none;
 }
 
@@ -21,6 +21,7 @@
     gap: 1rem;
     margin-bottom: 1rem;
     flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .public-scripts-header h2 {
@@ -65,7 +66,7 @@
 
 .public-script-card {
     border-bottom: 1px solid var(--border-color, #e1e5e9);
-    padding: 1.25rem 0;
+    padding: 1.25rem;
     background: transparent;
     box-shadow: none;
     border-radius: 0;
@@ -75,6 +76,10 @@
 
 .public-script-card:last-child {
     border-bottom: none;
+}
+
+.public-script-card:nth-child(odd) {
+    background: var(--chat-bg);
 }
 
 .public-script-card__title {

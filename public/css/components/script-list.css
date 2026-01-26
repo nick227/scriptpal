@@ -12,12 +12,36 @@
     gap: 0.5rem;
 }
 
+.script-panel-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.user-scripts .script-item {
+    border-radius: 6px;
+}
+
+.user-scripts .script-actions button {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: inherit;
+}
+
+.user-scripts .script-actions button:hover {
+    color: var(--color-primary);
+}
+
 /* Dropdown Container */
 .script-list-dropdown {
     position: relative;
     display: inline-block;
     width: 100%;
-    max-width: 365px;
+    max-width: 165px;
     background-color: white;
 }
 
@@ -104,6 +128,7 @@
     overflow-y: auto;
     margin-top: 2px;
     padding: 15px;
+    min-width: 380px;
 }
 
 /* Script List */

@@ -15,17 +15,72 @@ const chatMessageRepository = {
     });
   },
 
-  create: async({ userId, scriptId = null, role, content, intent = null, metadata = null }) => {
-    return await prisma.chatMessage.create({
-      data: {
+  create: async({
+    userId,
+    scriptId = null,
+    role,
+    content,
+    intent = null,
+    metadata = null,
+    promptTokens = 0,
+    completionTokens = 0,
+    totalTokens = 0,
+    costUsd = 0
+  }) => {
+    const metadataValue = metadata === null || metadata === undefined
+      ? null
+      : (typeof metadata === 'string' ? metadata : JSON.stringify(metadata));
+    const normalizedScriptId = scriptId ?? null;
+    const normalizedPromptTokens = Number(promptTokens ?? 0);
+    const normalizedCompletionTokens = Number(completionTokens ?? 0);
+    const normalizedTotalTokens = Number(totalTokens ?? 0);
+    const normalizedCostUsd = Number(costUsd ?? 0);
+
+    const insert = prisma.$executeRaw`
+      INSERT INTO chat_messages (
         userId,
         scriptId,
         role,
         content,
         intent,
-        metadata
-      }
-    });
+        metadata,
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        cost_usd
+      ) VALUES (
+        ${userId},
+        ${normalizedScriptId},
+        ${role},
+        ${content},
+        ${intent},
+        ${metadataValue},
+        ${normalizedPromptTokens},
+        ${normalizedCompletionTokens},
+        ${normalizedTotalTokens},
+        ${normalizedCostUsd}
+      )
+    `;
+
+    const [, rows] = await prisma.$transaction([
+      insert,
+      prisma.$queryRaw`SELECT LAST_INSERT_ID() AS id`
+    ]);
+    const row = Array.isArray(rows) ? rows[0] : rows;
+
+    return {
+      id: row?.id ?? null,
+      userId,
+      scriptId: normalizedScriptId,
+      role,
+      content,
+      intent,
+      metadata,
+      promptTokens: normalizedPromptTokens,
+      completionTokens: normalizedCompletionTokens,
+      totalTokens: normalizedTotalTokens,
+      costUsd: normalizedCostUsd
+    };
   },
 
   clearByUserAndScript: async(userId, scriptId) => {

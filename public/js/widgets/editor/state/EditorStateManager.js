@@ -20,7 +20,13 @@ export class EditorStateManager {
             isDirty: false,
             canUndo: false,
             canRedo: false,
-            selection: null
+            selection: null,
+            autocomplete: {
+                speaker: {
+                    suggestions: [],
+                    currentSuggestion: null
+                }
+            }
         };
         this.eventHandlers = new Map();
     }
@@ -42,6 +48,18 @@ export class EditorStateManager {
             this.eventHandlers.set(event, new Set());
         }
         this.eventHandlers.get(event).add(handler);
+    }
+
+    /**
+     * Unsubscribe an event handler
+     * @param {string} event
+     * @param {Function} handler
+     */
+    off (event, handler) {
+        if (!this.eventHandlers.has(event)) {
+            return;
+        }
+        this.eventHandlers.get(event).delete(handler);
     }
 
     /**
@@ -133,6 +151,32 @@ export class EditorStateManager {
     }
 
     /**
+     * Get autocomplete state for a format
+     * @param {string} format
+     */
+    getAutocompleteState (format) {
+        const autocomplete = this.state.autocomplete || {};
+        return autocomplete[format] || { suggestions: [], currentSuggestion: null };
+    }
+
+    /**
+     * Get autocomplete suggestions for a format
+     * @param {string} format
+     */
+    getAutocompleteSuggestions (format) {
+        const state = this.getAutocompleteState(format);
+        return state.suggestions || [];
+    }
+
+    /**
+     * Get the current autocomplete suggestion for a format
+     * @param {string} format
+     */
+    getAutocompleteCurrentSuggestion (format) {
+        return this.getAutocompleteState(format).currentSuggestion;
+    }
+
+    /**
      * Get full state object clone
      */
     getCurrentState () {
@@ -151,6 +195,62 @@ export class EditorStateManager {
     setState (key, value) {
         this.state[key] = value;
         this.emit(EDITOR_EVENTS.STATE_CHANGE, { [key]: value });
+    }
+
+    /**
+     * Ensure autocomplete state entry exists for a format
+     * @param {string} format
+     * @private
+     */
+    _ensureAutocompleteFormat (format) {
+        if (!this.state.autocomplete) {
+            this.state.autocomplete = {};
+        }
+        if (!this.state.autocomplete[format]) {
+            this.state.autocomplete[format] = {
+                suggestions: [],
+                currentSuggestion: null
+            };
+        }
+        return this.state.autocomplete[format];
+    }
+
+    /**
+     * Set autocomplete suggestions for a format
+     * @param {string} format
+     * @param {string[]} suggestions
+     */
+    setAutocompleteSuggestions (format, suggestions = []) {
+        if (!format) {
+            return;
+        }
+        const normalized = Array.isArray(suggestions) ? suggestions : [];
+        const formatState = this._ensureAutocompleteFormat(format);
+        formatState.suggestions = normalized;
+        this.emit(EDITOR_EVENTS.AUTOCOMPLETE_SUGGESTIONS, {
+            format,
+            suggestions: normalized
+        });
+    }
+
+    /**
+     * Store the active autocomplete suggestion
+     * @param {string} format
+     * @param {string|null} suggestion
+     */
+    setAutocompleteCurrentSuggestion (format, suggestion) {
+        if (!format) {
+            return;
+        }
+        const formatState = this._ensureAutocompleteFormat(format);
+        if (formatState.currentSuggestion === suggestion) {
+            return;
+        }
+        formatState.currentSuggestion = suggestion;
+        this.emit(EDITOR_EVENTS.AUTOCOMPLETE_CURRENT, {
+            format,
+            currentSuggestion: suggestion
+        });
     }
 
     /**
@@ -271,7 +371,13 @@ export class EditorStateManager {
             isDirty: false,
             canUndo: false,
             canRedo: false,
-            selection: null
+            selection: null,
+            autocomplete: {
+                speaker: {
+                    suggestions: [],
+                    currentSuggestion: null
+                }
+            }
         };
         this.emit(EDITOR_EVENTS.STATE_CHANGE, this.state);
     }

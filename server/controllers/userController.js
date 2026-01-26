@@ -1,4 +1,5 @@
 import userModel from '../models/user.js';
+import tokenUsageRepository from '../repositories/tokenUsageRepository.js';
 
 const sanitizeUser = (user) => {
   if (!user) return user;
@@ -150,6 +151,26 @@ const userController = {
     } catch (error) {
       console.error('Error getting current user:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  getTokenWatch: async(req, res) => {
+    try {
+      const userId = req.userId;
+      const totals = await tokenUsageRepository.getTotalsForUser(userId);
+      res.json({
+        userId,
+        tokens: {
+          prompt: totals.promptTokens,
+          completion: totals.completionTokens,
+          total: totals.totalTokens
+        },
+        costUsd: totals.costUsd,
+        lastUpdated: totals.lastUpdated
+      });
+    } catch (error) {
+      console.error('Error fetching token usage:', error);
+      res.status(500).json({ error: 'Failed to fetch token usage' });
     }
   }
 };

@@ -1,5 +1,4 @@
 import scriptModel from '../models/script.js';
-import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
 import scriptRepository from '../repositories/scriptRepository.js';
 
 const VALID_FORMATS = new Set([
@@ -53,9 +52,22 @@ const scriptController = {
     }
   },
 
+  getScriptBySlug: async(req, res) => {
+    try {
+      const script = await scriptModel.getScriptBySlug(req.userId, req.params.slug);
+      if (!script) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      res.json(script);
+    } catch (error) {
+      console.error('Error getting script by slug:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   createScript: async(req, res) => {
     try {
-      const { title, status, content, author, visibility } = req.body;
+      const { title, status, content, author, description, visibility } = req.body;
       if (!title) {
         return res.status(400).json({ error: 'Title is required' });
       }
@@ -64,6 +76,7 @@ const scriptController = {
         userId: req.userId,
         title,
         author,
+        description,
         status: status || 'draft',
         visibility: visibilityValue,
         content: content || JSON.stringify({
@@ -86,7 +99,7 @@ const scriptController = {
     });
 
     try {
-      const { title, status, content, author, visibility } = req.body;
+      const { title, status, content, author, description, visibility } = req.body;
 
       if (!title) {
         console.warn('Update rejected: missing title');
@@ -155,6 +168,7 @@ const scriptController = {
       const updatePayload = {
         title,
         author,
+        description,
         content,
         status
       };
@@ -172,53 +186,6 @@ const scriptController = {
       res.json(script);
     } catch (error) {
       console.error('Error updating script:', error);
-      if (error.message === 'Script not found') {
-        return res.status(404).json({ error: 'Script not found' });
-      }
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
-
-  appendPage: async(req, res) => {
-    try {
-      const scriptId = Number(req.params.id);
-      if (!scriptId) {
-        return res.status(400).json({ error: 'Invalid script ID' });
-      }
-
-      const existingScript = await scriptRepository.getById(scriptId);
-      if (!existingScript) {
-        return res.status(404).json({ error: 'Script not found' });
-      }
-      if (existingScript.userId !== req.userId) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-
-      const { prompt } = req.body;
-      if (!prompt || typeof prompt !== 'string') {
-        return res.status(400).json({ error: 'Prompt is required' });
-      }
-
-      const result = await generateAppendPage({
-        scriptId,
-        userId: req.userId,
-        prompt
-      });
-
-      res.json({
-        success: true,
-        scriptId,
-        scriptTitle: result.scriptTitle,
-        intent: APPEND_SCRIPT_INTENT,
-        response: {
-          content: result.responseText,
-          metadata: {
-            generationMode: APPEND_PAGE_INTENT
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error appending page:', error);
       if (error.message === 'Script not found') {
         return res.status(404).json({ error: 'Script not found' });
       }

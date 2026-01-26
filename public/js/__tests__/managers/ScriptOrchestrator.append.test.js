@@ -1,4 +1,4 @@
-import { ScriptOrchestrator } from '../../managers/ScriptOrchestrator.js';
+import { ScriptOrchestrator } from '../../services/script/ScriptOrchestrator.js';
 
 describe('ScriptOrchestrator append flow', () => {
     test('splits multi-line content and appends lines', async () => {

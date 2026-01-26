@@ -61,6 +61,20 @@ const publicScriptController = {
       console.error('Error fetching public script:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  },
+
+  getBySlug: async(req, res) => {
+    try {
+      const script = await scriptModel.getPublicScriptBySlug(req.params.slug);
+      if (!script) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      const serialized = serializePublicScript(script);
+      res.json(serialized);
+    } catch (error) {
+      console.error('Error fetching public script by slug:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };
 

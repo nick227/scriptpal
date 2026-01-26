@@ -37,6 +37,10 @@ export class KeyboardManager {
         this.selectionStart = null;
         this.selectionEnd = null;
 
+        // Autocomplete flow tracking
+        this._autocompleteAccepted = false;
+        this._autocompleteAcceptedLineId = null;
+
         // History tracking
         this.lastSavedState = null;
         this.stateChangeThreshold = 100; // ms between state saves
@@ -210,22 +214,6 @@ export class KeyboardManager {
             return true;
         }
 
-        // Handle Ctrl+Z for undo
-        if (event.ctrlKey && event.key === 'z' && !event.shiftKey) {
-            event.preventDefault();
-            event.stopPropagation();
-            this._handleUndo();
-            return true;
-        }
-
-        // Handle Ctrl+Y or Ctrl+Shift+Z for redo
-        if ((event.ctrlKey && event.key === 'y') || (event.ctrlKey && event.key === 'z' && event.shiftKey)) {
-            event.preventDefault();
-            event.stopPropagation();
-            this._handleRedo();
-            return true;
-        }
-
         return false;
     }
 
@@ -241,55 +229,30 @@ export class KeyboardManager {
     }
 
     /**
-     * Handle undo (Ctrl+Z)
-     * @private
-     */
-    _handleUndo () {
-        this._debugLog('[KeyboardManager] Undo triggered (Ctrl+Z)');
-        if (this.history && typeof this.history.undo === 'function') {
-            const success = this.history.undo();
-            if (success) {
-                this._debugLog('[KeyboardManager] Undo successful');
-            } else {
-                this._debugLog('[KeyboardManager] Nothing to undo');
-            }
-        } else {
-            console.warn('[KeyboardManager] History service not available for undo');
-        }
-    }
-
-    /**
-     * Handle redo (Ctrl+Y or Ctrl+Shift+Z)
-     * @private
-     */
-    _handleRedo () {
-        this._debugLog('[KeyboardManager] Redo triggered (Ctrl+Y)');
-        if (this.history && typeof this.history.redo === 'function') {
-            const success = this.history.redo();
-            if (success) {
-                this._debugLog('[KeyboardManager] Redo successful');
-            } else {
-                this._debugLog('[KeyboardManager] Nothing to redo');
-            }
-        } else {
-            console.warn('[KeyboardManager] History service not available for redo');
-        }
-    }
-
-    /**
      *
      * @param event
      * @param scriptLine
      */
     _handleAutocomplete (event, scriptLine) {
-        if (!this.autocomplete || !this.autocomplete.currentSuggestion) {
+        if (!this.autocomplete || !this.autocomplete.hasActiveSuggestion(scriptLine)) {
             return false;
         }
 
         if (event.key === 'Tab') {
-            if (typeof this.autocomplete.handleKeydown === 'function') {
-                return this.autocomplete.handleKeydown(event);
+            event.preventDefault();
+            event.stopPropagation();
+            const accepted = this.autocomplete.acceptSuggestion(scriptLine);
+            if (accepted) {
+                const lineId = scriptLine.dataset?.lineId ||
+                    (this.contentManager ? this.contentManager.ensureLineId(scriptLine) : null);
+                this._autocompleteAccepted = true;
+                this._autocompleteAcceptedLineId = lineId || null;
             }
+            return false;
+        }
+
+        if (event.key === 'Enter') {
+            this.autocomplete.acceptSuggestion(scriptLine);
             return false;
         }
 
@@ -354,8 +317,8 @@ export class KeyboardManager {
             }
 
             const nextLine = event.key === 'ArrowUp' ?
-                this.pageManager.operations.getPreviousLine(scriptLine) :
-                this.pageManager.operations.getNextLine(scriptLine);
+                this.pageManager.getPreviousLine(scriptLine) :
+                this.pageManager.getNextLine(scriptLine);
 
             if (nextLine) {
                 this.selectionEnd = nextLine;
@@ -381,8 +344,8 @@ export class KeyboardManager {
                 this.selectionEnd = null;
 
                 const nextLine = event.key === 'ArrowUp' ?
-                    this.pageManager.operations.getPreviousLine(scriptLine) :
-                    this.pageManager.operations.getNextLine(scriptLine);
+                    this.pageManager.getPreviousLine(scriptLine) :
+                    this.pageManager.getNextLine(scriptLine);
 
                 if (nextLine) {
                     this._updateLineAndFocus(nextLine);
@@ -414,25 +377,35 @@ export class KeyboardManager {
             case 'Tab': {
                 event.preventDefault();
                 const targetLine = event.shiftKey ?
-                    this.pageManager.operations.getPreviousLine(scriptLine) :
-                    this.pageManager.operations.getNextLine(scriptLine);
+                    this.pageManager.getPreviousLine(scriptLine) :
+                    this.pageManager.getNextLine(scriptLine);
+
+                const acceptanceMatches = this._autocompleteAccepted &&
+                    (!this._autocompleteAcceptedLineId || this._autocompleteAcceptedLineId === scriptLine.dataset?.lineId);
+                if (acceptanceMatches && targetLine) {
+                    this._applyFormatCommand(targetLine, 'dialog');
+                }
 
                 if (targetLine) {
                     this._updateLineAndFocus(targetLine);
                 }
+
+                this._autocompleteAccepted = false;
+                this._autocompleteAcceptedLineId = null;
                 return true;
             }
 
             case 'Backspace':
             case 'Delete': {
-                // Check if we have selected lines
+                // Check if we have a range selection (shift+click/shift+arrow)
                 const selectedLines = this.editorArea.querySelectorAll('.script-line.selected');
-                if (selectedLines.length > 1) {
+                const hasLineRangeSelection = Boolean(this.selectionStart && this.selectionEnd);
+                if (hasLineRangeSelection && selectedLines.length > 1) {
                     // Multiple lines selected - delete all selected lines
                     event.preventDefault();
                     this._deleteSelectedLines(selectedLines);
                     return true;
-                } else if (selectedLines.length === 1 && selectedLines[0] === scriptLine) {
+                } else if (hasLineRangeSelection && selectedLines.length === 1 && selectedLines[0] === scriptLine) {
                     // Single line selected - delete the line
                     event.preventDefault();
                     this._deleteSelectedLines(selectedLines);
@@ -534,8 +507,8 @@ export class KeyboardManager {
      */
     _handleEmptyLineDelete (scriptLine, direction) {
         const targetLine = direction === 'previous' ?
-            this.pageManager.operations.getPreviousLine(scriptLine) :
-            this.pageManager.operations.getNextLine(scriptLine);
+            this.pageManager.getPreviousLine(scriptLine) :
+            this.pageManager.getNextLine(scriptLine);
 
         if (!targetLine || !this.contentManager) {
             return;
@@ -754,8 +727,8 @@ export class KeyboardManager {
             }
 
             currentLine = after ?
-                this.pageManager.operations.getNextLine(currentLine) :
-                this.pageManager.operations.getPreviousLine(currentLine);
+                this.pageManager.getNextLine(currentLine) :
+                this.pageManager.getPreviousLine(currentLine);
 
             // Safety check to prevent infinite loops
             if (lines.length > 100) {
@@ -831,9 +804,9 @@ export class KeyboardManager {
 
             // Try to find a line to focus after deletion
             let lineToFocus = null;
-            if (this.pageManager && this.pageManager.operations) {
-                lineToFocus = this.pageManager.operations.getPreviousLine(firstSelected) ||
-                    this.pageManager.operations.getNextLine(lastSelected);
+            if (this.pageManager) {
+                lineToFocus = this.pageManager.getPreviousLine(firstSelected) ||
+                    this.pageManager.getNextLine(lastSelected);
             }
 
             const lineIds = Array.from(selectedLines)

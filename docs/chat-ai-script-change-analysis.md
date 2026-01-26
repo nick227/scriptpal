@@ -9,9 +9,9 @@ This document walks through the full journey for the script-change intent and co
 
 ## 1. From the chat UI to the API
 
-- The browser `ChatManager` validates every message, shows it in the renderer, persists it locally, and triggers `getApiResponseWithTimeout` once the user prompt is ready (`public/js/widgets/chat/ChatManager.js:260`, `public/js/widgets/chat/ChatManager.js:282`, `public/js/widgets/chat/ChatManager.js:346`).
+- The browser `ChatManager` validates every message, shows it in the renderer, persists it locally, and triggers `getApiResponseWithTimeout` once the user prompt is ready (`public/js/widgets/chat/core/ChatManager.js:260`, `public/js/widgets/chat/core/ChatManager.js:282`, `public/js/widgets/chat/core/ChatManager.js:346`).
 - That helper asks `ScriptContextManager#getAIChatContext` for the latest script metadata, content, and lightweight stats before the POST to `/api/chat` (`public/js/widgets/editor/context/ScriptContextManager.js:351`). The payload now carries `prompt`, `context`, and optional `scriptId`.
-- Once the assistant returns a script-edit response, `ChatManager.handleScriptEdit` hands the returned content/commands to whatever `scriptOrchestrator` is hooked into the editor so the UI can reflect the new version (`public/js/widgets/chat/ChatManager.js:422`).
+- Once the assistant returns a script-edit response, `ChatManager.handleScriptEdit` hands the returned content/commands to whatever `scriptOrchestrator` is hooked into the editor so the UI can reflect the new version (`public/js/widgets/chat/core/ChatManager.js:422`).
 
 ## 2. Backend entry and orchestration
 

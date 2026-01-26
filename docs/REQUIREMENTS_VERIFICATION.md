@@ -62,7 +62,7 @@ This document provides a comprehensive verification of all 30 requirements from 
   - Natural language conversation
   - Script analysis and feedback
   - Context-aware responses
-- **Verification**: ✅ Confirmed in `public/js/widgets/chat/ChatManager.js`
+- **Verification**: ✅ Confirmed in `public/js/widgets/chat/core/ChatManager.js`
 
 ### **Requirement #7: Script Attributes as AI Context** ✅
 **Status: FULLY IMPLEMENTED**
@@ -99,7 +99,7 @@ This document provides a comprehensive verification of all 30 requirements from 
   - Separate chat history for each script
   - History persistence and loading
   - Script context switching
-- **Verification**: ✅ Confirmed in `public/js/widgets/chat/ChatHistoryManager.js`
+- **Verification**: ✅ Confirmed in `public/js/widgets/chat/core/ChatHistoryManager.js`
 
 ### **Requirement #11: Chat History Changes on Script Change** ✅
 **Status: FULLY IMPLEMENTED**

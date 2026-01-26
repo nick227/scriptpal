@@ -1,7 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager as _promptManager } from '../../prompts/index.js';
 import { ERROR_TYPES as _ERROR_TYPES, TOKEN_LIMITS, INTENT_TYPES } from '../../constants.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import { preprocessScript, validateContent } from '../helpers/ChainInputUtils.js';
 import prisma from '../../../../db/prismaClient.js';
 
 export class ScriptAnalyzerChain extends BaseChain {
@@ -106,7 +106,7 @@ export class ScriptAnalyzerChain extends BaseChain {
     const scriptTitle = context.scriptTitle || 'Untitled Script';
 
     // Process the script
-    const processedScript = ChainHelper.preprocessScript(scriptContent, {
+    const processedScript = preprocessScript(scriptContent, {
       includeElements: true,
       elementType: 'analysis'
     });
@@ -115,7 +115,7 @@ export class ScriptAnalyzerChain extends BaseChain {
     console.log('Analysis using title:', scriptTitle);
 
     // Validate content
-    if (!ChainHelper.validateContent(processedScript.content)) {
+    if (!validateContent(processedScript.content)) {
       console.log('Content validation failed');
       throw new Error('insufficient_content');
     }

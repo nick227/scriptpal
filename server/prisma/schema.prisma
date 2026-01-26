@@ -66,6 +66,8 @@ model Script {
   userId    Int
   title     String
   author    String?
+  description String?    @db.LongText
+  slug      String?      @db.VarChar(80)
   status    ScriptStatus @default(draft)
   visibility Visibility @default(private)
   createdAt DateTime     @default(now())
@@ -80,6 +82,8 @@ model Script {
   chatMessages ChatMessage[]
 
   @@map("scripts")
+  @@index([slug])
+  @@unique([userId, slug])
 }
 
 model ScriptVersion {
@@ -129,6 +133,10 @@ model ChatMessage {
   content   String   @db.LongText
   intent    String?
   metadata  Json?
+  promptTokens     Int?     @map("prompt_tokens")
+  completionTokens Int?     @map("completion_tokens")
+  totalTokens      Int?     @map("total_tokens")
+  costUsd          Decimal? @map("cost_usd") @db.Decimal(10, 6)
   createdAt DateTime @default(now())
 
   user   User    @relation(fields: [userId], references: [id])

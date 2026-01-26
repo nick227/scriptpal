@@ -5,7 +5,7 @@
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
 import { ScriptStore } from '../../stores/ScriptStore.js';
-import { ScriptFormatter } from '../../services/scriptFormatter.js';
+import { ScriptFormatter } from '../../services/format/ScriptFormatter.js';
 
 const mockApi = {
     getAllScriptsByUser: jest.fn(),

@@ -5,7 +5,7 @@
 - **ScriptContextManager → AI context**  
   `public/js/widgets/editor/context/ScriptContextManager.js` builds script metadata, plain text, page/chapter info, and lightweight analysis stats before caching them (`getScriptContext`). `getAIChatContext` extends that payload with an AI timestamp and version tag so the chat UI has one source of truth for everything the model might need (`#L351`).
 - **ChatManager call site**  
-  `public/js/widgets/chat/ChatManager.js` gathers the context above inside `getApiResponseWithTimeout` (`#L346`), races the call against a 30 s timer, and then hands both prompt + context to `API.getChatResponse`.
+  `public/js/widgets/chat/core/ChatManager.js` gathers the context above inside `getApiResponseWithTimeout` (`#L346`), races the call against a 30 s timer, and then hands both prompt + context to `API.getChatResponse`.
 - **API helpers**  
   `public/js/classes/api.js` injects the current scriptId/title/version from local storage into `context` before serializing the request body to `/api/chat` (`#L367`). The same helper family also publishes system prompts via `/api/system-prompts`, wrapping every payload with `promptType`, a timestamp, and any inbound trigger context (`#L406`).
 - **System prompt orchestration**  

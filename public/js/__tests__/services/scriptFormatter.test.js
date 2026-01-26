@@ -2,7 +2,7 @@
  * Tests for ScriptFormatter
  */
 
-import { ScriptFormatter } from '../../services/scriptFormatter.js';
+import { ScriptFormatter } from '../../services/format/ScriptFormatter.js';
 
 describe('ScriptFormatter', () => {
     let formatter;
@@ -19,9 +19,9 @@ describe('ScriptFormatter', () => {
         it('should initialize with valid tags', () => {
             expect(formatter.validTags).toEqual([
                 'header',
+                'action',
                 'speaker',
                 'dialog',
-                'action',
                 'directions',
                 'chapter-break'
             ]);
@@ -203,7 +203,7 @@ describe('ScriptFormatter', () => {
             expect(result).toBeTruthy();
             expect(typeof result).toBe('string');
             expect(result).toContain('<action>FADE IN:</action>');
-            expect(result).toContain('<chapter-break/>');
+            expect(result).toContain('<chapter-break></chapter-break>');
             expect(result).toContain('<action>EXT. PARK - DAY</action>');
         });
 
@@ -281,7 +281,7 @@ describe('ScriptFormatter', () => {
 
         it('should handle chapter breaks', () => {
             const result = formatter.formatLine('---');
-            expect(result).toBe('<chapter-break/>');
+            expect(result).toBe('<chapter-break></chapter-break>');
         });
 
         it('should default to action for unknown lines', () => {
@@ -347,7 +347,7 @@ describe('ScriptFormatter', () => {
 
     describe('validateContentStructure', () => {
         it('should validate content with valid tags', () => {
-            const content = '<header>FADE IN:</header><action>EXT. PARK - DAY</action>';
+            const content = '<header>FADE IN:</header>\n<action>EXT. PARK - DAY</action>';
             const result = formatter.validateContentStructure(content);
             expect(result).toBe(true);
         });
@@ -390,9 +390,9 @@ describe('ScriptFormatter', () => {
             const tags = formatter.getValidTags();
             expect(tags).toEqual([
                 'header',
+                'action',
                 'speaker',
                 'dialog',
-                'action',
                 'directions',
                 'chapter-break'
             ]);

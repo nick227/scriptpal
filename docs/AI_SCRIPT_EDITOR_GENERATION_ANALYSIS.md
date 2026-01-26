@@ -28,7 +28,7 @@ if (scriptId && isAppendPageRequest(req.body.prompt)) {
 }
 ```
 ```
-81:110:public/js/widgets/chat/ScriptOperationsHandler.js
+81:110:public/js/widgets/chat/core/ScriptOperationsHandler.js
 async _handleScriptAppend (data) {
   const orchestrator = this.getScriptOrchestrator && this.getScriptOrchestrator();
   // ...

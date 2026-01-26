@@ -2,7 +2,7 @@
  * Tests for Requirement #12: The current active script and chat conversation persist on page load
  */
 
-import { PersistenceManager } from '../../managers/PersistenceManager.js';
+import { PersistenceManager } from '../../services/persistence/PersistenceManager.js';
 import { StateManager } from '../../core/StateManager.js';
 
 describe('Requirement #12: Script and Chat Persistence on Page Load', () => {

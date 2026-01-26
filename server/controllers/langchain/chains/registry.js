@@ -1,11 +1,15 @@
 import { INTENT_TYPES } from '../constants.js';
-import { AppendScriptChain } from './edit/AppendScriptChain.js';
+import { ScriptAppendChain } from './script/ScriptAppendChain.js';
 import { DefaultChain } from './base/DefaultChain.js';
+import { ScriptNextLinesChain } from './script/ScriptNextLinesChain.js';
+import { ScriptReflectionChain } from './script/ScriptReflectionChain.js';
 
 // Initialize the registry map
 const registry = new Map([
-  [INTENT_TYPES.SCRIPT_CONVERSATION, AppendScriptChain],
-  [INTENT_TYPES.GENERAL_CONVERSATION, DefaultChain]
+  [INTENT_TYPES.SCRIPT_CONVERSATION, ScriptAppendChain],
+  [INTENT_TYPES.GENERAL_CONVERSATION, DefaultChain],
+  [INTENT_TYPES.NEXT_FIVE_LINES, ScriptNextLinesChain],
+  [INTENT_TYPES.SCRIPT_REFLECTION, ScriptReflectionChain]
 ]);
 
 export const chainRegistry = {

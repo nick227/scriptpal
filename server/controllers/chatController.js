@@ -1,8 +1,13 @@
-import { ERROR_TYPES } from './langchain/constants.js';
+import { ERROR_TYPES, INTENT_TYPES, validateAiResponse } from './langchain/constants.js';
 import { Chat } from './chat/Chat.js';
 import chatMessageRepository from '../repositories/chatMessageRepository.js';
 import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
 import { generateFullScript, FULL_SCRIPT_GENERATION_MODE } from './scripts/FullScriptService.js';
+import { buildAiResponse, createIntentResult } from './aiResponse.js';
+import { ScriptManager } from './scripts/ScriptManager.js';
+import { router } from './langchain/router/index.js';
+import { normalizeScriptForPrompt } from './langchain/chains/helpers/ScriptNormalization.js';
+import { getPromptById } from '../../shared/promptRegistry.js';
 
 const APPEND_PAGE_PATTERNS = [
   /\bnext page\b/i,
@@ -13,12 +18,80 @@ const APPEND_PAGE_PATTERNS = [
   /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscreenplay\b/i
 ];
 
+const NEXT_FIVE_LINES_PATTERN = /\b(next|write|generate|add|continue)\b[\s\S]{0,40}\b(5|five)\b[\s\S]{0,20}\blines?\b/i;
+
+const NEXT_FIVE_LINES_PROMPT = getPromptById('next-five-lines');
+
+if (!NEXT_FIVE_LINES_PROMPT) {
+  throw new Error('Next five lines prompt definition is missing from the registry');
+}
+
+const scriptManager = new ScriptManager();
+
 const isAppendPageRequest = (prompt) => {
   if (!prompt || typeof prompt !== 'string') {
     return false;
   }
 
+  if (NEXT_FIVE_LINES_PATTERN.test(prompt)) {
+    return false;
+  }
+
   return APPEND_PAGE_PATTERNS.some(pattern => pattern.test(prompt));
+};
+
+const isNextFiveLinesRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return NEXT_FIVE_LINES_PATTERN.test(prompt);
+};
+
+const buildNextFiveLinesContext = (scriptId, script, overrides = {}) => {
+  const includeScriptContext = NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false;
+  const scriptContent = includeScriptContext
+    ? normalizeScriptForPrompt(script.content || '', { allowStructuredExtraction: true })
+    : '';
+
+  const protectedKeys = new Set([
+    'scriptId',
+    'scriptTitle',
+    'scriptContent',
+    'includeScriptContext',
+    'attachScriptContext',
+    'expectsFormattedScript',
+    'scriptMetadata',
+    'chainConfig'
+  ]);
+  const safeOverrides = Object.fromEntries(
+    Object.entries(overrides || {}).filter(([key]) => !protectedKeys.has(key))
+  );
+
+  return {
+    userId: overrides.userId || null,
+    scriptId,
+    scriptTitle: script.title,
+    scriptContent,
+    includeScriptContext,
+    attachScriptContext: includeScriptContext,
+    expectsFormattedScript: NEXT_FIVE_LINES_PROMPT.expectsFormattedScript ?? false,
+    disableHistory: true,
+    scriptMetadata: {
+      updatedAt: script.updatedAt,
+      versionNumber: script.versionNumber,
+      status: script.status
+    },
+    chainConfig: {
+      shouldGenerateQuestions: false,
+      modelConfig: {
+        temperature: 0.3,
+        response_format: { type: 'json_object' }
+      }
+    },
+    systemInstruction: NEXT_FIVE_LINES_PROMPT.systemInstruction,
+    ...safeOverrides
+  };
 };
 
 const FULL_SCRIPT_PATTERNS = [
@@ -38,6 +111,13 @@ const isFullScriptRequest = (prompt) => {
   }
 
   return FULL_SCRIPT_PATTERNS.some(pattern => pattern.test(prompt));
+};
+
+const isSemanticValidationError = (error) => {
+  if (!error || typeof error.message !== 'string') {
+    return false;
+  }
+  return /append_validation_failed|full_script_validation_failed/i.test(error.message);
 };
 
 // Move handleChatError to be a standalone function
@@ -254,74 +334,177 @@ const chatController = {
       });
 
       const forceFullScript = Boolean(context.forceFullScript);
+      let forceChatFallback = false;
       const shouldGenerateFullScript = scriptId && (forceFullScript || isFullScriptRequest(req.body.prompt));
       if (shouldGenerateFullScript) {
         console.log('[ChatController] full script request detected, generating', {
           scriptId,
           forceFullScript
         });
-        const fullScriptResult = await generateFullScript({
-          scriptId,
-          userId: req.userId,
-          prompt: req.body.prompt
-        });
-
-        console.log('[ChatController] full script generated', {
-          scriptId,
-          responseLength: fullScriptResult.responseText?.length || 0
-        });
-
-      return res.status(200).json({
-        success: true,
-        intent: APPEND_SCRIPT_INTENT,
-        confidence: 1,
-        target: null,
-        value: null,
-        scriptId,
-        scriptTitle: fullScriptResult.scriptTitle,
-        timestamp: new Date().toISOString(),
-        response: {
-          content: fullScriptResult.responseText,
-          metadata: {
-            generationMode: FULL_SCRIPT_GENERATION_MODE,
-            fullScript: true,
-            forceFullScript
+        let fullScriptResult = null;
+        try {
+          fullScriptResult = await generateFullScript({
+            scriptId,
+            userId: req.userId,
+            prompt: req.body.prompt,
+            maxAttempts: 1
+          });
+        } catch (error) {
+          if (isSemanticValidationError(error)) {
+            console.warn('[ChatController] full script validation failed, falling back to chat', {
+              scriptId,
+              error: error.message
+            });
+            forceChatFallback = true;
+          } else {
+            throw error;
           }
         }
-      });
+
+        if (!fullScriptResult) {
+          console.log('[ChatController] full script fallback to chat', { scriptId });
+        } else {
+          console.log('[ChatController] full script generated', {
+            scriptId,
+            responseLength: fullScriptResult.responseText?.length || 0
+          });
+
+          const fullResponse = {
+            content: fullScriptResult.responseText,
+            assistantResponse: fullScriptResult.assistantResponse || fullScriptResult.responseText,
+            metadata: {
+              formattedScript: fullScriptResult.formattedScript,
+              generationMode: FULL_SCRIPT_GENERATION_MODE,
+              fullScript: true,
+              forceFullScript
+            }
+          };
+          const validation = validateAiResponse(APPEND_SCRIPT_INTENT, fullResponse);
+          if (!validation.valid) {
+            console.warn('[ChatController] full script validation failed', {
+              errors: validation.errors
+            });
+            console.log('[ChatController] full script fallback to chat due to validation');
+            forceChatFallback = true;
+          } else {
+            fullResponse.metadata.contractValidation = validation;
+            const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
+            const responsePayload = buildAiResponse({
+              intentResult,
+              scriptId,
+              scriptTitle: fullScriptResult.scriptTitle,
+              response: fullResponse
+            });
+
+            return res.status(200).json(responsePayload);
+          }
+        }
+      }
+
+      const shouldGenerateNextFiveLines = scriptId && isNextFiveLinesRequest(req.body.prompt);
+      if (shouldGenerateNextFiveLines) {
+        console.log('[ChatController] next-five-lines detected, generating');
+        const script = await scriptManager.getScript(scriptId);
+        if (!script) {
+          throw new Error('Script not found');
+        }
+        const context = buildNextFiveLinesContext(scriptId, script, {
+          userId: req.userId,
+          ...rawContext
+        });
+        const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
+        const response = await router.route(intentResult, context, NEXT_FIVE_LINES_PROMPT.userPrompt);
+        const validation = validateAiResponse(INTENT_TYPES.NEXT_FIVE_LINES, response);
+        if (!validation.valid) {
+          console.warn('[ChatController] next-five-lines validation failed, falling back to chat', {
+            scriptId,
+            errors: validation.errors
+          });
+          forceChatFallback = true;
+        } else {
+          const responseWithMetadata = {
+            ...response,
+            metadata: {
+              ...response.metadata,
+              generationMode: INTENT_TYPES.NEXT_FIVE_LINES,
+              contractValidation: validation
+            }
+          };
+          const responsePayload = buildAiResponse({
+            intentResult,
+            scriptId,
+            scriptTitle: script.title,
+            response: responseWithMetadata
+          });
+
+          return res.status(200).json(responsePayload);
+        }
       }
 
       const forceAppend = Boolean(context.forceAppend);
-      if (scriptId && (forceAppend || isAppendPageRequest(req.body.prompt))) {
+      if (!forceChatFallback && scriptId && (forceAppend || isAppendPageRequest(req.body.prompt))) {
         console.log('[ChatController] append-page detected, generating');
-        const appendResult = await generateAppendPage({
-          scriptId,
-          userId: req.userId,
-          prompt: req.body.prompt
-        });
+        let appendResult = null;
+        try {
+          appendResult = await generateAppendPage({
+            scriptId,
+            userId: req.userId,
+            prompt: req.body.prompt,
+            maxAttempts: 1
+          });
+        } catch (error) {
+          if (isSemanticValidationError(error)) {
+            console.warn('[ChatController] append-page validation failed', {
+              scriptId,
+              error: error.message
+            });
+            return res.status(400).json({
+              error: 'Append page validation failed',
+              details: error.message
+            });
+          }
+          throw error;
+        }
 
-        console.log('[ChatController] append-page generated', {
-          scriptId,
-          responseLength: appendResult.responseText?.length || 0
-        });
+        if (!appendResult) {
+          console.log('[ChatController] append-page fallback to chat', { scriptId });
+        } else {
+          console.log('[ChatController] append-page generated', {
+            scriptId,
+            responseLength: appendResult.responseText?.length || 0
+          });
 
-        return res.status(200).json({
-          success: true,
-          intent: APPEND_SCRIPT_INTENT,
-          confidence: 1,
-          target: null,
-          value: null,
-          scriptId,
-          scriptTitle: appendResult.scriptTitle,
-          timestamp: new Date().toISOString(),
-          response: {
+          const appendResponse = {
             content: appendResult.responseText,
+            assistantResponse: appendResult.assistantResponse || appendResult.responseText,
             metadata: {
+              formattedScript: appendResult.formattedScript,
               generationMode: APPEND_PAGE_INTENT,
               forceAppend
             }
+          };
+          const validation = validateAiResponse(APPEND_SCRIPT_INTENT, appendResponse);
+          if (!validation.valid) {
+            console.warn('[ChatController] append-page validation failed', {
+              errors: validation.errors
+            });
+            return res.status(400).json({
+              error: 'Append page validation failed',
+              details: validation.errors
+            });
+          } else {
+            appendResponse.metadata.contractValidation = validation;
+            const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
+            const responsePayload = buildAiResponse({
+              intentResult,
+              scriptId,
+              scriptTitle: appendResult.scriptTitle,
+              response: appendResponse
+            });
+
+            return res.status(200).json(responsePayload);
           }
-        });
+        }
       }
 
       // 2. Create and execute chat

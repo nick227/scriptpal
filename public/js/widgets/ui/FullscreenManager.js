@@ -4,7 +4,7 @@
  */
 
 import { EventManager } from '../../core/EventManager.js';
-import { loadJsonFromStorage, saveJsonToStorage } from '../../managers/PersistenceManager.js';
+import { loadJsonFromStorage, saveJsonToStorage } from '../../services/persistence/PersistenceManager.js';
 import { debugLog } from '../../core/logger.js';
 
 /**
@@ -236,7 +236,7 @@ export class FullscreenManager {
             this.stateManager.setState('isFullscreen', true);
 
             // Emit event
-            this.eventManager.publish('UI:FULLSCREEN_CHANGED', { isFullscreen: true });
+        this.eventManager.publish(EventManager.EVENTS.UI.FULLSCREEN_CHANGED, { isFullscreen: true });
 
 
         } catch (error) {
@@ -250,7 +250,7 @@ export class FullscreenManager {
             this.isFullscreen = true;
             this.enterFullscreenMode();
             this.stateManager.setState('isFullscreen', true);
-            this.eventManager.publish('UI:FULLSCREEN_CHANGED', { isFullscreen: true });
+            this.eventManager.publish(EventManager.EVENTS.UI.FULLSCREEN_CHANGED, { isFullscreen: true });
         }
 
         this.saveState();
@@ -285,7 +285,7 @@ export class FullscreenManager {
             this.stateManager.setState('isFullscreen', false);
 
             // Emit event
-            this.eventManager.publish('UI:FULLSCREEN_CHANGED', { isFullscreen: false });
+            this.eventManager.publish(EventManager.EVENTS.UI.FULLSCREEN_CHANGED, { isFullscreen: false });
 
             // Reset failure count on success
             this.failureCount = 0;

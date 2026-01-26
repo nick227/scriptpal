@@ -2,7 +2,7 @@
  * Tests for PersistenceManager - Application State Persistence
  */
 
-import { PersistenceManager } from '../../managers/PersistenceManager.js';
+import { PersistenceManager } from '../../services/persistence/PersistenceManager.js';
 
 describe('PersistenceManager - Application State Persistence', () => {
     let persistenceManager;
@@ -152,7 +152,7 @@ describe('PersistenceManager - Application State Persistence', () => {
     });
 
     describe('State Loading', () => {
-        test('should load persisted state from localStorage', () => {
+        test('should load persisted state from localStorage', async () => {
             const savedState = {
                 currentScriptId: 1,
                 scriptState: { id: 1, title: 'Test Script' },
@@ -170,22 +170,20 @@ describe('PersistenceManager - Application State Persistence', () => {
                 return data[key] || null;
             });
 
-            const loadedState = persistenceManager.loadPersistedState();
+            const loadedState = await persistenceManager.loadPersistedState();
 
             expect(loadedState.currentScriptId).toBe(1);
-            expect(loadedState.scriptState.title).toBe('Test Script');
             expect(loadedState.chatState.scriptId).toBe(1);
             expect(loadedState.uiState.fullscreenMode).toBe(false);
         });
 
-        test('should emit state loaded event', () => {
-            persistenceManager.loadPersistedState();
+        test('should emit state loaded event', async () => {
+            await persistenceManager.loadPersistedState();
 
             expect(mockEventManager.publish).toHaveBeenCalledWith(
                 'PERSISTENCE:STATE_LOADED',
                 expect.objectContaining({
-                    currentScriptId: expect.any(String),
-                    scriptState: expect.any(Object),
+                    currentScriptId: expect.any(Number),
                     chatState: expect.any(Object),
                     uiState: expect.any(Object)
                 })

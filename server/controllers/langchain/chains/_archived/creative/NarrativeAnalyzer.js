@@ -1,7 +1,14 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
 import { ERROR_TYPES as _ERROR_TYPES } from '../../constants.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import {
+  extractContext,
+  preprocessScript,
+  validateContent,
+  getErrorResponse,
+  handlePromptFormatting
+} from '../helpers/ChainInputUtils.js';
+import { validateStructuredResponseStrict } from '../helpers/ChainOutputGuards.js';
 
 export class NarrativeAnalyzerChain extends BaseChain {
   constructor(config = {}) {
@@ -12,7 +19,7 @@ export class NarrativeAnalyzerChain extends BaseChain {
   }
 
   validateAnalysis(result) {
-    return ChainHelper.validateStructuredResponse(result, {
+    return validateStructuredResponseStrict(result, {
       requiredFields: [
         'narrative_analysis',
         'character_analysis',
@@ -21,38 +28,14 @@ export class NarrativeAnalyzerChain extends BaseChain {
         'dialog_analysis',
         'recommendations'
       ],
-      defaultValues: {
-        narrative_analysis: 'Analysis of story structure and plot',
-        character_analysis: 'Analysis of character development and arcs',
-        theme_analysis: 'Analysis of thematic elements',
-        pacing_analysis: 'Analysis of story pacing and flow',
-        dialog_analysis: 'Analysis of dialog effectiveness',
-        recommendations: []
-      },
       requireRationale: true
-    });
-  }
-
-  saveAnalysisElements(scriptId, analysis) {
-    return ChainHelper.saveElements(scriptId, [analysis], {
-      type: 'analysis',
-      getSubtype: () => 'narrative',
-      processElement: (analysis) => ({
-        narrative: analysis.narrative_analysis,
-        characters: analysis.character_analysis,
-        themes: analysis.theme_analysis,
-        pacing: analysis.pacing_analysis,
-        dialog: analysis.dialog_analysis,
-        recommendations: Array.isArray(analysis.recommendations) ?
-          analysis.recommendations : [analysis.recommendations]
-      })
     });
   }
 
   async run(input, context = {}) {
     try {
       // Extract context with defaults
-      const { scriptId, prompt } = ChainHelper.extractContext(context);
+      const { scriptId, prompt } = extractContext(context);
       console.log(`Running script analyzer for scriptId: ${scriptId}`);
 
       // Get script content - could be an object, string, or null
@@ -65,14 +48,14 @@ export class NarrativeAnalyzerChain extends BaseChain {
       }
 
       // Process the script
-      const processedScript = ChainHelper.preprocessScript(scriptContent, {
+      const processedScript = preprocessScript(scriptContent, {
         includeElements: true,
         elementType: 'analysis'
       });
 
       // Validate content
-      if (!ChainHelper.validateContent(processedScript.content)) {
-        return ChainHelper.getErrorResponse(
+      if (!validateContent(processedScript.content)) {
+        return getErrorResponse(
           'I couldn\'t find enough script content to analyze. Please provide more content or start with a basic story outline.',
           'error_response'
         );
@@ -92,7 +75,7 @@ export class NarrativeAnalyzerChain extends BaseChain {
       }
       ];
 
-      const formattedPrompt = await ChainHelper.handlePromptFormatting(
+      const formattedPrompt = await handlePromptFormatting(
         promptManager,
         'scriptAnalysis', {
           content: processedScript.content,
@@ -110,24 +93,17 @@ export class NarrativeAnalyzerChain extends BaseChain {
 
       try {
         // Validate the analysis format
-        const validatedAnalysis = await this.validateAnalysis(response);
-
-        // Save if scriptId provided
-        if (scriptId) {
-          await this.saveAnalysisElements(scriptId, validatedAnalysis);
-        }
-
-        return validatedAnalysis;
+        return await this.validateAnalysis(response);
       } catch (validationError) {
         console.error('Analysis validation failed:', validationError);
-        return ChainHelper.getUnstructuredResponse(response, {
-          type: 'unstructured_analysis',
-          prefix: 'I analyzed the script but couldn\'t format the results properly. Here\'s what I found: '
-        });
+        return getErrorResponse(
+          'I couldn\'t validate the analysis output. Please try again.',
+          'error_response'
+        );
       }
     } catch (error) {
       console.error('Script analysis error:', error);
-      return ChainHelper.getErrorResponse(
+      return getErrorResponse(
         'I\'m sorry, I encountered an error analyzing the script. Please try again with a more detailed script or outline.',
         'error_response'
       );

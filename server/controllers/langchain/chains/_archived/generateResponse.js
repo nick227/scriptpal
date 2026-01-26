@@ -1,10 +1,10 @@
 import { regularModel as _regularModel, cheapModel } from '../models/chatModels.js';
 import { createResponsePrompts } from '../prompts/prompts.js';
-import { ChainHelper } from './helpers/ChainHelper.js';
+import { normalizeScriptForPrompt } from './helpers/ChainInputUtils.js';
 
 export async function generateResponse(input, intent, script) {
   const rawContent = script?.content || '';
-  const normalizedContent = ChainHelper.extractTextFromStructuredContent(rawContent) ?? rawContent;
+  const normalizedContent = normalizeScriptForPrompt(rawContent, { allowStructuredExtraction: false });
   const scriptContent = script
     ? `Script title: ${script.title}\n\nScript content: ${normalizedContent.substring(0, 1000)}`
     : '';

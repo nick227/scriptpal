@@ -13,7 +13,10 @@ export const API_ENDPOINTS = {
     USER: '/user',
     SYSTEM_PROMPTS: '/system-prompts'
 };
+API_ENDPOINTS.USER_TOKEN_WATCH = '/user/token-watch';
 API_ENDPOINTS.PUBLIC_SCRIPTS = '/public/scripts';
+API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG = '/public/scripts/slug';
+API_ENDPOINTS.SCRIPT_SLUG = '/script/slug';
 
 export const API_HEADERS = {
     'Content-Type': 'application/json'
@@ -108,6 +111,7 @@ export const ERROR_MESSAGES = {
     LOGIN_FAILED: 'Login failed. Please try again.',
     LOGOUT_FAILED: 'Logout failed. Please try again.',
     USER_NOT_FOUND: 'User not found',
+    NOT_FOUND: 'Resource not found',
     USER_CREATION_FAILED: 'Failed to create user',
     MESSAGE_SEND_FAILED: 'Failed to send message',
     NOT_AUTHENTICATED: 'Please log in to continue',

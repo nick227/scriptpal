@@ -13,11 +13,11 @@ Buttons (5 total):
 - `structure` — label: "Structure & Pacing"
 - `production` — label: "Production Readiness"
 
-Source: `shared/systemPrompts.js`, `public/js/widgets/chat/SystemPromptUI.js`
+Source: `shared/systemPrompts.js`, `public/js/widgets/chat/ui/PromptHelperWidget.js`
 
 ## End-to-end flow
 1. UI renders the toolbar in the chat container and wires each button to a prompt id.
-2. Button click calls `SystemPromptBridge.handlePromptClick(promptId)`.
+2. Button click flows through `PromptHelperBridge.handleHelperClick`, which routes system buttons to `SystemPromptOrchestrator.firePrompt`.
 3. Bridge gets the current script id from `StateManager` and calls `SystemPromptOrchestrator.firePrompt`.
 4. Orchestrator publishes `SYSTEM_PROMPT.READY`, fingerprints the script context, and calls `api.triggerSystemPrompt(promptId, scriptId, context)`.
 5. Client API posts to the system prompt endpoint with `promptType`, `scriptId`, and `context`.
@@ -25,9 +25,9 @@ Source: `shared/systemPrompts.js`, `public/js/widgets/chat/SystemPromptUI.js`
 7. Response returns to the orchestrator, which renders it in chat and stores it in history.
 
 Key modules:
-- UI: `public/js/widgets/chat/SystemPromptUI.js`
-- Bridge: `public/js/widgets/chat/SystemPromptBridge.js`
-- Orchestrator: `public/js/widgets/chat/SystemPromptOrchestrator.js`
+- UI: `public/js/widgets/chat/ui/PromptHelperWidget.js`
+- Bridge: `public/js/widgets/chat/integration/PromptHelperBridge.js`
+- Orchestrator: `public/js/widgets/chat/integration/SystemPromptOrchestrator.js`
 - Client API: `public/js/classes/api.js`
 - Server controller: `server/controllers/systemPromptController.js`
 - Prompt definitions: `shared/systemPrompts.js`
@@ -37,7 +37,7 @@ The orchestrator also triggers prompts automatically based on script context upd
 - `status`: every 10 lines (line count >= 10, 20, 30, ...)
 - `ideas`: after 150 lines, with a 10‑minute cooldown between triggers
 
-Source: `public/js/widgets/chat/SystemPromptOrchestrator.js`
+Source: `public/js/widgets/chat/integration/SystemPromptOrchestrator.js`
 
 ## Prompt characteristics
 Each prompt definition includes:

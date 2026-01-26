@@ -1,3 +1,9 @@
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const babelConfigPath = resolve(currentDir, 'babel.config.cjs');
+
 export default {
   // Test environment
   testEnvironment: 'jsdom',
@@ -7,7 +13,7 @@ export default {
   
   // Transform files using Babel for ES modules
   transform: {
-    '^.+\\.js$': 'babel-jest'
+    '^.+\\.js$': ['babel-jest', { configFile: babelConfigPath }]
   },
   
   // Test file patterns
@@ -20,10 +26,7 @@ export default {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/js/$1',
     '^@core/(.*)$': '<rootDir>/js/core/$1',
-    '^@classes/(.*)$': '<rootDir>/js/classes/$1',
     '^@widgets/(.*)$': '<rootDir>/js/widgets/$1',
-    '^@managers/(.*)$': '<rootDir>/js/managers/$1',
-    '^@ui/(.*)$': '<rootDir>/js/ui/$1',
     '^@services/(.*)$': '<rootDir>/js/services/$1'
   },
   

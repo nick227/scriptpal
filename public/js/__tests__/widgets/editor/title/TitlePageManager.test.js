@@ -199,6 +199,47 @@ describe('TitlePageManager - Title Page Management', () => {
         });
     });
 
+    describe('Input adjustments', () => {
+        test('resizes title and author fields to match their content', () => {
+            titlePageManager.render();
+
+            const titleInput = titlePageManager.titleInput;
+            const authorInput = titlePageManager.authorInput;
+
+            expect(titleInput).toBeTruthy();
+            expect(authorInput).toBeTruthy();
+
+            const overrideScrollHeight = (element, height) => {
+                if (!element) return () => {};
+                const descriptor = Object.getOwnPropertyDescriptor(element, 'scrollHeight');
+                Object.defineProperty(element, 'scrollHeight', {
+                    configurable: true,
+                    get: () => height
+                });
+                return () => {
+                    if (descriptor) {
+                        Object.defineProperty(element, 'scrollHeight', descriptor);
+                        return;
+                    }
+                    delete element.scrollHeight;
+                };
+            };
+
+            const cleanupTitle = overrideScrollHeight(titleInput, 220);
+            const cleanupAuthor = overrideScrollHeight(authorInput, 56);
+
+            try {
+                titlePageManager.adjustInputHeights();
+
+                expect(titleInput.style.height).toBe('220px');
+                expect(authorInput.style.height).toBe('56px');
+            } finally {
+                cleanupTitle();
+                cleanupAuthor();
+            }
+        });
+    });
+
     describe('Script Change Handling', () => {
         test('should handle script changes', () => {
             const newScript = {

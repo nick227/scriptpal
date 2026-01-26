@@ -1,8 +1,10 @@
 import userController from './controllers/userController.js';
 import scriptController from './controllers/scriptController.js';
+import appendPageController from './controllers/appendPageController.js';
 import storyElementController from './controllers/storyElementController.js';
 import personaController from './controllers/personaController.js';
 import systemPromptController from './controllers/systemPromptController.js';
+import nextLinesController from './controllers/nextLinesController.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import chatController from './controllers/chatController.js';
 import publicScriptController from './controllers/publicScriptController.js';
@@ -34,6 +36,11 @@ const routes = [
     path: '/public/scripts',
     method: 'get',
     handler: publicScriptController.list
+  },
+  {
+    path: '/public/scripts/slug/:slug',
+    method: 'get',
+    handler: publicScriptController.getBySlug
   },
   {
     path: '/public/scripts/:id',
@@ -79,6 +86,12 @@ const routes = [
     middleware: [validateSession]
   },
   {
+    path: '/user/token-watch',
+    method: 'get',
+    handler: userController.getTokenWatch,
+    middleware: [validateSession]
+  },
+  {
     path: '/user/:id',
     method: 'get',
     handler: userController.getUser,
@@ -89,6 +102,12 @@ const routes = [
     method: 'put',
     handler: userController.updateUser,
     middleware: [validateSession, validateUserAccess]
+  },
+  {
+    path: '/script/slug/:slug',
+    method: 'get',
+    handler: scriptController.getScriptBySlug,
+    middleware: [validateSession]
   },
   {
     path: '/script/:id',
@@ -117,7 +136,13 @@ const routes = [
   {
     path: '/script/:id/append-page',
     method: 'post',
-    handler: scriptController.appendPage,
+    handler: appendPageController.appendPage,
+    middleware: [validateSession]
+  },
+  {
+    path: '/script/:scriptId/next-lines',
+    method: 'post',
+    handler: nextLinesController.trigger,
     middleware: [validateSession]
   },
   {

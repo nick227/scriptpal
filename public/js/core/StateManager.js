@@ -25,6 +25,7 @@ export const STATE_KEYS = Object.freeze({
 
     // Chat state
     CHAT_HISTORY: 'chatHistory',
+    TOKEN_USAGE: 'tokenUsage',
 
     // UI state
     UI_STATE: 'uiState',
@@ -60,6 +61,7 @@ export const STATE_SCHEMAS = Object.freeze({
     [STATE_KEYS.CURRENT_SCRIPT_ID]: { type: 'number', default: null, nullable: true },
     [STATE_KEYS.SCRIPTS]: { type: 'array', default: [] },
     [STATE_KEYS.CHAT_HISTORY]: { type: 'array', default: [] },
+    [STATE_KEYS.TOKEN_USAGE]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.UI_STATE]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.CONTENT]: { type: 'string', default: '' },
     [STATE_KEYS.CURRENT_LINE]: { type: 'object', default: null, nullable: true },
@@ -188,11 +190,6 @@ export class StateManager {
         }
 
         this.listeners.get(key).add(listener);
-        try {
-            listener(this.state.get(key));
-        } catch (error) {
-            console.error(`Error in state listener for ${key}:`, error);
-        }
     }
 
     /**

@@ -5,7 +5,7 @@ Deliver proactive, chat-style system prompts that welcome new scripts, check in 
 
 ## Current platform baseline
 - The backend (see server/server.js) boots an Express HTTP server with route-based handlers (server/routes.js) and no websocket layers; every AI interaction flows through /api/chat via server/controllers/chatController.js plus the Chat helper (server/controllers/chat/Chat.js).
-- The chat UI uses public/js/widgets/chat/ChatManager.js, which already owns rendering assistant replies, maintaining history, and asking the ScriptContextManager for the latest state.
+- The chat UI uses public/js/widgets/chat/core/ChatManager.js, which already owns rendering assistant replies, maintaining history, and asking the ScriptContextManager for the latest state.
 - Editor and script updates publish to EventManager.EVENTS.SCRIPT and EventManager.EVENTS.EDITOR (defined in public/js/core/EventManager.js), giving us hooks to react when scripts change, when content updates, and when line or format events fire.
 
 ## Goals for the system prompt feature

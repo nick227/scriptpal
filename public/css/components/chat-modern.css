@@ -84,24 +84,6 @@
     color: black !important;
 }
 
-.system-chat-toolbar {
-    position: absolute;
-    top: 60px;
-    left: 0;
-    z-index: 1000 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 4px !important;
-    border: 1px solid var(--chat-border) !important;
-    margin-left: -60px;
-    opacity: 0.1;
-    padding: 8px !important;
-}
-
-.chatbot-container:hover .system-chat-toolbar {
-    opacity: 1;
-}
-
 .chat-action-btn {
     display: flex;
     justify-content: center;
@@ -304,6 +286,90 @@
     border-top: 1px solid var(--chat-border);
 }
 
+.prompt-helper-container {
+    margin-bottom: 8px;
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.prompt-helper-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.prompt-helper-section {
+    background: var(--chat-surface);
+    border: 1px solid var(--chat-border);
+    border-radius: 14px;
+    padding: 8px 10px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.prompt-helper-section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+    color: var(--chat-muted);
+    font-weight: 600;
+}
+
+.prompt-helper-section-description {
+    font-size: 11px;
+    color: rgba(15, 23, 42, 0.7);
+    margin-bottom: 6px;
+}
+
+.prompt-helper-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.prompt-helper-button {
+    padding: 6px 10px;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.08);
+    color: var(--chat-accent);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.prompt-helper-button:hover {
+    border-color: var(--chat-accent);
+    color: #fff;
+    background: var(--chat-accent);
+}
+
+.prompt-helper-indicator {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding-top: 4px;
+    color: var(--chat-muted);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.prompt-helper-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(37, 99, 235, 0.2);
+    border-top-color: rgba(37, 99, 235, 0.8);
+    animation: promptHelperSpin 0.8s linear infinite;
+    margin-top: 4px;
+}
+
+@keyframes promptHelperSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .chat-input-container {
     display: flex;
     align-items: flex-end;
@@ -337,8 +403,7 @@
 
 #user-input {
     width: 100%;
-    min-height: 20px;
-    max-height: 140px;
+    min-height: 60px;
     border: none;
     outline: none;
     resize: none;

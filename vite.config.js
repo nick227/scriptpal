@@ -1,7 +1,75 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicRoot = path.join(__dirname, 'public');
+
+const resolvePublicRoute = (url = '') => {
+  if (url === '/' || url === '') {
+    return 'index.html';
+  }
+  if (url === '/public' || url === '/public/') {
+    return 'public-scripts.html';
+  }
+  if (/^\/public\/[^/]+\/?$/.test(url)) {
+    return 'public-script.html';
+  }
+  if (url === '/mine' || url === '/mine/') {
+    return 'index.html';
+  }
+  if (/^\/mine\/[^/]+\/?$/.test(url)) {
+    return 'index.html';
+  }
+  return null;
+};
+
+const publicRoutesPlugin = () => ({
+  name: 'public-routes',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url ? req.url.split('?')[0] : '';
+      const target = resolvePublicRoute(url);
+      if (!target) {
+        return next();
+      }
+      const filePath = path.join(publicRoot, target);
+      try {
+        const html = fs.readFileSync(filePath, 'utf8');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.statusCode = 200;
+        res.end(html);
+      } catch (error) {
+        next(error);
+      }
+    });
+  },
+  configurePreviewServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url ? req.url.split('?')[0] : '';
+      const target = resolvePublicRoute(url);
+      if (!target) {
+        return next();
+      }
+      const filePath = path.join(publicRoot, target);
+      try {
+        const html = fs.readFileSync(filePath, 'utf8');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.statusCode = 200;
+        res.end(html);
+      } catch (error) {
+        next(error);
+      }
+    });
+  }
+});
 
 export default defineConfig({
   root: './public',
+  appType: 'mpa',
+  plugins: [publicRoutesPlugin()],
   server: {
     port: 5555,
     host: true,

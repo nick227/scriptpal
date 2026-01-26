@@ -2,7 +2,7 @@
  * Tests for Requirement #8: The user can switch active script loading the script UI and switching the AI context
  */
 
-import { ChatHistoryManager } from '../../widgets/chat/ChatHistoryManager.js';
+import { ChatHistoryManager } from '../../widgets/chat/core/ChatHistoryManager.js';
 import { ScriptContextManager } from '../../widgets/editor/context/ScriptContextManager.js';
 
 // Minimal state manager stub

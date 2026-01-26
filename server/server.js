@@ -23,6 +23,8 @@ const healthControllerModule = await import('./controllers/healthController.js')
 const aiClientModule = await import('./services/AIClient.js');
 const routesModule = await import('./routes.js');
 const securityMiddlewareModule = await import('./middleware/security.js');
+const authModule = await import('./middleware/auth.js');
+const scriptRepositoryModule = await import('./repositories/scriptRepository.js');
 
 const config = configModule.default;
 const { logger, requestLoggingMiddleware } = loggerModule;
@@ -31,6 +33,8 @@ const { HealthController } = healthControllerModule;
 const { AIClient } = aiClientModule;
 const routes = routesModule.default;
 const { SecurityMiddleware } = securityMiddlewareModule;
+const { validateSession } = authModule;
+const scriptRepository = scriptRepositoryModule.default;
 
 /**
  * Enhanced ScriptPal Server
@@ -209,6 +213,10 @@ class ScriptPalServer {
      * Setup routes
      */
   _setupRoutes() {
+    const sendClientFile = (res, fileName) => {
+      return res.sendFile(path.join(clientBuildPath, fileName));
+    };
+
     // Health and monitoring routes (no auth required)
     this.app.get('/health', (req, res) => this.healthController.health(req, res));
     this.app.get('/healthz', (req, res) => this.healthController.health(req, res));
@@ -217,6 +225,52 @@ class ScriptPalServer {
     this.app.get('/live', (req, res) => this.healthController.liveness(req, res));
     this.app.get('/metrics', (req, res) => this.healthController.metrics(req, res));
     this.app.get('/status', (req, res) => this.healthController.status(req, res));
+
+    // Frontend routes (static HTML entry points)
+    this.app.get('/public', (req, res) => sendClientFile(res, 'public-scripts.html'));
+    this.app.get('/public/:slug', (req, res) => sendClientFile(res, 'public-script.html'));
+    this.app.get('/mine', validateSession, (req, res) => sendClientFile(res, 'index.html'));
+    this.app.get('/mine/:slug', validateSession, (req, res) => sendClientFile(res, 'index.html'));
+
+    // Legacy redirects (querystring -> slug routes)
+    this.app.get('/public-script.html', async(req, res) => {
+      try {
+        const rawId = Number(req.query.id);
+        if (!rawId) {
+          return sendClientFile(res, 'public-script.html');
+        }
+        const record = await scriptRepository.getPublicSlugById(rawId);
+        if (record && record.slug) {
+          return res.redirect(301, `/public/${record.slug}`);
+        }
+        return sendClientFile(res, 'public-script.html');
+      } catch (error) {
+        req.logger?.warn('Legacy public redirect failed', { error: error.message });
+        return sendClientFile(res, 'public-script.html');
+      }
+    });
+
+    this.app.get('/index.html', (req, res, next) => {
+      if (!req.query.id) {
+        return sendClientFile(res, 'index.html');
+      }
+      return next();
+    }, validateSession, async(req, res) => {
+      try {
+        const rawId = Number(req.query.id);
+        if (!rawId) {
+          return sendClientFile(res, 'index.html');
+        }
+        const record = await scriptRepository.getSlugByIdForUser(rawId, req.userId);
+        if (record && record.slug) {
+          return res.redirect(301, `/mine/${record.slug}`);
+        }
+        return sendClientFile(res, 'index.html');
+      } catch (error) {
+        req.logger?.warn('Legacy editor redirect failed', { error: error.message });
+        return sendClientFile(res, 'index.html');
+      }
+    });
 
     // API routes
     this.app.use('/api', (req, res, _next) => {

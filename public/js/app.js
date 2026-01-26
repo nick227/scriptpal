@@ -5,7 +5,7 @@
 import { CommandBus } from './application/Commands/CommandBus.js';
 import { QueryBus } from './application/Queries/QueryBus.js';
 import { AppController } from './core/AppController.js';
-import { EditorController } from './presentation/Editor/EditorController.js';
+import { EditorController } from './services/editor/EditorController.js';
 
 /**
  *

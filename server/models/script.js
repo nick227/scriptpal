@@ -1,6 +1,7 @@
 import prisma from '../db/prismaClient.js';
 import scriptRepository from '../repositories/scriptRepository.js';
 import scriptVersionRepository from '../repositories/scriptVersionRepository.js';
+import { generateUniqueSlug } from '../lib/slug.js';
 
 const toScriptWithVersion = (script, version) => {
   if (!script) return null;
@@ -34,6 +35,19 @@ const scriptModel = {
     return toScriptWithVersion(script, version);
   },
   createScript: async(script) => {
+    const normalizedVisibility = script.visibility || 'private';
+    const isSlugTaken = async(candidate) => {
+      const takenForUser = await scriptRepository.existsSlugForUser(script.userId, candidate);
+      if (takenForUser) return true;
+      if (normalizedVisibility === 'public') {
+        return await scriptRepository.existsPublicSlug(candidate);
+      }
+      return false;
+    };
+    const slug = await generateUniqueSlug({
+      title: script.title,
+      isTaken: isSlugTaken
+    });
     const result = await prisma.$transaction(async(tx) => {
       const createdScript = await tx.script.create({
         data: {
@@ -41,7 +55,9 @@ const scriptModel = {
           title: script.title,
           status: script.status,
           author: script.author || null,
-          visibility: script.visibility || 'private'
+          description: script.description || null,
+          visibility: normalizedVisibility,
+          slug
         }
       });
 
@@ -87,6 +103,7 @@ const scriptModel = {
           title: script.title,
           status: script.status,
           author: script.author || null,
+          description: script.description || null,
           visibility: script.visibility ?? currentScript.visibility
         }
       });
@@ -122,6 +139,7 @@ const scriptModel = {
         title: true,
         author: true,
         status: true,
+        slug: true,
         visibility: true,
         createdAt: true,
         updatedAt: true,
@@ -208,6 +226,20 @@ const scriptModel = {
 
   getPublicScript: async(id) => {
     const script = await scriptRepository.getPublicScriptById(Number(id));
+    if (!script) return null;
+    const version = Array.isArray(script.versions) ? script.versions[0] : null;
+    return toScriptWithVersion(script, version);
+  },
+
+  getScriptBySlug: async(userId, slug) => {
+    const script = await scriptRepository.getBySlugForUser(Number(userId), slug);
+    if (!script) return null;
+    const version = await scriptVersionRepository.getLatestByScriptId(script.id);
+    return toScriptWithVersion(script, version);
+  },
+
+  getPublicScriptBySlug: async(slug) => {
+    const script = await scriptRepository.getPublicScriptBySlug(slug);
     if (!script) return null;
     const version = Array.isArray(script.versions) ? script.versions[0] : null;
     return toScriptWithVersion(script, version);

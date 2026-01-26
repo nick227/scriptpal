@@ -3,7 +3,7 @@
  */
 
 import { MESSAGE_TYPES, ERROR_MESSAGES } from '../../../constants.js';
-import { ChatManager } from '../../../widgets/chat/ChatManager.js';
+import { ChatManager } from '../../../widgets/chat/core/ChatManager.js';
 import { StateManager } from '../../../core/StateManager.js';
 
 const defaultScript = { id: 'script-1', title: 'My Script', versionNumber: 1 };
@@ -391,9 +391,10 @@ describe('Requirement #6: AI Script Discussion', () => {
     });
 
     describe('Chat History Management', () => {
-        beforeEach(() => {
+        beforeEach(async () => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            await new Promise((resolve) => setTimeout(resolve, 0));
             mockRenderer.render.mockClear();
             mockRenderer.renderButtons.mockClear();
             mockRenderer.clear.mockClear();
@@ -440,9 +441,10 @@ describe('Requirement #6: AI Script Discussion', () => {
     });
 
     describe('Script Change Handling', () => {
-        beforeEach(() => {
+        beforeEach(async () => {
             chatManager.initialize(mockElements);
             chatManager.renderer = mockRenderer;
+            await new Promise((resolve) => setTimeout(resolve, 0));
             mockRenderer.render.mockClear();
             mockRenderer.renderButtons.mockClear();
             mockRenderer.clear.mockClear();
@@ -450,10 +452,11 @@ describe('Requirement #6: AI Script Discussion', () => {
 
         test('should handle script changes', () => {
             const script = { id: 'script-1', title: 'My Script' };
+            chatManager.currentScriptId = null;
 
-            chatManager.handleScriptChange(script);
-
-            expect(mockRenderer.render).toHaveBeenCalledWith('Now chatting about: My Script', MESSAGE_TYPES.ASSISTANT);
+            return chatManager.handleScriptChange(script).then(() => {
+                expect(mockRenderer.render).toHaveBeenCalledWith('Now chatting about: My Script', MESSAGE_TYPES.ASSISTANT);
+            });
         });
 
         test('should not add title message for same script', () => {
@@ -463,15 +466,15 @@ describe('Requirement #6: AI Script Discussion', () => {
             stateStorage[StateManager.KEYS.CURRENT_SCRIPT] = script;
             chatManager.currentScriptId = script.id;
 
-            chatManager.handleScriptChange(script);
-
-            expect(mockRenderer.render).not.toHaveBeenCalled();
+            return chatManager.handleScriptChange(script).then(() => {
+                expect(mockRenderer.render).not.toHaveBeenCalled();
+            });
         });
 
         test('should handle null script gracefully', () => {
-            chatManager.handleScriptChange(null);
-
-            expect(mockRenderer.render).not.toHaveBeenCalled();
+            return chatManager.handleScriptChange(null).then(() => {
+                expect(mockRenderer.render).not.toHaveBeenCalled();
+            });
         });
     });
 
@@ -493,10 +496,13 @@ describe('Requirement #6: AI Script Discussion', () => {
             const result = await chatManager.processAndRenderMessage(message, MESSAGE_TYPES.USER);
 
             expect(result).toBe(message);
-            expect(mockStateManager.setState).toHaveBeenCalledWith('error', {
-                context: 'renderMessage',
-                error: 'Renderer error'
-            });
+            expect(mockStateManager.setState).toHaveBeenCalledWith(
+                StateManager.KEYS.ERROR,
+                expect.objectContaining({
+                    context: 'renderMessage',
+                    message: 'Renderer error'
+                })
+            );
         });
 
         test('should handle API timeout errors', async () => {

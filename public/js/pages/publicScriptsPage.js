@@ -1,10 +1,10 @@
-import { ScriptPalAPI } from '../classes/api.js';
-import { ScriptPalUser } from '../classes/user.js';
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
-import { AuthWidget } from '../widgets/auth/AuthWidget.js';
-import { PublicScriptsWidget } from '../widgets/public/PublicScriptsWidget.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
+import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
+import { ScriptPalUser } from '../services/api/ScriptPalUser.js';
+import { AuthWidget } from '../widgets/auth/AuthWidget.js';
+import { PublicScriptsWidget } from '../widgets/script/PublicScriptsWidget.js';
 
 const initPublicScriptsPage = async () => {
     renderSharedTopBar();

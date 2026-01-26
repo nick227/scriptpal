@@ -43,6 +43,12 @@
     transform: translateX(100%);
 }
 
+.token-watch-widget {
+  display: flex;
+  flex-wrap: nowrap;
+  padding: 10px;
+}
+
 
 /* Title Styles */
 

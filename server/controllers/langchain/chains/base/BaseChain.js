@@ -2,7 +2,7 @@ import { ChatOpenAI as _ChatOpenAI } from '@langchain/openai';
 import { CHAIN_CONFIG, ERROR_TYPES, COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 import chatMessageRepository from '../../../../repositories/chatMessageRepository.js';
 import { ai } from '../../../../lib/ai.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 import { QuestionGenerator } from './QuestionGenerator.js';
 import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from '@langchain/core/prompts';
 
@@ -112,7 +112,16 @@ export class BaseChain {
 
     const systemMessage = messages.find(m => m.role === 'system');
     if (systemMessage) {
-      systemMessage.content = `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}\n\n${systemMessage.content}\n\n${COMMON_PROMPT_INSTRUCTIONS.RESPONSE_GUIDELINES.FORMAT}`;
+      const prefixMarker = 'You are a script writing assistant.';
+      const formatMarker = COMMON_PROMPT_INSTRUCTIONS.RESPONSE_GUIDELINES.FORMAT.trim();
+      let content = systemMessage.content || '';
+      if (!content.includes(prefixMarker)) {
+        content = `${COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX}\n\n${content}`;
+      }
+      if (!content.includes(formatMarker)) {
+        content = `${content}\n\n${formatMarker}`;
+      }
+      systemMessage.content = content;
     } else {
       messages.unshift({
         role: 'system',
@@ -147,13 +156,14 @@ export class BaseChain {
     return result;
   }
 
-  createResponse(content, context, questions = null) {
+  createResponse(content, context, questions = null, extraMetadata = {}) {
     const response = {
       response: content,
       type: this.type,
       metadata: {
         ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        ...extraMetadata
       }
     };
     if (questions !== null) {
@@ -206,6 +216,17 @@ export class BaseChain {
         return processedMessages;
       });
 
+      console.log('[BaseChain] prepared messages', {
+        count: allMessages.length,
+        preview: allMessages.map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string'
+            ? m.content
+            : undefined,
+          function_call: m.function_call
+        }))
+      });
+
       console.log('Making API call via AIClient...');
       const chainConfig = context.chainConfig || {};
       const modelConfig = chainConfig.modelConfig || {};
@@ -227,10 +248,50 @@ export class BaseChain {
       }
 
       console.log('AIClient call successful');
-      const responseContent = result.data.choices[0].message.content;
+      console.log('[BaseChain] raw AI output', {
+        choice: result.data.choices?.[0]
+      });
+      const aiMessage = result.data.choices?.[0]?.message || {};
+      const responseContent = aiMessage.content || aiMessage.function_call?.arguments || '';
+      const usage = result.data.usage || {};
+      const aiUsage = {
+        promptTokens: Number(usage.prompt_tokens ?? 0),
+        completionTokens: Number(usage.completion_tokens ?? 0),
+        totalTokens: Number(usage.total_tokens ?? (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0)),
+        costUsd: Number(result.metrics?.cost ?? 0),
+        responseTime: Number(result.metrics?.responseTime ?? 0)
+      };
+
+      let loggedUsage = false;
+      if (context?.userId) {
+        try {
+          await chatMessageRepository.create({
+            userId: context.userId,
+            scriptId: context.scriptId ?? null,
+            role: 'assistant',
+            content: responseContent,
+            intent: context.intent ?? null,
+            metadata: {
+              userPrompt: originalPrompt,
+              chainType: this.type
+            },
+            promptTokens: aiUsage.promptTokens,
+            completionTokens: aiUsage.completionTokens,
+            totalTokens: aiUsage.totalTokens,
+            costUsd: aiUsage.costUsd
+          });
+          loggedUsage = true;
+        } catch (error) {
+          console.error('[BaseChain] Failed to log chat usage', error);
+        }
+      }
+
+      if (loggedUsage) {
+        aiUsage.loggedByBaseChain = true;
+      }
 
       if (!shouldGenerateQuestions || chainConfig.shouldGenerateQuestions === false) {
-        return this.createResponse(responseContent, context);
+        return this.createResponse(responseContent, context, null, { aiUsage });
       }
 
       try {
@@ -239,9 +300,9 @@ export class BaseChain {
           originalPrompt,
           responseContent
         );
-        return this.createResponse(responseContent, context, questions);
+        return this.createResponse(responseContent, context, questions, { aiUsage });
       } catch (error) {
-        return this.createResponse(responseContent, context, this.getDefaultQuestions());
+        return this.createResponse(responseContent, context, this.getDefaultQuestions(), { aiUsage });
       }
     } catch (error) {
       console.error('Chain execution error:', error);
@@ -276,7 +337,58 @@ export class BaseChain {
     return response;
   }
 
+  extractMessage(response) {
+    return response?.response || response;
+  }
+
+  getPayloadText(message) {
+    if (typeof message === 'string') {
+      return message;
+    }
+    return message?.function_call?.arguments || message?.content || '';
+  }
+
+  safeParseJson(value) {
+    if (!value || typeof value !== 'string') {
+      return null;
+    }
+    try {
+      return JSON.parse(value);
+    } catch {
+      const start = value.indexOf('{');
+      const end = value.lastIndexOf('}');
+      if (start !== -1 && end > start) {
+        try {
+          return JSON.parse(value.slice(start, end + 1));
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+  }
+
+  parseFunctionPayload(response, schema, errorMessage = 'Invalid JSON payload from function call') {
+    const message = this.extractMessage(response);
+    const payloadText = this.getPayloadText(message);
+    const parsed = this.safeParseJson(payloadText);
+    if (!parsed) {
+      throw new Error(errorMessage);
+    }
+    if (schema) {
+      return this.validateResponse(parsed, schema);
+    }
+    return parsed;
+  }
+
+  resolveQuestions(response) {
+    if (response && Array.isArray(response.questions) && response.questions.length > 0) {
+      return response.questions;
+    }
+    return this.getDefaultQuestions();
+  }
+
   getDefaultQuestions() {
-    return ChainHelper.getDefaultQuestions();
+    return getDefaultQuestions();
   }
 }

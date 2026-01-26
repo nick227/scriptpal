@@ -7,21 +7,14 @@ import { BaseWidget } from '../BaseWidget.js';
  *
  */
 export class ScriptWidget extends BaseWidget {
-    /**
-     *
-     * @param elements
-     */
-    /**
-     *
-     * @param elements
-     * @param stateManager
-     * @param eventManager
-     */
     constructor (elements, stateManager, eventManager) {
         super(elements);
         this.renderer = null;
         this.scriptStore = null;
         this.visibilityPicker = null;
+        this.isMinimized  = false;
+        this.listContainer = null;
+        this.listClickHandler = null;
         this.setManagers(stateManager, eventManager);
     }
 
@@ -35,7 +28,6 @@ export class ScriptWidget extends BaseWidget {
         }
         await super.initialize();
 
-        // Initialize renderer
         const panelContainer = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
         if (!panelContainer) {
             throw new Error('Scripts container element not found');
@@ -49,27 +41,32 @@ export class ScriptWidget extends BaseWidget {
         const createButton = document.createElement('button');
         createButton.className = 'create-script-button';
         createButton.type = 'button';
-        createButton.innerHTML = '<i class="fas fa-plus"></i> New Script';
+        createButton.innerHTML = '<i class="fas fa-plus"></i>';
         createButton.title = 'Create New Script';
         createButton.addEventListener('click', () => this.handleCreateScript());
 
-        header.appendChild(createButton);
-        panelContainer.appendChild(header);
-
         const listContainer = document.createElement('ul');
-        listContainer.className = 'script-panel-list';
+        listContainer.className = 'script-panel-list script-list';
+        this.listClickHandler = this.handleListClick.bind(this);
+        listContainer.addEventListener('click', this.listClickHandler);
+        this.listContainer = listContainer;
+
+        panelContainer.appendChild(header);
         panelContainer.appendChild(listContainer);
 
-        this.renderer = RendererFactory.createScriptRenderer(
-            listContainer,
-            this.handleScriptSelect.bind(this)
+        panelContainer.addEventListener('click', () =>
+            panelContainer.classList.contains('is-minimized') && this.toggleMinimize()
         );
 
+        this.renderer = RendererFactory.createScriptRenderer(listContainer);
+
         this.visibilityPicker = this.createVisibilityPicker();
+        this.minimizeBtn = this.createMinimizeBtn();
         const controls = document.createElement('div');
         controls.className = 'script-panel-header__controls';
         controls.appendChild(createButton);
         controls.appendChild(this.visibilityPicker);
+        controls.appendChild(this.minimizeBtn);
         header.innerHTML = '';
         header.appendChild(controls);
 
@@ -79,6 +76,38 @@ export class ScriptWidget extends BaseWidget {
         // Prime with existing state
         this.handleScriptsUpdate(this.stateManager.getState(StateManager.KEYS.SCRIPTS));
         this.handleCurrentScriptUpdate(this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT));
+    }
+
+
+    toggleMinimize () {
+        this.isMinimized = !this.isMinimized;
+
+        // fire side-effect
+        this.onMinimizeChange(this.isMinimized);
+    }
+
+    onMinimizeChange (isMinimized) {
+        const panel = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
+        if (!panel) return;
+
+        panel.classList.toggle('is-minimized', isMinimized);
+    }
+
+    createMinimizeBtn () {
+        const btn = document.createElement('button');
+        btn.className = 'chat-action-btn';
+        btn.title = 'Minimize';
+        btn.dataset.action = 'minimize';
+        btn.setAttribute('aria-label', 'Minimize chat');
+        btn.innerHTML = '<i class="fas fa-minus"></i>';
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleMinimize();
+            e.preventDefault();
+        });
+
+        return btn;
     }
 
     /**
@@ -109,8 +138,9 @@ export class ScriptWidget extends BaseWidget {
      * @param script
      */
     handleCurrentScriptUpdate (script) {
-        if (!script || !this.renderer) return;
-        this.renderer.updateActiveScript(script.id);
+        if (!this.renderer) return;
+        const scriptId = script ? script.id : null;
+        this.renderer.updateActiveScript(scriptId);
     }
 
     /**
@@ -120,6 +150,26 @@ export class ScriptWidget extends BaseWidget {
     handleScriptSelect (scriptId) {
         if (!scriptId || !this.scriptStore) return;
         this.scriptStore.selectScript(scriptId, { source: 'panel' });
+    }
+
+    handleListClick (event) {
+        if (!event) return;
+        const actionButton = event.target.closest('[data-action]');
+        const scriptItem = event.target.closest('[data-script-id]');
+        if (!scriptItem) {
+            return;
+        }
+        const scriptId = scriptItem.dataset.scriptId;
+        if (actionButton) {
+            const action = actionButton.dataset.action;
+            if (action === 'delete') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.handleDeleteScript(scriptId);
+            }
+            return;
+        }
+        this.handleScriptSelect(scriptId);
     }
 
     /**
@@ -137,6 +187,17 @@ export class ScriptWidget extends BaseWidget {
             });
         } catch (error) {
             console.error('[SCRIPT_WIDGET] Failed to create script:', error);
+        }
+    }
+
+    async handleDeleteScript (scriptId) {
+        if (!this.scriptStore) {
+            return;
+        }
+        try {
+            await this.scriptStore.deleteScript(scriptId);
+        } catch (error) {
+            console.error('[SCRIPT_WIDGET] Failed to delete script:', error);
         }
     }
 
@@ -195,5 +256,10 @@ export class ScriptWidget extends BaseWidget {
         }
         super.destroy();
         this.renderer = null;
+        if (this.listContainer && this.listClickHandler) {
+            this.listContainer.removeEventListener('click', this.listClickHandler);
+        }
+        this.listContainer = null;
+        this.listClickHandler = null;
     }
 }

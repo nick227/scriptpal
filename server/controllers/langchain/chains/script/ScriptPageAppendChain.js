@@ -1,0 +1,282 @@
+import { BaseChain } from '../base/BaseChain.js';
+import { SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
+import { getPromptById } from '../../../../../shared/promptRegistry.js';
+
+export const APPEND_PAGE_INTENT = 'SCRIPT_APPEND_PAGE';
+const LINE_MIN = 12;
+const LINE_MAX = 16;
+const MAX_ATTEMPTS = 3;
+const APPEND_PAGE_FUNCTIONS = [{
+  name: 'provide_append_page',
+  description: 'Return the next page of script lines plus a short chat response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      formattedScript: {
+        type: 'string',
+        description: '12-16 new script lines wrapped in validated tags (<header>, <action>, <speaker>, <dialog>, <directions>, <chapter-break>).'
+      },
+      assistantResponse: {
+        type: 'string',
+        description: 'Short, simple chat response under 40 words.'
+      }
+    },
+    required: ['formattedScript', 'assistantResponse']
+  }
+}];
+
+const APPEND_PAGE_PROMPT = getPromptById('append-page');
+
+if (!APPEND_PAGE_PROMPT) {
+  throw new Error('Append page prompt definition is missing from the registry');
+}
+
+const SYSTEM_INSTRUCTION = APPEND_PAGE_PROMPT.systemInstruction;
+const ATTACH_SCRIPT_CONTEXT = APPEND_PAGE_PROMPT.attachScriptContext ?? true;
+
+export class ScriptPageAppendChain extends BaseChain {
+  constructor() {
+    super({
+      type: APPEND_PAGE_INTENT,
+      temperature: 0.4,
+      modelConfig: {
+        response_format: { type: 'json_object' },
+        functions: APPEND_PAGE_FUNCTIONS,
+        function_call: { name: 'provide_append_page' }
+      }
+    });
+  }
+
+  addCommonInstructions(messages) {
+    return messages;
+  }
+
+  buildMessages(context, prompt, retryNote = '') {
+    const userPrompt = retryNote
+      ? `${prompt}\n\nCorrection: ${retryNote}`
+      : prompt;
+    const shouldAttachScriptContext = context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT;
+    const scriptContent = shouldAttachScriptContext ? context.scriptContent : '';
+    const content = scriptContent
+      ? `${userPrompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+      : userPrompt;
+
+    return [{
+      role: 'system',
+      content: SYSTEM_INSTRUCTION
+    }, {
+      role: 'user',
+      content: content
+    }];
+  }
+
+  validateAppendText(text) {
+    if (!text || typeof text !== 'string') {
+      return { ok: false, reason: 'Empty response' };
+    }
+
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return { ok: false, reason: 'Empty response' };
+    }
+
+    if (trimmed.includes('```')) {
+      return { ok: false, reason: 'Contains code fences' };
+    }
+
+    const lines = trimmed
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    if (lines.length < LINE_MIN || lines.length > LINE_MAX) {
+      return {
+        ok: false,
+        reason: `Line count ${lines.length} (expected ${LINE_MIN}-${LINE_MAX})`
+      };
+    }
+
+    return { ok: true, lineCount: lines.length };
+  }
+
+  normalizeAppendText(text) {
+    if (!text || typeof text !== 'string') {
+      return '';
+    }
+    return text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/<chapter-break\s*\/>/gi, '<chapter-break></chapter-break>')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n');
+  }
+
+  sanitizeAppendLines(text) {
+    const sanitized = [];
+    let invalidTagCount = 0;
+    let coercedCount = 0;
+    let droppedCount = 0;
+    let extractedCount = 0;
+
+    const tagRegex = /<([\w-]+)\s*\/>|<([\w-]+)>([\s\S]*?)<\/\2>/g;
+    let match = null;
+
+    while ((match = tagRegex.exec(text)) !== null) {
+      if (match[1]) {
+        const tag = match[1].toLowerCase();
+        if (tag === 'chapter-break') {
+          sanitized.push('<chapter-break></chapter-break>');
+          extractedCount += 1;
+        } else {
+          droppedCount += 1;
+        }
+        continue;
+      }
+
+      const tag = match[2].toLowerCase();
+      const content = (match[3] || '').trim();
+      if (VALID_FORMAT_VALUES.includes(tag)) {
+        if (content || tag === 'chapter-break') {
+          sanitized.push(`<${tag}>${content}</${tag}>`);
+          extractedCount += 1;
+        } else {
+          droppedCount += 1;
+        }
+      } else {
+        invalidTagCount += 1;
+        if (content) {
+          sanitized.push(`<action>${content}</action>`);
+          coercedCount += 1;
+          extractedCount += 1;
+        } else {
+          droppedCount += 1;
+        }
+      }
+    }
+
+    if (extractedCount === 0) {
+      const rawLines = text
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      for (const line of rawLines) {
+        sanitized.push(`<action>${line}</action>`);
+        coercedCount += 1;
+      }
+    }
+
+    if (invalidTagCount || coercedCount || droppedCount) {
+      console.warn('[ScriptPageAppendChain] Sanitized AI output', {
+        invalidTagCount,
+        coercedCount,
+        droppedCount,
+        extractedCount
+      });
+    }
+
+    return sanitized;
+  }
+
+  formatResponse(responseText, context, lineCount, validationError, assistantResponse = '') {
+    const responseContent = assistantResponse && assistantResponse.trim()
+      ? assistantResponse.trim()
+      : responseText;
+    const metadata = {
+      ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
+      appendPage: true,
+      formattedScript: responseText,
+      timestamp: new Date().toISOString()
+    };
+
+    if (lineCount) {
+      metadata.lineCount = lineCount;
+    }
+
+    if (validationError) {
+      metadata.validationError = validationError;
+    }
+
+    return {
+      response: responseContent,
+      assistantResponse: responseContent,
+      type: APPEND_PAGE_INTENT,
+      metadata: {
+        ...metadata,
+        contract: APPEND_PAGE_INTENT
+      }
+    };
+  }
+
+  async run(context, prompt) {
+    let lastError = '';
+    let lastResponseText = '';
+    let lastAssistantResponse = '';
+
+    const maxAttempts = Number.isInteger(context?.maxAttempts) ? context.maxAttempts : MAX_ATTEMPTS;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const retryNote = lastError
+        ? `${lastError}. Respond only in JSON with "formattedScript" and "assistantResponse". Return 12-16 tagged lines using: ${VALID_FORMAT_VALUES.join(', ')}.`
+        : '';
+      const messages = await this.buildMessages(context, prompt, retryNote);
+      const response = await this.execute(messages, {
+        ...context,
+        chainConfig: {
+          ...context.chainConfig,
+          shouldGenerateQuestions: false
+        }
+      }, false);
+
+      let validated = null;
+      try {
+        validated = this.parseFunctionPayload(response, {
+          required: ['formattedScript', 'assistantResponse']
+        }, 'Invalid JSON payload from function call');
+      } catch (error) {
+        lastError = error.message || 'Invalid append payload';
+        console.warn('[ScriptPageAppendChain] Invalid append payload', {
+          attempt,
+          error: lastError
+        });
+        continue;
+      }
+
+      const formattedScript = typeof validated.formattedScript === 'string'
+        ? validated.formattedScript
+        : JSON.stringify(validated.formattedScript);
+      lastAssistantResponse = typeof validated.assistantResponse === 'string'
+        ? validated.assistantResponse
+        : '';
+      lastResponseText = this.normalizeAppendText(formattedScript);
+      const sanitizedLines = this.sanitizeAppendLines(lastResponseText);
+      if (sanitizedLines.length > LINE_MAX) {
+        console.warn('[ScriptPageAppendChain] Truncating lines to max', {
+          originalCount: sanitizedLines.length,
+          max: LINE_MAX
+        });
+      }
+      const finalLines = sanitizedLines.slice(0, LINE_MAX);
+      if (finalLines.length >= LINE_MIN) {
+        const finalText = finalLines.join('\n');
+        const validation = this.validateAppendText(finalText);
+        if (validation.ok) {
+          return this.formatResponse(finalText, context, validation.lineCount, null, lastAssistantResponse);
+        }
+        console.warn('[ScriptPageAppendChain] Validation failed after sanitize', {
+          attempt,
+          reason: validation.reason
+        });
+        lastError = validation.reason;
+      } else {
+        lastError = `Line count ${finalLines.length} (expected ${LINE_MIN}-${LINE_MAX})`;
+        console.warn('[ScriptPageAppendChain] Validation failed', {
+          attempt,
+          reason: lastError
+        });
+      }
+    }
+
+    throw new Error(`append_validation_failed: ${lastError}`);
+  }
+}

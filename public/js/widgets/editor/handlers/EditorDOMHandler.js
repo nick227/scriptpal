@@ -331,7 +331,11 @@ export class EditorDOMHandler {
      */
     addLine (line, afterElement = null) {
         if (!line) return;
-        this.pageManager.addLine(line, afterElement);
+        let anchorLineId = null;
+        if (afterElement && afterElement.dataset && afterElement.dataset.lineId) {
+            anchorLineId = afterElement.dataset.lineId;
+        }
+        this.pageManager.addLine(line, anchorLineId);
         this.emit(EDITOR_EVENTS.LINE_CHANGE, { type: 'add', line });
     }
 

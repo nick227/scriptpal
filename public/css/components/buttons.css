@@ -17,6 +17,7 @@ button:disabled {
 
 button:hover:not(:disabled) {
     background-color: #0056b3;
+    color: white;
 }
 
 

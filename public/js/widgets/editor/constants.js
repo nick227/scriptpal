@@ -22,6 +22,8 @@ export { formatTypes };
 // Editor events
 export const EDITOR_EVENTS = {
     CONTENT_CHANGE: 'contentChange',
+    AUTOCOMPLETE_SUGGESTIONS: 'autocompleteSuggestions',
+    AUTOCOMPLETE_CURRENT: 'autocompleteCurrent',
     CURSOR_MOVE: 'cursorMove',
     FORMAT_CHANGE: 'formatChange',
     FOCUS_OUT: 'focusOut',

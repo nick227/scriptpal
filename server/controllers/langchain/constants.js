@@ -14,10 +14,24 @@ export const FUNCTION_DEFINITIONS = {
 // INTENT CLASSIFICATION
 //=============================================================================
 
-// Core intent types for request classification
-export const INTENT_TYPES = {
-  SCRIPT_CONVERSATION: 'SCRIPT_CONVERSATION',
-  GENERAL_CONVERSATION: 'GENERAL_CONVERSATION'
+import {
+  INTENT_TYPES,
+  SCRIPT_CONTEXT_PREFIX,
+  VALID_FORMATS,
+  VALID_FORMAT_VALUES,
+  OUTPUT_CONTRACTS,
+  SCRIPT_MUTATION,
+  validateAiResponse
+} from '../../../shared/langchainConstants.js';
+
+export {
+  INTENT_TYPES,
+  SCRIPT_CONTEXT_PREFIX,
+  VALID_FORMATS,
+  VALID_FORMAT_VALUES,
+  OUTPUT_CONTRACTS,
+  SCRIPT_MUTATION,
+  validateAiResponse
 };
 
 // Intent confidence thresholds
@@ -38,6 +52,8 @@ export const INTENT_CONFIDENCE = {
 // Detailed descriptions for each intent type
 export const INTENT_DESCRIPTIONS = {
   SCRIPT_CONVERSATION: 'Discuss the current script with the full script context appended so the AI can reason about scenes, characters, and next steps.',
+  NEXT_FIVE_LINES: 'Write the next five lines in the script (formatted) and explain why they fit.',
+  SCRIPT_REFLECTION: 'Reflect on the script and its themes, characters, and choices without writing new script lines; just offer analysis and questions.',
   GENERAL_CONVERSATION: 'Handle short-form or unrelated dialogue that should not automatically append the script context.'
 };
 
@@ -103,44 +119,26 @@ export const CHAIN_CONFIG = {
   RESPONSE_FORMAT: 'json'
 };
 
-// Valid script format types - must match frontend constants
-export const VALID_FORMATS = Object.freeze({
-  HEADER: 'header',
-  ACTION: 'action',
-  SPEAKER: 'speaker',
-  DIALOG: 'dialog',
-  DIRECTIONS: 'directions',
-  CHAPTER_BREAK: 'chapter-break'
-});
-
-export const VALID_FORMAT_VALUES = Object.freeze(Object.values(VALID_FORMATS));
-
 // System instructions for AI responses
 export const COMMON_PROMPT_INSTRUCTIONS = {
   SYSTEM_PREFIX: `
-You are a script writing assistant. Follow these core principles:
+You are a script writing assistant.
 
-1. Focus on script improvement and storytelling
-2. Provide creative, unexpected, and unexpected feedback
-3. Ask questions to learn more about the script and the writer
-4. Be emotional and passionate about the script
-5. Figure out ways to help the user keep writing
-6. Use industry-standard terminology
-7. Keep responses clear and structured
-
-Always use markdown formatting:
-
+You return JSON object with the following fields:
+- formattedScript: Formatted script lines:
     <header>header</header>
     <action>action</action>
     <speaker>speaker</speaker>
     <dialog>dialog</dialog>
     <directions>directions</directions>
     <chapter-break>chapter-break</chapter-break>
+
+AND assistantResponse: The response to the user's question, short meaningful educational brief response.
 `,
   RESPONSE_GUIDELINES: {
-    FORMAT: 'Always structure responses in creative, engaging, and concise format. Use h2 and p tags for formatting.',
-    VALIDATION: 'Include rationale for responses',
-    CONTEXT: 'Reference specific script elements when possible'
+    FORMAT: 'Always using meaningful and concise language.',
+    VALIDATION: 'Include critical thinking and rationale for responses',
+    CONTEXT: 'Avoid generic or obvious language.'
   }
 };
 

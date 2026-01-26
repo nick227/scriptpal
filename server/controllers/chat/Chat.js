@@ -1,11 +1,14 @@
 import { ScriptManager } from '../scripts/ScriptManager.js';
 import { ChatHistoryManager } from './ChatHistoryManager.js';
 import { INTENT_TYPES } from '../langchain/constants.js';
+import { APPEND_SCRIPT_INTENT } from '../scripts/AppendPageService.js';
 import { router } from '../langchain/router/index.js';
-import { ChainHelper } from '../langchain/chains/helpers/ChainHelper.js';
+import { normalizeScriptForPrompt } from '../langchain/chains/helpers/ScriptNormalization.js';
 import { IntentClassifier } from '../langchain/chains/system/IntentClassifier.js';
+import { buildAiResponse } from '../aiResponse.js';
 
 const CHAT_ONLY_PATTERN = /\b(?:just chat|talk about|chit chat|quick question|small talk|random|how are you|anything else)\b/i;
+const REFLECTION_REQUEST_PATTERN = /\b(?:critique|feedback|discussion|discuss|analysis|analyze|reflect|reflection|thoughts|review)\b/i;
 
 export class Chat {
   static CHAT_ERRORS = {
@@ -24,30 +27,11 @@ export class Chat {
   }
 
   formatResponse(response, intentResult) {
-    // Handle string responses (common in analysis)
-    if (typeof response === 'string') {
-      response = {
-        response: response,
-        type: intentResult.intent
-      };
-    }
-
-    // Get script title from metadata or direct property
-    const scriptTitle = response.metadata && response.metadata.scriptTitle ||
-            response.title ||
-            'Untitled Script';
-
-    return {
-      success: true,
-      intent: intentResult.intent,
-      confidence: intentResult.confidence,
-      target: intentResult.target,
-      value: intentResult.value,
+    return buildAiResponse({
+      intentResult,
       scriptId: this.scriptId,
-      scriptTitle: scriptTitle,
-      timestamp: new Date().toISOString(),
-      response: response.response || response
-    };
+      response
+    });
   }
 
   async processMessage(prompt, context = {}) {
@@ -67,7 +51,7 @@ export class Chat {
         userId: this.userId,
         scriptId: this.scriptId,
         scriptTitle: script?.title,
-        scriptContent: ChainHelper.extractTextFromStructuredContent(script?.content || '') ?? ''
+        scriptContent: normalizeScriptForPrompt(script?.content || '', { allowStructuredExtraction: false })
       };
       const classification = await this.intentClassifier.classify(classifierContext, prompt);
       let intent = this.resolveIntent(classification?.intent);
@@ -91,7 +75,10 @@ export class Chat {
         .catch(error => console.error('Chat history save failed:', error));
 
       console.log('\n=== Operation Complete ===');
-      return this.formatResponse(response, intentResult);
+      const responseIntentResult = intent === INTENT_TYPES.SCRIPT_CONVERSATION
+        ? { ...intentResult, intent: APPEND_SCRIPT_INTENT }
+        : intentResult;
+      return this.formatResponse(response, responseIntentResult);
 
     } catch (error) {
       console.error('Message processing failed:', error);
@@ -105,6 +92,10 @@ export class Chat {
 
     if (this.isGeneralConversation(prompt)) {
       return INTENT_TYPES.GENERAL_CONVERSATION;
+    }
+
+    if (this.isReflectionRequest(prompt)) {
+      return INTENT_TYPES.SCRIPT_REFLECTION;
     }
 
     return INTENT_TYPES.SCRIPT_CONVERSATION;
@@ -127,6 +118,13 @@ export class Chat {
     return CHAT_ONLY_PATTERN.test(prompt);
   }
 
+  isReflectionRequest(prompt) {
+    if (!prompt || typeof prompt !== 'string') {
+      return false;
+    }
+    return REFLECTION_REQUEST_PATTERN.test(prompt);
+  }
+
   createIntentResult(intent) {
     return {
       intent,
@@ -137,10 +135,17 @@ export class Chat {
   }
 
   async buildContext(script, enhancedContext, prompt, intent) {
-    const scriptContent = script?.content || '';
-    const normalizedContent = ChainHelper.extractTextFromStructuredContent(scriptContent) ?? scriptContent;
+    const allowStructuredExtraction = [
+      INTENT_TYPES.SCRIPT_CONVERSATION,
+      INTENT_TYPES.SCRIPT_REFLECTION,
+      INTENT_TYPES.NEXT_FIVE_LINES
+    ].includes(intent);
+    const normalizedContent = normalizeScriptForPrompt(script?.content || '', { allowStructuredExtraction });
 
-    const includeScriptContext = intent === INTENT_TYPES.SCRIPT_CONVERSATION;
+    const includeScriptContext = [
+      INTENT_TYPES.SCRIPT_CONVERSATION,
+      INTENT_TYPES.SCRIPT_REFLECTION
+    ].includes(intent);
 
     const context = {
       userId: this.userId,
@@ -149,6 +154,7 @@ export class Chat {
       includeScriptContext,
       scriptContent: includeScriptContext ? normalizedContent : '',
       scriptTitle: script?.title || 'Untitled Script',
+      disableHistory: true,
       scriptMetadata: {
         lastUpdated: script?.updatedAt,
         versionNumber: script?.versionNumber,

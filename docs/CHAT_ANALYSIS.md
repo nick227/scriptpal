@@ -46,7 +46,7 @@ This document provides a comprehensive analysis of how the ScriptPal screenplay 
 ### 1. Frontend Layer
 
 #### 1.1 User Interaction (`ChatManager.js`)
-**Location:** `public/js/widgets/chat/ChatManager.js`
+**Location:** `public/js/widgets/chat/core/ChatManager.js`
 
 **Key Responsibilities:**
 - Process user input and button clicks
@@ -524,7 +524,7 @@ class ChatHistoryManager {
 ```
 
 #### 4.2 ChatHistoryManager (Frontend)
-**Location:** `public/js/widgets/chat/ChatHistoryManager.js`
+**Location:** `public/js/widgets/chat/core/ChatHistoryManager.js`
 
 - Manages in-memory chat history
 - Syncs with server via API

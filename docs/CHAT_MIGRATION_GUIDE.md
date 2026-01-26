@@ -18,7 +18,7 @@ Legacy `ChatWidget` usage has been removed.
 ### 2) Use modern chat integration
 
 ```javascript
-import { ChatIntegration } from './widgets/chat/ChatIntegration.js';
+import { ChatIntegration } from './widgets/chat/integration/ChatIntegration.js';
 
 const chatIntegration = new ChatIntegration(api, stateManager, eventManager);
 await chatIntegration.initialize();

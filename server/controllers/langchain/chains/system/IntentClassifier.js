@@ -1,7 +1,7 @@
 ﻿import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES } from '../../constants.js';
 
-const SYSTEM_INSTRUCTION = `You are an intent classifier for a scriptwriting assistant. Use the user prompt and available script context to pick the single most appropriate intent from the following list: ${Object.values(INTENT_TYPES).join(', ')}. Respond with valid JSON: {"intent": "INTENT_NAME", "confidence": 0.0, "reason": "short rationale"}. Intent names must match exactly.`;
+const SYSTEM_INSTRUCTION = `You are an intent classifier for a scriptwriting assistant. Use the user prompt and available script context to pick the single most appropriate intent from the following list: ${Object.values(INTENT_TYPES).join(', ')}. Choose ${INTENT_TYPES.SCRIPT_REFLECTION} when the user asks for critique, analysis, or reflection, but explicitly does not request new script lines. Respond with valid JSON: {"intent": "INTENT_NAME", "confidence": 0.0, "reason": "short rationale"}. Intent names must match exactly.`;
 
 export class IntentClassifier extends BaseChain {
     constructor () {

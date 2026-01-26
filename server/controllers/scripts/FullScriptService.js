@@ -1,10 +1,10 @@
 import scriptModel from '../../models/script.js';
-import { FullScriptChain, FULL_SCRIPT_INTENT } from '../langchain/chains/edit/FullScriptChain.js';
-import { ChainHelper } from '../langchain/chains/helpers/ChainHelper.js';
+import { ScriptFullChain, FULL_SCRIPT_INTENT } from '../langchain/chains/script/ScriptFullChain.js';
+import { normalizeScriptForAppend } from '../langchain/chains/helpers/ScriptNormalization.js';
 
 export const FULL_SCRIPT_GENERATION_MODE = 'FULL_SCRIPT';
 
-export const generateFullScript = async({ scriptId, userId, prompt }) => {
+export const generateFullScript = async({ scriptId, userId, prompt, maxAttempts } = {}) => {
   const script = await scriptModel.getScript(scriptId);
   if (!script) {
     const error = new Error('Script not found');
@@ -12,32 +12,34 @@ export const generateFullScript = async({ scriptId, userId, prompt }) => {
     throw error;
   }
 
-  const rawContent = script.content || '';
-  const normalizedContent = ChainHelper.extractTextFromStructuredContent(rawContent);
-  const scriptContent = normalizedContent !== null ? normalizedContent : rawContent;
+  const scriptContent = normalizeScriptForAppend(script.content || '');
   if (typeof scriptContent !== 'string') {
     const error = new Error('Script content unavailable');
     error.code = 'SCRIPT_CONTENT_UNAVAILABLE';
     throw error;
   }
 
-  const chain = new FullScriptChain();
+  const chain = new ScriptFullChain();
   const response = await chain.run({
     userId,
     scriptId,
     scriptTitle: script.title || 'Untitled Script',
     scriptContent,
+    maxAttempts,
     disableHistory: true,
     chainConfig: {
-      shouldGenerateQuestions: false,
-      modelConfig: {
-        response_format: { type: 'text' }
-      }
+      shouldGenerateQuestions: false
     }
   }, prompt);
 
+  const responseText = response.response || response;
+  const formattedScript = response?.metadata?.formattedScript || responseText;
+  const assistantResponse = response?.assistantResponse || responseText;
+
   return {
-    responseText: response.response || response,
+    responseText,
+    assistantResponse,
+    formattedScript,
     scriptTitle: script.title || 'Untitled Script',
     intent: FULL_SCRIPT_INTENT
   };

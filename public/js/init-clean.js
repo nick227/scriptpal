@@ -3,19 +3,20 @@
  * Simple, focused initialization
  */
 import { App } from './App.js';
-import { ScriptPalAPI } from './classes/api.js';
-import { ScriptPalUser } from './classes/user.js';
+import { ScriptPalAPI } from './services/api/ScriptPalAPI.js';
+import { ScriptPalUser } from './services/api/ScriptPalUser.js';
 import { UI_ELEMENTS } from './constants.js';
 import { EventManager } from './core/EventManager.js';
 import { StateManager } from './core/StateManager.js';
-import { PersistenceManager } from './managers/PersistenceManager.js';
+import { PersistenceManager } from './services/persistence/PersistenceManager.js';
 import { ScriptStore } from './stores/ScriptStore.js';
 import { AuthWidget } from './widgets/auth/AuthWidget.js';
-import { ChatIntegration } from './widgets/chat/ChatIntegration.js';
+import { ChatIntegration } from './widgets/chat/integration/ChatIntegration.js';
 import { ScriptsUIBootstrap } from './widgets/script/ScriptsUIBootstrap.js';
 import { renderSharedTopBar, getTopBarElements } from './layout/sharedLayout.js';
-import { ScriptSyncService } from './managers/ScriptSyncService.js';
-import { ScriptOrchestrator } from './managers/ScriptOrchestrator.js';
+import { TokenWatchWidget } from './widgets/ui/TokenWatchWidget.js';
+import { ScriptSyncService } from './services/script/ScriptSyncService.js';
+import { ScriptOrchestrator } from './services/script/ScriptOrchestrator.js';
 
 // Global app instance
 window.scriptPalApp = null;
@@ -26,6 +27,7 @@ window.scriptPalApp = null;
 async function initScriptPal () {
     try {
         renderSharedTopBar();
+        const sharedElements = getTopBarElements();
         setAuthLockState(false);
 
         // Create app instance
@@ -39,7 +41,9 @@ async function initScriptPal () {
         const stateManager = new StateManager();
         const eventManager = new EventManager();
 
-        const authWidget = await initAuthWidget(api, user, stateManager, eventManager);
+        await initTokenWatchWidget(sharedElements.tokenWatchContainer, api, stateManager, eventManager);
+
+        const authWidget = await initAuthWidget(api, user, stateManager, eventManager, sharedElements);
 
         const scriptStore = new ScriptStore(api, stateManager, eventManager);
         const persistenceManager = new PersistenceManager({ api, stateManager, eventManager });
@@ -146,8 +150,8 @@ function wireScriptOrchestrator (scriptStore, eventManager) {
  * @param stateManager
  * @param eventManager
  */
-async function initAuthWidget (api, user, stateManager, eventManager) {
-    const sharedElements = getTopBarElements();
+async function initAuthWidget (api, user, stateManager, eventManager, topBarElements = null) {
+    const sharedElements = topBarElements || getTopBarElements();
     const elements = {
         ...sharedElements,
         messagesContainer: document.querySelector(UI_ELEMENTS.MESSAGES_CONTAINER)
@@ -167,6 +171,18 @@ async function initAuthWidget (api, user, stateManager, eventManager) {
 
     window.scriptPalAuth = authWidget;
     return authWidget;
+}
+
+async function initTokenWatchWidget (container, api, stateManager, eventManager) {
+    if (!container) {
+        return null;
+    }
+
+    const widget = new TokenWatchWidget({ container }, api, stateManager, eventManager);
+    widget.setManagers(stateManager, eventManager);
+    await widget.initialize();
+    window.scriptPalTokenWatch = widget;
+    return widget;
 }
 
 /**

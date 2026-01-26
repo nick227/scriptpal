@@ -1,7 +1,14 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
 import { ERROR_TYPES as _ERROR_TYPES } from '../../constants.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import {
+  extractContext,
+  preprocessScript,
+  validateContent,
+  getErrorResponse,
+  handlePromptFormatting
+} from '../helpers/ChainInputUtils.js';
+import { validateStructuredResponseStrict } from '../helpers/ChainOutputGuards.js';
 
 export class BeatListChain extends BaseChain {
   constructor(config = {}) {
@@ -12,36 +19,17 @@ export class BeatListChain extends BaseChain {
   }
 
   validateBeatList(result) {
-    return ChainHelper.validateStructuredResponse(result, {
+    return validateStructuredResponseStrict(result, {
       requiredArray: 'beats',
-      alternateArrays: ['story_beats', 'narrative_beats'],
-      defaultValues: {
-        description: 'Story beat',
-        purpose: 'Advance the narrative',
-        emotional_impact: 'Engage the audience',
-        suggested_placement: null
-      },
+      requiredFields: ['description', 'purpose', 'emotional_impact'],
       requireRationale: true
-    });
-  }
-
-  saveBeatElements(scriptId, beats) {
-    return ChainHelper.saveElements(scriptId, beats, {
-      type: 'beat',
-      getSubtype: (index) => `beat_${index + 1}`,
-      processElement: (beat) => ({
-        description: beat.description,
-        purpose: beat.purpose,
-        emotional_impact: beat.emotional_impact,
-        suggested_placement: beat.suggested_placement || null
-      })
     });
   }
 
   async run(input, context = {}) {
     try {
       // Extract context with defaults
-      const { scriptId, prompt } = ChainHelper.extractContext(context);
+      const { scriptId, prompt } = extractContext(context);
       console.log(`Running beat lister for scriptId: ${scriptId}`);
 
       // Get script content - could be an object, string, or null
@@ -54,14 +42,14 @@ export class BeatListChain extends BaseChain {
       }
 
       // Process the script
-      const processedScript = ChainHelper.preprocessScript(scriptContent, {
+      const processedScript = preprocessScript(scriptContent, {
         includeElements: true,
         elementType: 'beats'
       });
 
       // Validate content
-      if (!ChainHelper.validateContent(processedScript.content)) {
-        return ChainHelper.getErrorResponse(
+      if (!validateContent(processedScript.content)) {
+        return getErrorResponse(
           'I couldn\'t find enough script content to identify story beats. Please provide more content or start with a basic story outline.',
           'error_response'
         );
@@ -81,7 +69,7 @@ export class BeatListChain extends BaseChain {
       }
       ];
 
-      const formattedPrompt = await ChainHelper.handlePromptFormatting(
+      const formattedPrompt = await handlePromptFormatting(
         promptManager,
         'beatList', {
           content: processedScript.content,
@@ -99,25 +87,17 @@ export class BeatListChain extends BaseChain {
 
       try {
         // Validate the beat list format
-        const validatedBeats = await this.validateBeatList(response);
-
-        // Save if scriptId provided
-        if (scriptId) {
-          await this.saveBeatElements(scriptId, validatedBeats.beats);
-        }
-
-        return validatedBeats;
+        return await this.validateBeatList(response);
       } catch (validationError) {
         console.error('Beat list validation failed:', validationError);
-        return ChainHelper.getUnstructuredResponse(response, {
-          type: 'unstructured_beats',
-          emptyArray: 'beats',
-          prefix: 'I identified some story beats but couldn\'t format them properly. Here\'s what I found: '
-        });
+        return getErrorResponse(
+          'I couldn\'t validate the beat list output. Please try again.',
+          'error_response'
+        );
       }
     } catch (error) {
       console.error('Beat list generation error:', error);
-      return ChainHelper.getErrorResponse(
+      return getErrorResponse(
         'I\'m sorry, I encountered an error identifying story beats. Please try again with a more detailed script or outline.',
         'error_response'
       );

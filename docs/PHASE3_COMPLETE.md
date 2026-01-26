@@ -126,7 +126,7 @@ The application now provides a much more intelligent and context-aware AI experi
 - `public/js/__tests__/widgets/editor/context/ScriptContextManager.test.js` (NEW)
 - `public/js/widgets/editor/ai/AICommandManager.js` (ENHANCED)
 - `public/js/__tests__/widgets/editor/ai/AICommandManager.test.js` (NEW)
-- `public/js/widgets/chat/ChatManager.js` (ENHANCED)
+- `public/js/widgets/chat/core/ChatManager.js` (ENHANCED)
 - `public/js/classes/api.js` (ENHANCED)
 
 ### Backend

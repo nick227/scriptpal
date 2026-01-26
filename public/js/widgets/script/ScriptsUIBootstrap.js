@@ -1,10 +1,9 @@
 import { UI_ELEMENTS } from '../../constants.js';
+import { ScriptsController } from '../../services/script/ScriptsController.js';
 import { StateManager } from '../../core/StateManager.js';
-import { ScriptsController } from '../../controllers/ScriptsController.js';
 import { ScriptStore } from '../../stores/ScriptStore.js';
-
 import { EditorWidget } from '../editor/EditorWidget.js';
-import { ScriptListWidget } from './ScriptListWidget.js';
+
 import { ScriptWidget } from './ScriptWidget.js';
 
 /**
@@ -34,9 +33,7 @@ export class ScriptsUIBootstrap {
         this.scriptStore = options.scriptStore || null;
         this.scriptsController = null;
         this.scriptWidget = null;
-        this.scriptListWidget = null;
         this.panelContainer = null;
-        this.dropdownContainer = null;
         this.editorContainer = null;
         this.editorToolbar = null;
         this.editorWidget = null;
@@ -48,7 +45,6 @@ export class ScriptsUIBootstrap {
      */
     async initialize () {
         this.panelContainer = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
-        this.dropdownContainer = document.querySelector('.script-selector');
         this.editorContainer = document.querySelector(UI_ELEMENTS.EDITOR_CONTAINER);
         this.editorToolbar = this.editorContainer
             ? this.editorContainer.querySelector(UI_ELEMENTS.EDITOR_TOOLBAR)
@@ -56,9 +52,6 @@ export class ScriptsUIBootstrap {
 
         if (!this.panelContainer) {
             throw new Error('User scripts panel not found');
-        }
-        if (!this.dropdownContainer) {
-            throw new Error('Script selector container not found');
         }
         if (!this.editorContainer) {
             throw new Error('Editor container not found');
@@ -80,12 +73,6 @@ export class ScriptsUIBootstrap {
         this.scriptWidget.setManagers(this.stateManager, this.eventManager);
         this.scriptWidget.setScriptStore(this.scriptStore);
         await this.scriptWidget.initialize();
-
-        this.scriptListWidget = new ScriptListWidget({
-            container: this.dropdownContainer,
-            stateManager: this.stateManager,
-            scriptStore: this.scriptStore
-        });
 
         this.stateManager.subscribe(StateManager.KEYS.USER, this.handleUserChange.bind(this));
         await this.handleUserChange(this.stateManager.getState(StateManager.KEYS.USER));
@@ -135,7 +122,6 @@ export class ScriptsUIBootstrap {
      */
     showScriptsUI () {
         this.panelContainer.classList.remove('hidden');
-        this.dropdownContainer.classList.remove('hidden');
     }
 
     /**
@@ -143,17 +129,12 @@ export class ScriptsUIBootstrap {
      */
     hideScriptsUI () {
         this.panelContainer.classList.add('hidden');
-        this.dropdownContainer.classList.add('hidden');
     }
 
     /**
      *
      */
     destroy () {
-        if (this.scriptListWidget) {
-            this.scriptListWidget.destroy();
-            this.scriptListWidget = null;
-        }
         if (this.scriptWidget) {
             this.scriptWidget.destroy();
             this.scriptWidget = null;

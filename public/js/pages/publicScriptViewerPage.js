@@ -1,5 +1,5 @@
-import { ScriptPalAPI } from '../classes/api.js';
-import { ScriptPalUser } from '../classes/user.js';
+import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
+import { ScriptPalUser } from '../services/api/ScriptPalUser.js';
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
 import { AuthWidget } from '../widgets/auth/AuthWidget.js';
@@ -10,6 +10,16 @@ import { MAX_LINES_PER_PAGE } from '../widgets/editor/constants.js';
 
 const getQueryParam = (key) => {
     return new URLSearchParams(window.location.search).get(key);
+};
+
+const getSlugFromPath = () => {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const publicIndex = parts.indexOf('public');
+    if (publicIndex === -1) {
+        return null;
+    }
+    const slug = parts[publicIndex + 1];
+    return slug ? decodeURIComponent(slug) : null;
 };
 
 const setViewerMessage = (container, message, isError = false) => {
@@ -67,19 +77,22 @@ const initPublicScriptViewer = async () => {
     const authWidget = new AuthWidget(elements, stateManager, user, eventManager);
     await authWidget.initialize(elements);
 
+    const slug = getSlugFromPath();
     const scriptId = getQueryParam('id');
     const viewerLines = document.querySelector('.public-script-viewer__lines');
     const titleEl = document.querySelector('.public-script-viewer__title');
     const metadataEl = document.querySelector('.public-script-viewer__metadata');
     const ownerEl = document.querySelector('.public-script-owner');
 
-    if (!scriptId) {
+    if (!slug && !scriptId) {
         setViewerMessage(viewerLines, 'No script selected.', false);
         return;
     }
 
     try {
-        const script = await api.getPublicScript(scriptId);
+        const script = slug
+            ? await api.getPublicScriptBySlug(slug)
+            : await api.getPublicScript(scriptId);
         if (!script) {
             setViewerMessage(viewerLines, 'Script is not available.', true);
             return;

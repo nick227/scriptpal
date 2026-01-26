@@ -1,19 +1,15 @@
 .site-header {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    align-items: center;
-    gap: 1rem;
+    display: flex;
     padding: 1rem 2rem;
     background: var(--header-bg, #ffffff);
     border-bottom: 1px solid var(--border-color, #e1e5e9);
     position: sticky;
     top: 0;
     z-index: 50;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
 }
 
 .site-brand .title {
-    margin: 0;
+    margin: 0 60px 0 auto;
     font-size: 1.75rem;
 }
 
@@ -30,7 +26,7 @@
 }
 
 .site-nav__link {
-    padding: 0.35rem 1rem;
+    padding: 0.5rem 1rem;
     border-radius: 999px;
     border: 1px solid transparent;
     color: var(--text-color, #1a1a1a);
@@ -40,8 +36,7 @@
 }
 
 .site-nav__link:hover {
-    border-color: var(--accent-color, #0066ff);
-    background: rgba(0, 102, 255, 0.08);
+    text-decoration: underline;
 }
 
 .site-header .auth-widget {

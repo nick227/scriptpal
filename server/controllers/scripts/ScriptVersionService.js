@@ -42,7 +42,8 @@ export class ScriptVersionService {
         content: editResult.content,
         title: currentScript.title,
         status: currentScript.status,
-        author: currentScript.author || null
+        author: currentScript.author || null,
+        description: currentScript.description || null
       });
 
       console.log('Updated script versionNumber:', {

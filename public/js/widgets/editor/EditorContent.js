@@ -6,6 +6,7 @@ import { debugLog } from '../../core/logger.js';
 import { EDITOR_EVENTS } from './constants.js';
 import { KeyboardManager } from './keyboard/KeyboardManager.js';
 import { ScriptDocument } from './model/ScriptDocument.js';
+import { AutocompleteManager } from './AutocompleteManager.js';
 
 /**
  *
@@ -151,6 +152,21 @@ export class EditorContent {
             throw new Error('Editor area not found');
         }
 
+        if (!this.autocomplete) {
+            this.autocomplete = new AutocompleteManager({
+                contentManager: this,
+                stateManager: this.stateManager,
+                editorArea: this.editorArea
+            });
+            this.autocomplete.initialize();
+        } else if (typeof this.autocomplete.setEditorArea === 'function') {
+            this.autocomplete.setEditorArea(this.editorArea);
+        }
+
+        if (this.keyboardManager) {
+            this.keyboardManager.autocomplete = this.autocomplete;
+        }
+
     }
 
     /**
@@ -190,11 +206,19 @@ export class EditorContent {
                 if (this.callbacks.onCursorMove) {
                     this.callbacks.onCursorMove(position);
                 }
+                if (this.autocomplete && position?.line) {
+                    this.autocomplete.updateSuggestionForLine(position.line);
+                }
             },
-            formatChange: (format) => {
+            formatChange: (payload) => {
+                const format = payload && typeof payload === 'object' ? payload.format : payload;
+                const lineElement = payload && typeof payload === 'object' ? payload.line : null;
                 this.emit(EDITOR_EVENTS.FORMAT_CHANGE, format);
                 if (this.callbacks.onFormat) {
                     this.callbacks.onFormat(format);
+                }
+                if (this.autocomplete && lineElement) {
+                    this.autocomplete.updateSuggestionForLine(lineElement);
                 }
             },
             focusOut: (event) => {
@@ -202,16 +226,28 @@ export class EditorContent {
                 if (target.classList.contains('script-line')) {
                     this.emit(EDITOR_EVENTS.FOCUS_OUT, event);
                 }
+                if (this.autocomplete) {
+                    this.autocomplete.clearSuggestion();
+                }
             },
             input: (event) => {
                 if (event.target.classList.contains('script-line')) {
                     this.syncLineContentFromDOM(event.target);
+                    if (this.autocomplete) {
+                        this.autocomplete.updateSuggestionForLine(event.target);
+                    }
                     this.scheduleContentChange();
                 }
             },
             keydown: (event) => {
                 if (event.target.classList.contains('script-line')) {
                     this.handleKeydown(event);
+                }
+            },
+            focusIn: (event) => {
+                const { target } = event;
+                if (target.classList.contains('script-line') && this.autocomplete) {
+                    this.autocomplete.updateSuggestionForLine(target);
                 }
             },
             click: (event) => {
@@ -230,6 +266,7 @@ export class EditorContent {
         // Set up focus out events
         if (this.editorArea) {
             this.editorArea.addEventListener('focusout', this._eventHandlers.focusOut);
+            this.editorArea.addEventListener('focusin', this._eventHandlers.focusIn);
 
             // Use event delegation for line events to prevent memory leaks
             this.editorArea.addEventListener('input', this._eventHandlers.input);
@@ -281,6 +318,33 @@ export class EditorContent {
             const content = this.getContent();
             this.handleContentChange(content);
         }, 150);
+    }
+
+    /**
+     * Refresh speaker autocomplete suggestions based on current document
+     */
+    refreshSpeakerSuggestions () {
+        if (!this.stateManager || !this.document) {
+            return;
+        }
+        const seen = new Set();
+        const suggestions = [];
+        for (const line of this.document.lines) {
+            if (line.format !== 'speaker') {
+                continue;
+            }
+            const trimmed = (line.content || '').trim();
+            if (!trimmed) {
+                continue;
+            }
+            const normalized = trimmed.toUpperCase();
+            if (seen.has(normalized)) {
+                continue;
+            }
+            seen.add(normalized);
+            suggestions.push(normalized);
+        }
+        this.stateManager.setAutocompleteSuggestions('speaker', suggestions);
     }
 
     /**
@@ -351,6 +415,8 @@ export class EditorContent {
                 source,
                 timestamp: Date.now()
             });
+
+            this.refreshSpeakerSuggestions();
 
             return true;
         } catch (error) {
@@ -484,6 +550,8 @@ export class EditorContent {
         this.emit(EDITOR_EVENTS.CONTENT_UPDATED, { content, source, timestamp: Date.now() });
         this.emit(EDITOR_EVENTS.CONTENT_CHANGE, { content, source, timestamp: Date.now() });
 
+        this.refreshSpeakerSuggestions();
+
         return { success: true, results, content, inverseCommands };
     }
 
@@ -492,9 +560,14 @@ export class EditorContent {
      * @param format
      */
     setCurrentLineFormat (format) {
-        const currentLine = this.domHandler.getCurrentLine();
+        const selectedLine = this.domHandler.container.querySelector('.script-line.selected');
+        const currentLine = selectedLine || this.domHandler.getCurrentLine();
         if (!currentLine || !this.lineFormatter.isValidFormat(format)) {
             return;
+        }
+        if (selectedLine && selectedLine !== this.domHandler.getCurrentLine()) {
+            this.domHandler.currentLine = selectedLine;
+            this.stateManager.setCurrentLine(selectedLine);
         }
         const lineId = currentLine.dataset.lineId || this.ensureLineId(currentLine);
         this.applyFormat(lineId, { format });
@@ -573,10 +646,25 @@ export class EditorContent {
         const content = lineElement.textContent || '';
         const format = lineElement.getAttribute('data-format') || 'action';
         const existing = this.document.getLineById(lineId);
-        if (existing && existing.content === content && existing.format === format) {
-            return;
+        let changed = false;
+        if (existing) {
+            if (existing.content === content && existing.format === format) {
+                return;
+            }
+            this.document.updateLine(lineId, { content, format });
+            changed = true;
+        } else {
+            this.document.insertLineAt(this.document.lines.length, {
+                id: lineId,
+                format,
+                content
+            });
+            changed = true;
         }
-        this.document.updateLine(lineId, { content, format });
+
+        if (changed) {
+            this.refreshSpeakerSuggestions();
+        }
     }
 
     /**
@@ -813,6 +901,7 @@ export class EditorContent {
 
             if (this.editorArea) {
                 this.editorArea.removeEventListener('focusout', this._eventHandlers.focusOut);
+                this.editorArea.removeEventListener('focusin', this._eventHandlers.focusIn);
                 this.editorArea.removeEventListener('input', this._eventHandlers.input);
                 this.editorArea.removeEventListener('keydown', this._eventHandlers.keydown);
                 this.editorArea.removeEventListener('click', this._eventHandlers.click);
@@ -896,6 +985,8 @@ export class EditorContent {
             const contentValue = this.getContent();
             this.emit(EDITOR_EVENTS.CONTENT_CHANGE, contentValue);
             this.debouncedContentUpdate();
+
+            this.refreshSpeakerSuggestions();
 
             return { success: true, element: domLine, line: newLine };
         } catch (error) {

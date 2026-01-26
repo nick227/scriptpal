@@ -99,8 +99,8 @@ export class ScriptListWidget extends BaseWidget {
 
         // Create create new script button
         this.createButton = this.createElement('button', 'create-script-button');
-        this.createButton.innerHTML = '<i class="fas fa-plus"></i> New Script';
-        this.createButton.title = 'Create New Script';
+        this.createButton.innerHTML = '<i class="fas fa-plus"></i>';
+        this.createButton.title = 'New Script';
         this.dropdownMenu.appendChild(this.createButton);
 
         // Create loading indicator

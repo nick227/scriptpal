@@ -1,6 +1,6 @@
 import { BaseChain } from './BaseChain.js';
-import { INTENT_TYPES } from '../../constants.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX } from '../../constants.js';
+import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 
 export class DefaultChain extends BaseChain {
   constructor() {
@@ -25,7 +25,7 @@ Be concise but informative.`;
     const includeScriptContext = context && context.includeScriptContext;
     const scriptContent = includeScriptContext && context?.scriptContent ? context.scriptContent : '';
     const userContent = scriptContent
-      ? `${prompt}\n\nScript content:\n${scriptContent}`
+      ? `${prompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
       : prompt;
 
     const messages = [{
@@ -58,7 +58,7 @@ Be concise but informative.`;
      * Generate follow-up questions for the default chain
      */
   generateQuestions(_context, _prompt) {
-    return ChainHelper.getDefaultQuestions();
+    return getDefaultQuestions();
   }
 
   /**
@@ -80,10 +80,10 @@ Be concise but informative.`;
       // Format the response
       const formattedResponse = await this.formatResponse(response);
 
-      // Add default questions
+      // Add questions (defaults when none returned)
       return {
         ...formattedResponse,
-        questions: ChainHelper.getDefaultQuestions()
+        questions: this.resolveQuestions(response)
       };
     } catch (error) {
       console.error('Default chain execution error:', error);
@@ -95,7 +95,7 @@ Be concise but informative.`;
           error: error.message,
           timestamp: new Date().toISOString()
         },
-        questions: ChainHelper.getDefaultQuestions()
+        questions: getDefaultQuestions()
       };
     }
   }

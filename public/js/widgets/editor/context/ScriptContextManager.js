@@ -185,7 +185,8 @@ export class ScriptContextManager {
             const normalizedContext = {
                 ...context,
                 scriptContent: context.content || '',
-                scriptTitle: context.title || 'Untitled Script'
+                scriptTitle: context.title || 'Untitled Script',
+                scriptDescription: context.description || ''
             };
 
             // Cache the context
@@ -214,6 +215,7 @@ export class ScriptContextManager {
             scriptId: script.id,
             title: script.title || 'Untitled Script',
             scriptTitle: script.title || 'Untitled Script',
+            description: script.description || '',
             status: script.status || 'active',
             version: script.versionNumber || 1,
             createdAt: script.createdAt,
@@ -411,6 +413,7 @@ export class ScriptContextManager {
             timestamp: new Date().toISOString(),
             title: 'No Script',
             scriptTitle: 'No Script',
+            description: '',
             status: 'none',
             version: 0,
             content: '',

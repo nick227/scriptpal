@@ -1,4 +1,4 @@
-﻿# Chat Implementation Roadmap
+# Chat Implementation Roadmap
 
 ## 1. Vision & Goals
 - Deliver a resilient chat experience that keeps history strictly scoped to `userId` + `scriptId`, enforces consistent message contracts, and scales modular logic for extensibility.
@@ -15,14 +15,14 @@
 
 ## 3. Phase 2 (Modularization & Contracts - weeks 3-5)
 1. **MessageProcessor Service**
-   - Extract `processResponse`, `extractResponseContent`, `normalizeMessage`, and related helper logic into a stateless `MessageProcessor` that outputs `{ content, role, metadata, intent }` for rendering and persistence (`public/js/widgets/chat/ChatManager.js:114`, `:501`).
+  - Extract `processResponse`, `extractResponseContent`, `normalizeMessage`, and related helper logic into a stateless `MessageProcessor` that outputs `{ content, role, metadata, intent }` for rendering and persistence (`public/js/widgets/chat/core/ChatManager.js:114`, `:501`).
    - Update `ChatManager` to depend on the processor, simplifying message orchestration.
 2. **ScriptOperationsHandler**
-   - Move `handleScriptEdit`, `_handleScriptAnalysis`, `handleScriptAppend`, and `handleLineInsertion` into a dedicated handler that maps intents to orchestrator calls (`public/js/widgets/chat/ChatManager.js:402`, `:453`, `:493`).
+  - Move `handleScriptEdit`, `_handleScriptAnalysis`, `handleScriptAppend`, and `handleLineInsertion` into a dedicated handler that maps intents to orchestrator calls (`public/js/widgets/chat/core/ChatManager.js:402`, `:453`, `:493`).
    - Align naming conventions (no inconsistent `_` prefixes) and ensure error handling funnels through `handleError`.
 3. **ChatValidator & Performance Manager**
    - Introduce `ChatValidator` to replace `validateSendConditions`/`validateHistoryConditions` and return structured feedback.
-   - Extract caching/batching into `ChatPerformanceManager`, exposing stats and hooks while keeping `ChatManager` lean (`public/js/widgets/chat/ChatManager.js:760`, `:828`).
+  - Extract caching/batching into `ChatPerformanceManager`, exposing stats and hooks while keeping `ChatManager` lean (`public/js/widgets/chat/core/ChatManager.js:760`, `:828`).
 
 ## 4. Phase 3 (Standards, Observability, Stabilization - weeks 6-8)
 1. **Error/Response/Event Standardization**

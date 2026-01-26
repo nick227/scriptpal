@@ -2,7 +2,7 @@
  * Tests for Requirement #10: Each script has its own distinct chat history
  */
 
-import { ChatHistoryManager } from '../../widgets/chat/ChatHistoryManager.js';
+import { ChatHistoryManager } from '../../widgets/chat/core/ChatHistoryManager.js';
 
 describe('Requirement #10: Distinct Chat History Per Script', () => {
     let chatHistoryManager;

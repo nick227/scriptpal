@@ -3,6 +3,7 @@
  */
 
 import { FullscreenManager } from '../../../widgets/ui/FullscreenManager.js';
+import { EventManager } from '../../../core/EventManager.js';
 
 describe('FullscreenManager - Fullscreen Mode Management', () => {
     let fullscreenManager;
@@ -104,7 +105,7 @@ describe('FullscreenManager - Fullscreen Mode Management', () => {
 
         test('should set up event listeners', () => {
             expect(mockEventManager.subscribe).toHaveBeenCalledWith(
-                'UI.FULLSCREEN_TOGGLE',
+                EventManager.EVENTS.UI.FULLSCREEN_TOGGLE,
                 expect.any(Function)
             );
         });
@@ -247,10 +248,19 @@ describe('FullscreenManager - Fullscreen Mode Management', () => {
         test('should handle fullscreen change events', () => {
             const event = new Event('fullscreenchange');
             const applySpy = jest.spyOn(fullscreenManager, 'applyFullscreenState');
+            fullscreenManager.isFullscreen = false;
+            Object.defineProperty(document, 'fullscreenElement', {
+                configurable: true,
+                value: document.documentElement
+            });
 
             fullscreenManager.handleFullscreenChange(event);
 
             expect(applySpy).toHaveBeenCalled();
+            Object.defineProperty(document, 'fullscreenElement', {
+                configurable: true,
+                value: null
+            });
         });
     });
 
@@ -367,13 +377,21 @@ describe('FullscreenManager - Fullscreen Mode Management', () => {
         });
 
         test('should emit fullscreen changed event', () => {
-            fullscreenManager.isFullscreen = true;
+            fullscreenManager.isFullscreen = false;
+            Object.defineProperty(document, 'fullscreenElement', {
+                configurable: true,
+                value: document.documentElement
+            });
             fullscreenManager.handleFullscreenChange(new Event('fullscreenchange'));
 
             expect(mockEventManager.publish).toHaveBeenCalledWith(
-                'UI.FULLSCREEN_CHANGED',
+                EventManager.EVENTS.UI.FULLSCREEN_CHANGED,
                 { isFullscreen: true }
             );
+            Object.defineProperty(document, 'fullscreenElement', {
+                configurable: true,
+                value: null
+            });
         });
     });
 

@@ -1,5 +1,5 @@
 import { ai } from '../../../../lib/ai.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 
 export class QuestionGenerator {
   constructor() {
@@ -70,16 +70,17 @@ Generate 4 follow-up prompts based on this context.`;
 
       if (!result.success) {
         console.warn('Question generation failed at API level:', result.error);
-        return ChainHelper.getDefaultQuestions().map(q => ({ text: q }));
+        return getDefaultQuestions().map(q => ({ text: q }));
       }
 
-      const content = result.data.choices[0].message.content;
+      const { data } = result;
+      const { content } = data.choices[0].message;
 
       // Parse the response content
       const parsed = this.parseJsonResponse(content);
       if (!parsed || !parsed.prompts || !Array.isArray(parsed.prompts)) {
         console.warn('Invalid prompts array returned:', content);
-        return ChainHelper.getDefaultQuestions().map(q => ({ text: q }));
+        return getDefaultQuestions().map(q => ({ text: q }));
       }
 
       const cleanedPrompts = parsed.prompts
@@ -89,7 +90,7 @@ Generate 4 follow-up prompts based on this context.`;
 
       if (cleanedPrompts.length < 4) {
         console.warn('Not enough valid prompts after cleaning:', cleanedPrompts);
-        return ChainHelper.getDefaultQuestions().map(q => ({ text: q }));
+        return getDefaultQuestions().map(q => ({ text: q }));
       }
 
       const finalPrompts = cleanedPrompts.slice(0, 4);
@@ -98,7 +99,7 @@ Generate 4 follow-up prompts based on this context.`;
 
     } catch (error) {
       console.error('Question generation error:', error);
-      return ChainHelper.getDefaultQuestions().map(q => ({ text: q }));
+      return getDefaultQuestions().map(q => ({ text: q }));
     }
   }
 }

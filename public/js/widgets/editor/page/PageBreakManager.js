@@ -24,32 +24,11 @@ export class PageBreakManager {
     }
 
     insertPageBreak (options = {}) {
-        const { editorArea } = this.pageManager;
-        if (!editorArea) {
-            return false;
-        }
-
-        const selection = window.getSelection();
-        const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
-        const insertPoint = range ? range.startContainer : null;
-
-        const pageBreak = this.createPageBreakElement(options);
-        if (insertPoint && insertPoint.parentNode) {
-            insertPoint.parentNode.insertBefore(pageBreak, insertPoint.nextSibling);
-        } else {
-            editorArea.appendChild(pageBreak);
-        }
-
-        this.pageManager.createNewPage();
-        return true;
+        return [{ type: 'INSERT_PAGE_BREAK', options }];
     }
 
     removePageBreak (pageBreakElement) {
-        if (!pageBreakElement || !pageBreakElement.classList.contains('page-break')) {
-            return false;
-        }
-        pageBreakElement.remove();
-        return true;
+        return [{ type: 'REMOVE_PAGE_BREAK', pageBreakElement }];
     }
 
     getAllPageBreaks () {

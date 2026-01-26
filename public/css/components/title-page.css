@@ -44,9 +44,8 @@
 
 .title-input {
     width: 100%;
-    max-width: 500px;
     padding: 16px 20px;
-    font-size: 32px;
+    font-size: 62px;
     font-weight: 700;
     text-align: center;
     border: 2px solid var(--color-border);
@@ -79,6 +78,54 @@
     gap: 16px;
 }
 
+/* Description Section */
+.description-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 16px;
+}
+
+.description-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+}
+
+.description-input {
+    width: 100%;
+    max-width: 700px;
+    min-height: 120px;
+    padding: 12px 16px;
+    font-size: 16px;
+    font-weight: 400;
+    text-align: left;
+    border: 2px solid var(--color-border);
+    border-radius: 6px;
+    background: white;
+    color: var(--color-text);
+    transition: all 0.3s ease;
+    outline: none;
+    resize: vertical;
+}
+
+.description-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.description-input:disabled,
+.description-input[readonly] {
+    background: transparent;
+    border: none;
+    color: var(--color-text);
+    cursor: default;
+}
+
 /* Visibility Section */
 .visibility-section {
     display: flex;
@@ -98,7 +145,6 @@
 
 .visibility-select {
     width: 100%;
-    max-width: 360px;
     padding: 10px 14px;
     border: 2px solid var(--color-border);
     border-radius: 6px;
@@ -121,7 +167,6 @@
     font-size: 14px;
     color: var(--color-text-secondary);
     text-align: center;
-    max-width: 420px;
     margin: 0;
 }
 
@@ -136,11 +181,10 @@
 
 .author-input {
     width: 100%;
-    max-width: 400px;
     padding: 12px 16px;
     font-size: 18px;
     font-weight: 500;
-    text-align: center;
+    text-align: left;
     border: 2px solid var(--color-border);
     border-radius: 6px;
     background: white;
@@ -182,7 +226,6 @@
 
 .date-input {
     width: 100%;
-    max-width: 300px;
     padding: 10px 14px;
     font-size: 16px;
     font-weight: 400;
@@ -271,166 +314,5 @@
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
-    }
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .title-page {
-        padding: 20px;
-        min-height: 80vh;
-    }
-    
-    .title-page-content {
-        gap: 30px;
-    }
-    
-    .title-input {
-        font-size: 24px;
-        padding: 12px 16px;
-    }
-    
-    .author-input {
-        font-size: 16px;
-        padding: 10px 14px;
-    }
-    
-    .date-input {
-        font-size: 14px;
-        padding: 8px 12px;
-    }
-    
-    .title-page-edit-button {
-        padding: 10px 20px;
-        font-size: 13px;
-    }
-}
-
-@media (max-width: 480px) {
-    .title-page {
-        padding: 15px;
-    }
-    
-    .title-page-content {
-        gap: 25px;
-    }
-    
-    .title-input {
-        font-size: 20px;
-        padding: 10px 14px;
-    }
-    
-    .author-input {
-        font-size: 14px;
-        padding: 8px 12px;
-    }
-    
-    .date-input {
-        font-size: 13px;
-        padding: 6px 10px;
-    }
-    
-    .title-label,
-    .author-label,
-    .date-label {
-        font-size: 12px;
-        letter-spacing: 1px;
-    }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    .title-page {
-        background: var(--color-background-dark);
-        border-color: var(--color-border-dark);
-    }
-    
-    .title-input,
-    .author-input,
-    .date-input {
-        background: var(--color-background-dark);
-        border-color: var(--color-border-dark);
-        color: var(--color-text-dark);
-    }
-    
-    .title-input:focus,
-    .author-input:focus,
-    .date-input:focus {
-        border-color: var(--color-primary);
-        box-shadow: 0 0 0 3px var(--color-primary-light-dark);
-    }
-    
-    .title-input:disabled,
-    .title-input[readonly],
-    .author-input:disabled,
-    .author-input[readonly],
-    .date-input:disabled,
-    .date-input[readonly] {
-        background: transparent;
-        color: var(--color-text-dark);
-    }
-    
-    .title-label,
-    .author-label,
-    .date-label {
-        color: var(--color-text-secondary-dark);
-    }
-    
-    .title-page-error {
-        background: var(--color-error-light-dark);
-        color: var(--color-error-dark);
-    }
-}
-
-/* Print Styles */
-@media print {
-    .title-page {
-        box-shadow: none;
-        border: 1px solid #000;
-        page-break-after: always;
-    }
-    
-    .title-page-edit-button {
-        display: none;
-    }
-    
-    .title-input,
-    .author-input,
-    .date-input {
-        border: none;
-        background: transparent;
-    }
-}
-
-/* Accessibility */
-.title-page:focus-within {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-}
-
-.title-input:focus,
-.author-input:focus,
-.date-input:focus {
-    outline: none;
-}
-
-.title-page-edit-button:focus {
-    outline: none;
-}
-
-/* High Contrast Mode */
-@media (prefers-contrast: high) {
-    .title-page {
-        border: 2px solid #000;
-    }
-    
-    .title-input,
-    .author-input,
-    .date-input {
-        border: 2px solid #000;
-    }
-    
-    .title-page-edit-button {
-        border: 2px solid #000;
     }
 }

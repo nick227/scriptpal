@@ -2,7 +2,7 @@
  * Tests for Requirement #11: The chat history changes on script change
  */
 
-import { ChatHistoryManager } from '../../widgets/chat/ChatHistoryManager.js';
+import { ChatHistoryManager } from '../../widgets/chat/core/ChatHistoryManager.js';
 
 const createStateManager = () => ({
     getState: jest.fn().mockReturnValue(null),

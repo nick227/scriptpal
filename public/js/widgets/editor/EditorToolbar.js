@@ -111,8 +111,6 @@ export class EditorToolbar extends BaseWidget {
 
             this.createFormatButtons();
 
-            this.createChapterBreakCreateButton();
-
             this.createPageNumButtons();
 
             this.setupEventListeners();

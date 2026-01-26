@@ -1,7 +1,8 @@
-import { ScriptOperationsHandler } from '../../../widgets/chat/ScriptOperationsHandler.js';
+import { ScriptOperationsHandler } from '../../../widgets/chat/core/ScriptOperationsHandler.js';
 
 describe('ScriptOperationsHandler append flow', () => {
     test('handles APPEND_SCRIPT intent by calling orchestrator', async () => {
+        const formattedScript = Array.from({ length: 12 }, (_, index) => `LINE ${index + 1}`).join('\n');
         const orchestrator = {
             handleScriptAppend: jest.fn().mockResolvedValue(true)
         };
@@ -11,14 +12,17 @@ describe('ScriptOperationsHandler append flow', () => {
 
         const data = {
             response: {
-                content: 'INT. ROOM - DAY\nJOHN\nhello there'
+                content: 'INT. ROOM - DAY\nJOHN\nhello there',
+                metadata: {
+                    formattedScript
+                }
             }
         };
 
         await handler.handleIntent('APPEND_SCRIPT', data);
 
         expect(orchestrator.handleScriptAppend).toHaveBeenCalledWith({
-            content: data.response.content,
+            content: formattedScript,
             isFromAppend: true
         });
     });

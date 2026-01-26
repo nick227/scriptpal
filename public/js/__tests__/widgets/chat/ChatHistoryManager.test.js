@@ -3,11 +3,17 @@
  */
 
 import { MESSAGE_TYPES } from '../../../constants.js';
-import { ChatHistoryManager } from '../../../widgets/chat/ChatHistoryManager.js';
+import { StateManager } from '../../../core/StateManager.js';
+import { ChatHistoryManager } from '../../../widgets/chat/core/ChatHistoryManager.js';
 
 const createStateManager = () => ({
     subscribe: jest.fn(),
-    getState: jest.fn().mockReturnValue(null)
+    getState: jest.fn((key) => {
+        if (key === StateManager.KEYS.USER) {
+            return { id: 'user-1' };
+        }
+        return null;
+    })
 });
 
 describe('ChatHistoryManager - Script-Specific Chat History', () => {
@@ -107,7 +113,7 @@ describe('ChatHistoryManager - Script-Specific Chat History', () => {
 
             expect(mockApi.getChatMessages).toHaveBeenCalledWith(scriptId);
             expect(history).toHaveLength(2);
-            expect(chatHistoryManager.chatHistories.has(scriptId)).toBe(true);
+            expect(chatHistoryManager.chatHistories.has('user-1:script-1')).toBe(true);
         });
 
         test('should return cached history if already loaded', async () => {
@@ -138,7 +144,7 @@ describe('ChatHistoryManager - Script-Specific Chat History', () => {
             const result = await chatHistoryManager.addMessage(message);
 
             expect(result).toBe(true);
-            expect(chatHistoryManager.chatHistories.get('script-1')).toHaveLength(1);
+            expect(chatHistoryManager.chatHistories.get('user-1:script-1').history).toHaveLength(1);
             expect(mockEventManager.publish).toHaveBeenCalledWith('CHAT:MESSAGE_ADDED', expect.any(Object));
         });
 
@@ -162,7 +168,7 @@ describe('ChatHistoryManager - Script-Specific Chat History', () => {
             await chatHistoryManager.loadScriptHistory('script-1');
 
             const history = chatHistoryManager.getCurrentScriptHistory();
-            expect(history.messages).toEqual(mockHistory);
+            expect(history).toEqual(mockHistory);
         });
     });
 

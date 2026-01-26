@@ -1,7 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { promptManager } from '../../prompts/index.js';
 import { ERROR_TYPES, INTENT_TYPES } from '../../constants.js';
-import { ChainHelper } from '../helpers/ChainHelper.js';
+import { extractContext } from '../helpers/ChainInputUtils.js';
 
 export class WriteScriptChain extends BaseChain {
   constructor() {
@@ -22,7 +22,7 @@ export class WriteScriptChain extends BaseChain {
       }
 
       // Extract metadata
-      const { scriptId, scriptTitle } = ChainHelper.extractContext(context);
+      const { scriptId, scriptTitle } = extractContext(context);
 
       // Create messages array
       const messages = [{

@@ -1,17 +1,29 @@
-import { ChatManager } from '../../../widgets/chat/ChatManager.js';
+import { ChatManager } from '../../../widgets/chat/core/ChatManager.js';
 
 describe('ChatManager append integration', () => {
     test('routes APPEND_SCRIPT response to orchestrator append', async () => {
         const mockStateManager = {
             subscribe: jest.fn(),
             setState: jest.fn(),
-            getState: jest.fn().mockReturnValue(null)
+            getState: jest.fn((key) => {
+                if (key === 'currentScript') {
+                    return { id: 'script-1', title: 'Test Script' };
+                }
+                if (key === 'editorReady') {
+                    return true;
+                }
+                return null;
+            })
         };
+        const formattedScript = Array.from({ length: 12 }, (_, index) => `LINE ${index + 1}`).join('\n');
         const mockApi = {
             getChatResponse: jest.fn().mockResolvedValue({
                 intent: 'APPEND_SCRIPT',
                 response: {
-                    content: 'INT. ROOM - DAY\nJOHN\nhello there'
+                    content: 'INT. ROOM - DAY\nJOHN\nhello there',
+                    metadata: {
+                        formattedScript
+                    }
                 }
             })
         };
@@ -54,7 +66,7 @@ describe('ChatManager append integration', () => {
 
         expect(mockApi.getChatResponse).toHaveBeenCalled();
         expect(mockOrchestrator.handleScriptAppend).toHaveBeenCalledWith({
-            content: 'INT. ROOM - DAY\nJOHN\nhello there',
+            content: formattedScript,
             isFromAppend: true
         });
     });
