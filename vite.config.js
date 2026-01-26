@@ -82,6 +82,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
+      external: ['fsevents'],
       output: {
         manualChunks: {
           vendor: ['vite']
