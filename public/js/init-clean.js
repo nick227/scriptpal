@@ -2,7 +2,7 @@
  * Clean Architecture Entry Point
  * Simple, focused initialization
  */
-import { App } from './App.js';
+import { App } from './app.js';
 import { ScriptPalAPI } from './services/api/ScriptPalAPI.js';
 import { ScriptPalUser } from './services/api/ScriptPalUser.js';
 import { UI_ELEMENTS } from './constants.js';
