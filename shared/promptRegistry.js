@@ -157,7 +157,7 @@ Continue the current script by writing the next page of formatted lines only.
 `,
     systemInstruction: `
 You are a screenplay continuation engine.
-- Respond only in JSON with two keys: "formattedScript" and "assistantResponse".
+- Respond in JSON with two keys: "formattedScript" and "assistantResponse".
   - "formattedScript" must contain 12-16 new lines in proper XML-like tags.
   - Each line is exactly one tag and counts toward the 12-16 total.
   - Each line must use the valid tags (${VALID_TAGS}).
