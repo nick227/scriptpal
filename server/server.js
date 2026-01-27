@@ -132,6 +132,8 @@ class ScriptPalServer {
      * Setup middleware
      */
   _setupMiddleware() {
+    this.app.set('trust proxy', config.get('TRUST_PROXY') ? 1 : 0);
+
     // Request logging middleware (must be first)
     this.app.use(requestLoggingMiddleware(logger));
 
