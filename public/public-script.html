@@ -17,7 +17,14 @@
         <section class="public-script-view-panel" aria-live="polite">
             <header class="public-script-view-header">
                 <h2 class="public-script-viewer__title">Loading script...</h2>
-                <p class="public-script-viewer__metadata"></p>
+                <p class="public-script-viewer__author" data-script-author></p>
+                <p class="public-script-viewer__metadata">
+                    <span class="public-script-version" data-script-version>Version 1 · Updated …</span>
+                    <a class="public-script-comments-toggle" aria-controls="public-script-comments-panel" aria-expanded="false">
+                        <span>Comments:</span>
+                        <span class="public-script-comments-count">0</span>
+                    </a>
+                </p>
             </header>
             <article class="public-script-viewer__content">
                 <div class="public-script-viewer__lines">
@@ -29,6 +36,36 @@
             </footer>
         </section>
     </main>
+
+    <aside id="public-script-comments-panel" class="public-script-comments-panel" aria-hidden="true">
+        <div class="public-script-comments-panel__handle" aria-hidden="true"></div>
+        <header class="public-script-comments-panel__header">
+            <h3>Comments</h3>
+            <button type="button" class="public-script-comments-panel__close" aria-label="Close comments panel">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="public-script-comments-panel__body">
+            <div class="public-script-comments-panel__loader" aria-live="polite">Fetching comments…</div>
+            <p class="public-script-comments-panel__empty">No comments yet. Be the first to leave feedback.</p>
+            <div class="public-script-comments-panel__error" role="status" aria-live="polite"></div>
+            <div class="public-script-comments-panel__login-notice">
+                <p>
+                    Log in to leave a comment.
+                    <button type="button" class="public-script-comments-panel__login-btn" data-comments-login>Sign in</button>
+                </p>
+            </div>
+            <ul class="public-script-comments-panel__list"></ul>
+        </div>
+        <form class="public-script-comments-panel__composer" data-comments-form>
+            <label for="public-script-comment-input">Share your thoughts</label>
+            <textarea id="public-script-comment-input" name="comment" rows="3" placeholder="Share feedback or ask for clarification…"></textarea>
+            <div class="public-script-comments-panel__composer-actions">
+                <button type="submit" class="public-script-comments-panel__submit">Publish</button>
+            </div>
+        </form>
+    </aside>
+    <div class="public-script-comments-backdrop" data-comments-backdrop></div>
 
     <script type="module" src="/js/pages/publicScriptViewerPage.js"></script>
 </body>

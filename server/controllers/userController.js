@@ -1,4 +1,5 @@
 import userModel from '../models/user.js';
+import scriptModel from '../models/script.js';
 import tokenUsageRepository from '../repositories/tokenUsageRepository.js';
 
 const sanitizeUser = (user) => {
@@ -34,6 +35,16 @@ const userController = {
         return res.status(400).json({ error: 'Email and password are required' });
       }
       const user = await userModel.createUser({ email, password });
+      await scriptModel.createScript({
+        userId: user.id,
+        title: 'Untitled Script',
+        status: 'draft',
+        visibility: 'private',
+        content: JSON.stringify({
+          version: 2,
+          lines: []
+        })
+      });
       res.status(201).json(sanitizeUser(user));
     } catch (error) {
       console.error('Error creating user:', {

@@ -696,10 +696,12 @@ export class ChatManager extends BaseManager {
         }
 
         if (typeof data.response === 'object') {
-            return data.response.response ||
+            const extracted = data.response.response ||
                    data.response.message ||
                    data.response.content ||
-                   data.response;
+                   data.response.assistantResponse ||
+                   this.extractMessageContent(data.response);
+            return extracted || null;
         }
 
         return null;

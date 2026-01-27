@@ -200,6 +200,7 @@ export class SystemPromptOrchestrator {
             return;
         }
 
+        const { chatManager, chatHistoryManager } = this;
         const decoratedResponse = typeof response === 'string'
             ? { response, metadata: { promptType: promptId } }
             : {
@@ -210,12 +211,12 @@ export class SystemPromptOrchestrator {
                 }
             };
 
-        await this.chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
+        await chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
 
-        const content = decoratedResponse.response || '';
+        const content = chatManager.extractMessageContent(decoratedResponse);
 
-        if (content && this.chatHistoryManager) {
-            await this.chatHistoryManager.addMessage({
+        if (content && chatHistoryManager) {
+            await chatHistoryManager.addMessage({
                 content,
                 type: MESSAGE_TYPES.ASSISTANT,
                 metadata: {

@@ -1,5 +1,6 @@
 import prisma from '../db/prismaClient.js';
 import scriptRepository from '../repositories/scriptRepository.js';
+import scriptCommentRepository from '../repositories/scriptCommentRepository.js';
 import scriptVersionRepository from '../repositories/scriptVersionRepository.js';
 import { generateUniqueSlug } from '../lib/slug.js';
 
@@ -10,6 +11,7 @@ const toScriptWithVersion = (script, version) => {
     versionNumber: version ? version.versionNumber : 1,
     content: version ? version.content : '',
     visibility: script.visibility ?? 'private',
+    commentCount: script.commentCount ?? 0,
     updatedAt: script.updatedAt,
     createdAt: script.createdAt
   };
@@ -201,6 +203,7 @@ const scriptModel = {
       await tx.scriptElement.deleteMany({ where: { scriptId } });
       await tx.scriptPage.deleteMany({ where: { scriptId } });
       await tx.persona.deleteMany({ where: { scriptId } });
+      await tx.scene.deleteMany({ where: { scriptId } });
 
       const deletedScript = await tx.script.delete({
         where: { id: scriptId }
@@ -228,6 +231,8 @@ const scriptModel = {
     const script = await scriptRepository.getPublicScriptById(Number(id));
     if (!script) return null;
     const version = Array.isArray(script.versions) ? script.versions[0] : null;
+    const commentCount = await scriptCommentRepository.countByScript(script.id);
+    script.commentCount = commentCount;
     return toScriptWithVersion(script, version);
   },
 
@@ -242,6 +247,8 @@ const scriptModel = {
     const script = await scriptRepository.getPublicScriptBySlug(slug);
     if (!script) return null;
     const version = Array.isArray(script.versions) ? script.versions[0] : null;
+    const commentCount = await scriptCommentRepository.countByScript(script.id);
+    script.commentCount = commentCount;
     return toScriptWithVersion(script, version);
   }
 };

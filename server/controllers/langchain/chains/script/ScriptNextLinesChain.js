@@ -1,5 +1,6 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX } from '../../constants.js';
+import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { validateAiResponse } from '../helpers/ChainOutputGuards.js';
 import { normalizeFormattedScript } from '../../../../lib/scriptFormatter.js';
 
@@ -47,8 +48,9 @@ export class ScriptNextLinesChain extends BaseChain {
   }
 
   buildMessages (context, prompt) {
+    const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
     const scriptContext = context?.scriptContent
-      ? `${SCRIPT_CONTEXT_PREFIX}\n${context.scriptContent}`
+      ? `${scriptHeader}\n\n${SCRIPT_CONTEXT_PREFIX}\n${context.scriptContent}`
       : 'No script content available.';
 
     const systemInstruction = context?.systemInstruction;

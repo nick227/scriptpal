@@ -98,67 +98,6 @@ export class BaseRenderer {
     }
 }
 
-/**
- *
- */
-export class MessageRenderer extends BaseRenderer {
-    /**
-     *
-     * @param container
-     * @param chat
-     */
-    constructor (container, chat) {
-        super(container);
-        this.chat = chat;
-        this.buttonRenderer = new ModernButtonContainerRenderer(container);
-    }
-
-    /**
-     *
-     * @param content
-     * @param type
-     */
-    render (content, type = MESSAGE_TYPES.USER) {
-        const message = this.normalizeMessage(content, type);
-        const messageDiv = this.createElement('div', `message ${message.type}`);
-        messageDiv.dataset.messageId = message.id;
-        messageDiv.innerHTML = message.content;
-        this.prependElement(messageDiv);
-        this.scrollToTop();
-    }
-
-    /**
-     *
-     * @param buttons
-     */
-    renderButtons (buttons) {
-        this.buttonRenderer.render(buttons, (text) => {
-            if (this.chat) {
-                this.chat.handleButtonClick(text);
-            }
-        });
-    }
-
-    normalizeMessage (content, type) {
-        if (content && typeof content === 'object') {
-            return {
-                id: content.id || `msg_${Date.now()}`,
-                content: content.content || '',
-                type: content.type || content.role || type
-            };
-        }
-
-        return {
-            id: `msg_${Date.now()}`,
-            content: content || '',
-            type
-        };
-    }
-}
-
-/**
- *
- */
 export class ModernMessageRenderer extends BaseRenderer {
     /**
      *
@@ -416,27 +355,6 @@ export class ButtonElementRenderer extends BaseRenderer {
 /**
  *
  */
-export class ModernButtonElementRenderer extends BaseRenderer {
-    /**
-     *
-     * @param button
-     * @param onClick
-     */
-    render (button, onClick) {
-        if (!button || !button.text) return null;
-
-        const buttonElement = this.createElement('button', 'quick-reply', button.text);
-        buttonElement.type = 'button';
-        if (onClick) {
-            buttonElement.addEventListener('click', () => onClick(button.text));
-        }
-        return buttonElement;
-    }
-}
-
-/**
- *
- */
 export class ButtonContainerRenderer extends BaseRenderer {
     /**
      *
@@ -464,51 +382,7 @@ export class ButtonContainerRenderer extends BaseRenderer {
             }
         });
 
-        if (this.container.dataset.renderer === 'modern') {
-            this.appendElement(buttonContainer);
-        } else {
-            this.prependElement(buttonContainer);
-        }
-    }
-}
-
-/**
- *
- */
-export class ModernButtonContainerRenderer extends BaseRenderer {
-    /**
-     *
-     * @param container
-     */
-    constructor (container) {
-        super(container);
-        this.buttonRenderer = new ModernButtonElementRenderer(container);
-    }
-
-    /**
-     *
-     * @param buttons
-     * @param onClick
-     */
-    render (buttons, onClick) {
-        if (!Array.isArray(buttons) || buttons.length === 0) return;
-
-        const existing = this.container.querySelector('.quick-replies');
-        if (existing) {
-            existing.remove();
-        }
-
-        const buttonContainer = this.createContainer('quick-replies');
-
-        buttons.forEach(button => {
-            const buttonElement = this.buttonRenderer.render(button, onClick);
-            if (buttonElement) {
-                buttonContainer.appendChild(buttonElement);
-            }
-        });
-
         this.appendElement(buttonContainer);
-        this.scrollToBottom();
     }
 }
 
@@ -809,10 +683,7 @@ export class RendererFactory {
      * @param chat
      */
     static createMessageRenderer (container, chat) {
-        if (container && container.dataset.renderer === 'modern') {
-            return new ModernMessageRenderer(container, chat);
-        }
-        return new MessageRenderer(container, chat);
+        return new ModernMessageRenderer(container, chat);
     }
 
     /**
@@ -821,14 +692,6 @@ export class RendererFactory {
      */
     static createScriptRenderer (container) {
         return new ScriptRenderer(container);
-    }
-
-    /**
-     *
-     * @param container
-     */
-    static createButtonContainerRenderer (container) {
-        return new ButtonContainerRenderer(container);
     }
 
     /**

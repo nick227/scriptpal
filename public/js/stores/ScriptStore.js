@@ -4,6 +4,7 @@ import { StateManager } from '../core/StateManager.js';
 import { debugLog } from '../core/logger.js';
 import { removeFromStorage } from '../services/persistence/PersistenceManager.js';
 import { ScriptFormatter } from '../services/format/ScriptFormatter.js';
+import { ERROR_MESSAGES } from '../constants.js';
 
 /**
  * ScriptStore - single source of truth for script state
@@ -23,6 +24,7 @@ export class ScriptStore extends BaseManager {
         this.eventManager = eventManager;
         this.scripts = [];
         this.currentScriptId = null;
+        this.currentUserId = null;
         this.isLoading = false;
         this.formatter = new ScriptFormatter();
         this.patchQueue = new Map();
@@ -31,6 +33,8 @@ export class ScriptStore extends BaseManager {
         this.patchFlushDelay = 5000; // milliseconds
         this.maxPatchRetryDelay = 30000; // milliseconds
         this.visibilityFilter = 'all';
+        this.authEventUnsubscribers = [];
+        this._bindAuthEvents();
     }
 
     normalizeVisibility (value) {
@@ -112,6 +116,7 @@ export class ScriptStore extends BaseManager {
             title: script.title || 'UNKNOWN',
             author: script.author || '',
             description: script.description || '',
+            userId: script.userId ?? this.currentUserId ?? null,
             visibility: this.normalizeVisibility(script.visibility),
             timestamp: Date.now()
         };
@@ -142,10 +147,18 @@ export class ScriptStore extends BaseManager {
      * @param {object} options
      */
     async loadScripts (userId, options = {}) {
-        if (!userId) {
+        const normalizedUserId = Number(userId);
+        if (!normalizedUserId) {
             console.error('[ScriptStore] User ID required to load scripts');
             return [];
         }
+
+        this.clearScriptError();
+
+        if (this.currentUserId && String(this.currentUserId) !== String(normalizedUserId)) {
+            this.clearState();
+        }
+        this.currentUserId = normalizedUserId;
 
         if (this.scripts.length > 0 && !options.force) {
             return this.scripts;
@@ -153,7 +166,7 @@ export class ScriptStore extends BaseManager {
 
         try {
             this.setLoading(true);
-            const scripts = await this.api.getAllScriptsByUser(userId);
+            const scripts = await this.api.getAllScriptsByUser(normalizedUserId);
 
             if (!scripts || !Array.isArray(scripts)) {
                 this.scripts = [];
@@ -200,14 +213,15 @@ export class ScriptStore extends BaseManager {
         try {
             this.setLoading(true);
 
-            const scriptId = String(id);
-            const cached = this.scripts.find(script => String(script.id) === scriptId);
-            const hasCachedContent = cached && cached.content !== undefined && cached.content !== null;
-            const shouldUseCache = hasCachedContent && !options.forceFresh;
+        const scriptId = String(id);
+        const cached = this.scripts.find(script => String(script.id) === scriptId);
+        const hasCachedContent = cached && cached.content !== undefined && cached.content !== null;
+        const ownerMatches = cached && this.currentUserId && String(cached.userId) === String(this.currentUserId);
+        const shouldUseCache = hasCachedContent && ownerMatches && !options.forceFresh;
 
-            const script = shouldUseCache
-                ? cached
-                : await this.api.getScript(scriptId);
+        const script = shouldUseCache
+            ? cached
+            : await this.api.getScript(scriptId);
             console.log('[ScriptStore] loadScript raw api response', { scriptId, script });
 
             return this.applyLoadedScript(script, options);
@@ -227,6 +241,8 @@ export class ScriptStore extends BaseManager {
             return null;
         }
 
+        this.clearScriptError();
+
         try {
             this.setLoading(true);
             const script = await this.api.getScriptBySlug(slug);
@@ -236,6 +252,14 @@ export class ScriptStore extends BaseManager {
             console.error('[ScriptStore] Failed to load script by slug:', error);
             this.handleAuthError(error);
             this.handleError(error, 'script');
+            if (error?.status === 404) {
+                this.setScriptError({
+                    type: 'slug_not_found',
+                    slug,
+                    status: 404,
+                    message: ERROR_MESSAGES.SCRIPT_NOT_FOUND
+                });
+            }
             return null;
         } finally {
             this.setLoading(false);
@@ -248,6 +272,7 @@ export class ScriptStore extends BaseManager {
             return null;
         }
 
+        this.clearScriptError();
         const standardized = this.standardizeScript(script);
         this.setCurrentScript(standardized, {
             source: options.source || 'selection',
@@ -776,6 +801,45 @@ export class ScriptStore extends BaseManager {
         keys.forEach(key => removeFromStorage(key));
     }
 
+    setScriptError (payload) {
+        if (!this.stateManager) {
+            return;
+        }
+        this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT_ERROR, payload);
+        if (this.eventManager && payload) {
+            this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, payload);
+        }
+    }
+
+    clearScriptError () {
+        if (!this.stateManager) {
+            return;
+        }
+        this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT_ERROR, null);
+    }
+
+    _bindAuthEvents () {
+        if (!this.eventManager) {
+            return;
+        }
+        this.authEventUnsubscribers.push(
+            this.eventManager.subscribe(EventManager.EVENTS.AUTH.LOGOUT, () => this.clearState()),
+            this.eventManager.subscribe(EventManager.EVENTS.AUTH.REGISTER, () => this.clearState())
+        );
+    }
+
+    _unsubscribeFromAuthEvents () {
+        if (!this.authEventUnsubscribers.length) {
+            return;
+        }
+        this.authEventUnsubscribers.forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        });
+        this.authEventUnsubscribers = [];
+    }
+
     clearInvalidSelection (scripts = []) {
         const storedId = this.getStoredCurrentScriptId();
         if (!storedId) {
@@ -793,7 +857,11 @@ export class ScriptStore extends BaseManager {
         const scripts = await this.loadScripts(userId);
         if (!scripts || scripts.length === 0) {
             this.clearPersistedScriptSelection();
-            return [];
+            await this.createScript(userId, {
+                title: 'Untitled Script',
+                content: ''
+            });
+            return this.scripts;
         }
         this.clearInvalidSelection(scripts);
         return scripts;
@@ -833,6 +901,9 @@ export class ScriptStore extends BaseManager {
         this.setCurrentScript(null);
         this.updateScriptsState();
         this.clearAllPatchState();
+        this.clearPersistedScriptSelection();
+        this.clearScriptError();
+        this.currentUserId = null;
     }
 
     /**
@@ -860,5 +931,13 @@ export class ScriptStore extends BaseManager {
     setLoading (loading) {
         this.isLoading = loading;
         super.setLoading(loading);
+    }
+
+    destroy () {
+        this._unsubscribeFromAuthEvents();
+        this.clearState();
+        this.api = null;
+        this.eventManager = null;
+        super.destroy();
     }
 }

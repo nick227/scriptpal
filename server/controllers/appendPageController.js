@@ -1,21 +1,12 @@
 import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
-import scriptRepository from '../repositories/scriptRepository.js';
 import { buildAiResponse, createIntentResult } from './aiResponse.js';
 
 const appendPageController = {
   appendPage: async(req, res) => {
     try {
-      const scriptId = Number(req.params.id);
-      if (!scriptId) {
-        return res.status(400).json({ error: 'Invalid script ID' });
-      }
-
-      const existingScript = await scriptRepository.getById(scriptId);
-      if (!existingScript) {
+      const script = req.script;
+      if (!script || !script.id) {
         return res.status(404).json({ error: 'Script not found' });
-      }
-      if (existingScript.userId !== req.userId) {
-        return res.status(403).json({ error: 'Access denied' });
       }
 
       const { prompt } = req.body;
@@ -24,7 +15,7 @@ const appendPageController = {
       }
 
       const result = await generateAppendPage({
-        scriptId,
+        scriptId: script.id,
         userId: req.userId,
         prompt
       });
@@ -32,7 +23,7 @@ const appendPageController = {
       const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
       const responsePayload = buildAiResponse({
         intentResult,
-        scriptId,
+        scriptId: script.id,
         scriptTitle: result.scriptTitle,
         response: {
           content: result.responseText,

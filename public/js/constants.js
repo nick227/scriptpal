@@ -17,6 +17,7 @@ API_ENDPOINTS.USER_TOKEN_WATCH = '/user/token-watch';
 API_ENDPOINTS.PUBLIC_SCRIPTS = '/public/scripts';
 API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG = '/public/scripts/slug';
 API_ENDPOINTS.SCRIPT_SLUG = '/script/slug';
+API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS = (scriptId) => `/public/scripts/${scriptId}/comments`;
 
 export const API_HEADERS = {
     'Content-Type': 'application/json'
@@ -31,6 +32,8 @@ export const UI_ELEMENTS = {
     EDITOR_CONTAINER: '.editor-container',
     EDITOR_TOOLBAR: '.editor-toolbar',
     USER_SCRIPTS_PANEL: '.user-scripts',
+    USER_SCENES_PANEL: '.user-scenes',
+    SIDE_PANEL_PANEL: '.side-panel-panel',
     TOGGLE_VIEW: '#toggle-view',
     EDITOR_VIEW: '#editor-view',
     SETTINGS_VIEW: '#settings-view',
@@ -52,6 +55,7 @@ export const UI_ELEMENTS = {
     MINIMAP_CONTAINER: '.minimap-container',
     EDITOR_AREA: '.editor-area'
 };
+UI_ELEMENTS.PANEL_NAVIGATION = '.panel-navigation';
 UI_ELEMENTS.PUBLIC_SCRIPTS_PANEL = '.public-scripts-panel';
 UI_ELEMENTS.PUBLIC_SCRIPTS_LIST = '.public-scripts-list';
 UI_ELEMENTS.PUBLIC_SCRIPT_VIEWER = '.public-script-viewer';

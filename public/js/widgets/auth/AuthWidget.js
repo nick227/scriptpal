@@ -140,8 +140,8 @@ export class AuthWidget extends BaseWidget {
                 if (email && password) {
                     try {
                         const user = await this.user.handleLogin(email, password);
+                        await this.finalizeAuthentication(user);
                         this.formViews.login.showSuccess('Signed in successfully.');
-                        this.updateUIForAuthenticatedUser(user);
                     } catch (error) {
                         console.error('[AuthWidget] Login failed', error);
                         this.formViews.login.showError(error.message);
@@ -161,9 +161,10 @@ export class AuthWidget extends BaseWidget {
                 const { email, password } = this.formViews.register.getValues();
                 if (email && password) {
                     try {
-                        const user = await this.user.handleRegister(email, password);
-                        this.formViews.register.showSuccess('Account created successfully.');
-                        this.updateUIForAuthenticatedUser(user);
+                        await this.user.handleRegister(email, password);
+                        const loggedInUser = await this.user.handleLogin(email, password);
+                        await this.finalizeAuthentication(loggedInUser);
+                        this.formViews.register.showSuccess('Account created and signed in successfully.');
                     } catch (error) {
                         console.error('[AuthWidget] Register failed', error);
                         this.formViews.register.showError(error.message);
@@ -251,6 +252,43 @@ export class AuthWidget extends BaseWidget {
             this.stateManager.setState(StateManager.KEYS.AUTHENTICATED, false);
         }
         // Avoid emitting auth events here to prevent recursion
+    }
+
+    /**
+     * Ensure the API session stays healthy before celebrating authentication.
+     */
+    async ensureSession () {
+        if (!this.user || typeof this.user.checkSession !== 'function') {
+            return;
+        }
+
+        try {
+            const authenticated = await this.user.checkSession();
+            if (!authenticated) {
+                console.warn('[AuthWidget] Session check could not confirm the authenticated user.');
+            }
+        } catch (error) {
+            console.error('[AuthWidget] Session check failed after authentication:', error);
+        }
+    }
+
+    /**
+     * Finalize UI / state updates after login / registration succeeds.
+     * @param user
+     */
+    async finalizeAuthentication (user) {
+        if (!user) {
+            return;
+        }
+
+        await this.ensureSession();
+        const sessionUser = this.user?.getCurrentUser() || user;
+        if (!sessionUser) {
+            console.warn('[AuthWidget] No user available after session confirmation.');
+            return;
+        }
+
+        this.updateUIForAuthenticatedUser(sessionUser);
     }
 
     /**

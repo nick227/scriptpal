@@ -5,9 +5,12 @@ import storyElementController from './controllers/storyElementController.js';
 import personaController from './controllers/personaController.js';
 import systemPromptController from './controllers/systemPromptController.js';
 import nextLinesController from './controllers/nextLinesController.js';
+import sceneController from './controllers/sceneController.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
+import { requireScriptOwnership } from './middleware/scriptOwnership.js';
 import chatController from './controllers/chatController.js';
 import publicScriptController from './controllers/publicScriptController.js';
+import publicScriptCommentController from './controllers/publicScriptCommentController.js';
 
 const routes = [
 
@@ -47,6 +50,17 @@ const routes = [
     method: 'get',
     handler: publicScriptController.get
   },
+  {
+    path: '/public/scripts/:id/comments',
+    method: 'get',
+    handler: publicScriptCommentController.list,
+  },
+  {
+    path: '/public/scripts/:id/comments',
+    method: 'post',
+    handler: publicScriptCommentController.create,
+    middleware: [validateSession]
+  },
 
   // Protected routes (require auth)
   {
@@ -59,19 +73,19 @@ const routes = [
     path: '/chat/messages',
     method: 'get',
     handler: chatController.getChatMessages,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/chat/messages',
     method: 'post',
     handler: chatController.addChatMessage,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/chat/messages/:scriptId',
     method: 'delete',
     handler: chatController.clearChatMessages,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/system-prompts',
@@ -113,7 +127,7 @@ const routes = [
     path: '/script/:id',
     method: 'get',
     handler: scriptController.getScript,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/script',
@@ -131,50 +145,50 @@ const routes = [
     path: '/script/:id',
     method: 'put',
     handler: scriptController.updateScript,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/script/:id/append-page',
     method: 'post',
     handler: appendPageController.appendPage,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/script/:scriptId/next-lines',
     method: 'post',
     handler: nextLinesController.trigger,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
   {
     path: '/script/:id',
     method: 'delete',
     handler: scriptController.deleteScript,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/script/:id/profile',
     method: 'get',
     handler: scriptController.getScriptProfile,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   {
     path: '/script/:id/stats',
     method: 'get',
     handler: scriptController.getScriptStats,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership()]
   },
   // Story Elements routes
   {
     path: '/script/:scriptId/elements',
     method: 'get',
     handler: storyElementController.getScriptElements,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
   {
     path: '/script/:scriptId/elements',
     method: 'post',
     handler: storyElementController.createElement,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
   {
     path: '/element/:id',
@@ -199,13 +213,13 @@ const routes = [
     path: '/script/:scriptId/personas',
     method: 'get',
     handler: personaController.getScriptPersonas,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
   {
     path: '/script/:scriptId/personas',
     method: 'post',
     handler: personaController.createPersona,
-    middleware: [validateSession]
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
   {
     path: '/persona/:id',
@@ -224,6 +238,49 @@ const routes = [
     method: 'delete',
     handler: personaController.deletePersona,
     middleware: [validateSession]
+  },
+  // Scene routes
+  {
+    path: '/script/:scriptId/scenes',
+    method: 'get',
+    handler: sceneController.getScriptScenes,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/scenes',
+    method: 'post',
+    handler: sceneController.createScene,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/scenes/reorder',
+    method: 'put',
+    handler: sceneController.reorderScenes,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/scenes/:sceneId',
+    method: 'put',
+    handler: sceneController.updateScene,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/scenes/:sceneId',
+    method: 'delete',
+    handler: sceneController.deleteScene,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/scenes/:sceneId/ai/scene-idea',
+    method: 'post',
+    handler: sceneController.generateSceneIdea,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/scenes/ai/scene-idea',
+    method: 'post',
+    handler: sceneController.generateSceneIdea,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   }
 ];
 

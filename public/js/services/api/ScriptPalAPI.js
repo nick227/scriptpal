@@ -498,6 +498,13 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'GET');
     }
 
+    async getScenes (scriptId) {
+        if (!scriptId) {
+            throw new Error('Script ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes`, 'GET');
+    }
+
     /**
      *
      * @param scriptData
@@ -565,6 +572,56 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'DELETE');
     }
 
+    async createScene (scriptId, sceneData) {
+        if (!scriptId) {
+            throw new Error('Script ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes`, 'POST', sceneData);
+    }
+
+    async updateScene (scriptId, sceneId, sceneData) {
+        if (!scriptId || !sceneId) {
+            throw new Error('Script ID and scene ID are required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/${sceneId}`, 'PUT', sceneData);
+    }
+
+    async deleteScene (scriptId, sceneId) {
+        if (!scriptId || !sceneId) {
+            throw new Error('Script ID and scene ID are required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/${sceneId}`, 'DELETE');
+    }
+
+    async generateSceneIdea (scriptId, sceneId, payload = {}) {
+        if (!scriptId || !sceneId) {
+            throw new Error('Script ID and scene ID are required');
+        }
+        return this._makeRequest(
+            `${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/${sceneId}/ai/scene-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async generateSceneIdeaDraft (scriptId, payload = {}) {
+        if (!scriptId) {
+            throw new Error('Script ID is required');
+        }
+        return this._makeRequest(
+            `${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/ai/scene-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async reorderScenes (scriptId, order) {
+        if (!scriptId) {
+            throw new Error('Script ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/reorder`, 'PUT', { order });
+    }
+
     /**
      *
      * @param userId
@@ -593,6 +650,30 @@ export class ScriptPalAPI {
             throw new Error('Public script ID is required');
         }
         return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS}/${id}`, 'GET');
+    }
+
+    async getPublicScriptComments (scriptId, { page = 1, pageSize = 20 } = {}) {
+        if (!scriptId) {
+            throw new Error('Public script ID is required');
+        }
+
+        const params = new URLSearchParams();
+        params.set('page', page);
+        params.set('pageSize', pageSize);
+
+        const endpoint = `${API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS(scriptId)}?${params.toString()}`;
+        return this._makeRequest(endpoint, 'GET');
+    }
+
+    async addPublicScriptComment (scriptId, content) {
+        if (!scriptId) {
+            throw new Error('Public script ID is required');
+        }
+        if (!content || !content.trim()) {
+            throw new Error('Comment content is required');
+        }
+
+        return this._makeRequest(API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS(scriptId), 'POST', { content: content.trim() });
     }
 
     async getPublicScriptBySlug (slug) {

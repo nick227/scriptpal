@@ -21,8 +21,17 @@
     gap: 6px;
 }
 
+.script-panel-header {
+    margin: 10px auto;
+}
+
 .user-scripts .script-item {
     border-radius: 6px;
+}
+
+.create-script-button {
+    width: 100%;
+    margin: 10px auto;
 }
 
 .user-scripts .script-actions button {
@@ -91,6 +100,7 @@
     gap: 0.25rem;
     font-size: 12px;
     color: var(--color-text-secondary);
+    width: 100%;
 }
 
 .visibility-picker__label {
@@ -107,7 +117,7 @@
     font-size: 14px;
     background: var(--color-background, #fff);
     color: var(--color-text, #1a1a1a);
-    min-width: 150px;
+    width: 100%;
 }
 
 .dropdown-icon.open {

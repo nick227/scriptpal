@@ -16,7 +16,6 @@
 .chatbot-container {
     --chat-bg: #f4f6fb;
     --chat-surface: #ffffff;
-    --chat-ink: #1f2330;
     --chat-muted: #6b7280;
     --chat-border: rgba(15, 23, 42, 0.08);
     --chat-accent: #2563eb;
@@ -43,8 +42,8 @@
     z-index: 1000 !important;
     position: fixed !important;
     display: flex !important;
-    justify-content: center !important;
-    align-items: center !important; 
+    justify-content: flex-end !important;
+    align-items: flex-end !important; 
     bottom: 20px;
     right: 20px;
     background: transparent !important;
@@ -77,7 +76,7 @@
 }
 
 .chatbot-container.minimized .chat-action-btn {
-    font-size: 2em;
+    font-size: 4em;
 }
 
 .chat-action-btn:hover i {

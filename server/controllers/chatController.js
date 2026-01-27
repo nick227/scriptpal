@@ -1,117 +1,22 @@
-import { ERROR_TYPES, INTENT_TYPES, validateAiResponse } from './langchain/constants.js';
+import { ERROR_TYPES, INTENT_TYPES } from './langchain/constants.js';
 import { Chat } from './chat/Chat.js';
 import chatMessageRepository from '../repositories/chatMessageRepository.js';
+import { verifyScriptOwnership } from '../middleware/scriptOwnership.js';
 import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
 import { generateFullScript, FULL_SCRIPT_GENERATION_MODE } from './scripts/FullScriptService.js';
-import { buildAiResponse, createIntentResult } from './aiResponse.js';
-import { ScriptManager } from './scripts/ScriptManager.js';
+import { createIntentResult } from './aiResponse.js';
 import { router } from './langchain/router/index.js';
-import { normalizeScriptForPrompt } from './langchain/chains/helpers/ScriptNormalization.js';
 import { getPromptById } from '../../shared/promptRegistry.js';
-
-const APPEND_PAGE_PATTERNS = [
-  /\bnext page\b/i,
-  /\bnext scene\b/i,
-  /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bpage\b/i,
-  /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bscene\b/i,
-  /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscript\b/i,
-  /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscreenplay\b/i
-];
-
-const NEXT_FIVE_LINES_PATTERN = /\b(next|write|generate|add|continue)\b[\s\S]{0,40}\b(5|five)\b[\s\S]{0,20}\blines?\b/i;
+import { isAppendPageRequest, isNextFiveLinesRequest, isFullScriptRequest } from './chat/intentUtils.js';
+import { buildNextFiveLinesContext } from './chat/nextFiveLinesContext.js';
+import { loadOwnedScript } from './scripts/scriptAccessUtils.js';
+import { buildValidatedChatResponse } from './chat/responseUtils.js';
 
 const NEXT_FIVE_LINES_PROMPT = getPromptById('next-five-lines');
 
 if (!NEXT_FIVE_LINES_PROMPT) {
   throw new Error('Next five lines prompt definition is missing from the registry');
 }
-
-const scriptManager = new ScriptManager();
-
-const isAppendPageRequest = (prompt) => {
-  if (!prompt || typeof prompt !== 'string') {
-    return false;
-  }
-
-  if (NEXT_FIVE_LINES_PATTERN.test(prompt)) {
-    return false;
-  }
-
-  return APPEND_PAGE_PATTERNS.some(pattern => pattern.test(prompt));
-};
-
-const isNextFiveLinesRequest = (prompt) => {
-  if (!prompt || typeof prompt !== 'string') {
-    return false;
-  }
-
-  return NEXT_FIVE_LINES_PATTERN.test(prompt);
-};
-
-const buildNextFiveLinesContext = (scriptId, script, overrides = {}) => {
-  const includeScriptContext = NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false;
-  const scriptContent = includeScriptContext
-    ? normalizeScriptForPrompt(script.content || '', { allowStructuredExtraction: true })
-    : '';
-
-  const protectedKeys = new Set([
-    'scriptId',
-    'scriptTitle',
-    'scriptContent',
-    'includeScriptContext',
-    'attachScriptContext',
-    'expectsFormattedScript',
-    'scriptMetadata',
-    'chainConfig'
-  ]);
-  const safeOverrides = Object.fromEntries(
-    Object.entries(overrides || {}).filter(([key]) => !protectedKeys.has(key))
-  );
-
-  return {
-    userId: overrides.userId || null,
-    scriptId,
-    scriptTitle: script.title,
-    scriptContent,
-    includeScriptContext,
-    attachScriptContext: includeScriptContext,
-    expectsFormattedScript: NEXT_FIVE_LINES_PROMPT.expectsFormattedScript ?? false,
-    disableHistory: true,
-    scriptMetadata: {
-      updatedAt: script.updatedAt,
-      versionNumber: script.versionNumber,
-      status: script.status
-    },
-    chainConfig: {
-      shouldGenerateQuestions: false,
-      modelConfig: {
-        temperature: 0.3,
-        response_format: { type: 'json_object' }
-      }
-    },
-    systemInstruction: NEXT_FIVE_LINES_PROMPT.systemInstruction,
-    ...safeOverrides
-  };
-};
-
-const FULL_SCRIPT_PATTERNS = [
-  /\b(generate|write|create)\b[\s\S]{0,50}\bfull script\b/i,
-  /\b(generate|write|create)\b[\s\S]{0,50}\bfull screenplay\b/i,
-  /\b(generate|write|create)\b[\s\S]{0,50}\blong script\b/i,
-  /\blong[- ]form script\b/i,
-  /\b(full story arc)\b/i,
-  /\b(10|ten|11|eleven|12|twelve|13|thirteen|14|fourteen|15|fifteen)\s*[- ]?\s*(page|pages)\b/i,
-  /\b(continue|expand)\b[\s\S]{0,50}\bseries\b/i,
-  /\b(generate|write|create)\b[\s\S]{0,50}\bnovel\b/i
-];
-
-const isFullScriptRequest = (prompt) => {
-  if (!prompt || typeof prompt !== 'string') {
-    return false;
-  }
-
-  return FULL_SCRIPT_PATTERNS.some(pattern => pattern.test(prompt));
-};
 
 const isSemanticValidationError = (error) => {
   if (!error || typeof error.message !== 'string') {
@@ -122,6 +27,15 @@ const isSemanticValidationError = (error) => {
 
 // Move handleChatError to be a standalone function
 function handleChatError(error) {
+  if (error?.status) {
+    return {
+      status: error.status,
+      body: {
+        error: error.message || 'Request failed'
+      }
+    };
+  }
+
   const errorResponse = {
     status: 500,
     body: {
@@ -130,19 +44,19 @@ function handleChatError(error) {
     }
   };
 
-  if (error.message.includes(ERROR_TYPES.INVALID_FORMAT)) {
+  if (error.message?.includes(ERROR_TYPES.INVALID_FORMAT)) {
     errorResponse.status = 400;
     errorResponse.body.error = 'Invalid request format';
-  } else if (error.message.includes('Script not found')) {
+  } else if (error.message?.includes('Script not found')) {
     errorResponse.status = 404;
     errorResponse.body.error = 'Script not found';
-  } else if (error.message.includes(Chat.CHAT_ERRORS.INVALID_INTENT)) {
+  } else if (error.message?.includes(Chat.CHAT_ERRORS.INVALID_INTENT)) {
     errorResponse.status = 400;
     errorResponse.body.error = 'Invalid intent';
   } else if (
-    error.message.includes('Rate limit exceeded') ||
-    error.message.includes('insufficient_quota') ||
-    error.message.includes('429')
+    error.message?.includes('Rate limit exceeded') ||
+    error.message?.includes('insufficient_quota') ||
+    error.message?.includes('429')
   ) {
     errorResponse.status = 429;
     errorResponse.body.error = 'AI rate limit exceeded';
@@ -150,8 +64,7 @@ function handleChatError(error) {
   } else if (error.message === 'insufficient_content') {
     errorResponse.status = 400;
     errorResponse.body.error = 'Insufficient content for analysis';
-  } else if (error.message.includes('Chain execution failed')) {
-    // Keep 500 status but provide more specific error
+  } else if (error.message?.includes('Chain execution failed')) {
     errorResponse.body.error = 'Chain execution failed';
   }
 
@@ -185,6 +98,8 @@ const chatController = {
       if (Number.isNaN(limit) || Number.isNaN(offset)) {
         return res.status(400).json({ error: 'Invalid pagination values' });
       }
+
+      await verifyScriptOwnership(req.userId, scriptId);
 
       console.log('[ChatController] getChatMessages', { userId, scriptId });
 
@@ -251,6 +166,8 @@ const chatController = {
         return res.status(400).json({ error: 'Invalid script ID' });
       }
 
+      await verifyScriptOwnership(req.userId, parsedScriptId);
+
       console.log('[ChatController] addChatMessage', { userId, scriptId: parsedScriptId });
 
       const role = message.type === 'assistant' ? 'assistant' : 'user';
@@ -284,6 +201,8 @@ const chatController = {
       if (isNaN(scriptId)) {
         return res.status(400).json({ error: 'Invalid script ID' });
       }
+
+      await verifyScriptOwnership(req.userId, scriptId);
 
       console.log('[ChatController] clearChatMessages', { userId: req.userId, scriptId });
       const result = await chatMessageRepository.clearByUserAndScript(req.userId, scriptId);
@@ -320,6 +239,16 @@ const chatController = {
         if (isNaN(scriptId)) {
           return res.status(400).json({ error: 'Invalid script ID' });
         }
+      }
+
+      let ownedScript = null;
+      if (scriptId) {
+        ownedScript = await loadOwnedScript({
+          scriptId,
+          userId: req.userId,
+          allowPublic: false,
+          requireEditable: true
+        });
       }
 
       const context = {
@@ -379,24 +308,21 @@ const chatController = {
               forceFullScript
             }
           };
-          const validation = validateAiResponse(APPEND_SCRIPT_INTENT, fullResponse);
-          if (!validation.valid) {
+          const validatedResponse = buildValidatedChatResponse({
+            intentResult: createIntentResult(APPEND_SCRIPT_INTENT),
+            scriptId,
+            scriptTitle: fullScriptResult.scriptTitle,
+            response: fullResponse,
+            validationIntent: APPEND_SCRIPT_INTENT
+          });
+          if (!validatedResponse.valid) {
             console.warn('[ChatController] full script validation failed', {
-              errors: validation.errors
+              errors: validatedResponse.validation.errors
             });
             console.log('[ChatController] full script fallback to chat due to validation');
             forceChatFallback = true;
           } else {
-            fullResponse.metadata.contractValidation = validation;
-            const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
-            const responsePayload = buildAiResponse({
-              intentResult,
-              scriptId,
-              scriptTitle: fullScriptResult.scriptTitle,
-              response: fullResponse
-            });
-
-            return res.status(200).json(responsePayload);
+            return res.status(200).json(validatedResponse.responsePayload);
           }
         }
       }
@@ -404,38 +330,41 @@ const chatController = {
       const shouldGenerateNextFiveLines = scriptId && isNextFiveLinesRequest(req.body.prompt);
       if (shouldGenerateNextFiveLines) {
         console.log('[ChatController] next-five-lines detected, generating');
-        const script = await scriptManager.getScript(scriptId);
-        if (!script) {
-          throw new Error('Script not found');
-        }
-        const context = buildNextFiveLinesContext(scriptId, script, {
-          userId: req.userId,
-          ...rawContext
+        const context = buildNextFiveLinesContext({
+          scriptId,
+          script: ownedScript,
+          promptDefinition: NEXT_FIVE_LINES_PROMPT,
+          overrides: {
+            userId: req.userId,
+            ...rawContext
+          }
         });
         const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
         const response = await router.route(intentResult, context, NEXT_FIVE_LINES_PROMPT.userPrompt);
-        const validation = validateAiResponse(INTENT_TYPES.NEXT_FIVE_LINES, response);
-        if (!validation.valid) {
+        const validatedResponse = buildValidatedChatResponse({
+          intentResult,
+          scriptId,
+          scriptTitle: ownedScript.title,
+          response,
+          validationIntent: INTENT_TYPES.NEXT_FIVE_LINES
+        });
+        if (!validatedResponse.valid) {
           console.warn('[ChatController] next-five-lines validation failed, falling back to chat', {
             scriptId,
-            errors: validation.errors
+            errors: validatedResponse.validation.errors
           });
           forceChatFallback = true;
         } else {
-          const responseWithMetadata = {
-            ...response,
-            metadata: {
-              ...response.metadata,
-              generationMode: INTENT_TYPES.NEXT_FIVE_LINES,
-              contractValidation: validation
+          const responsePayload = {
+            ...validatedResponse.responsePayload,
+            response: {
+              ...validatedResponse.responsePayload.response,
+              metadata: {
+                ...validatedResponse.responsePayload.response.metadata,
+                generationMode: INTENT_TYPES.NEXT_FIVE_LINES
+              }
             }
           };
-          const responsePayload = buildAiResponse({
-            intentResult,
-            scriptId,
-            scriptTitle: script.title,
-            response: responseWithMetadata
-          });
 
           return res.status(200).json(responsePayload);
         }
@@ -483,26 +412,23 @@ const chatController = {
               forceAppend
             }
           };
-          const validation = validateAiResponse(APPEND_SCRIPT_INTENT, appendResponse);
-          if (!validation.valid) {
+          const validatedResponse = buildValidatedChatResponse({
+            intentResult: createIntentResult(APPEND_SCRIPT_INTENT),
+            scriptId,
+            scriptTitle: appendResult.scriptTitle,
+            response: appendResponse,
+            validationIntent: APPEND_SCRIPT_INTENT
+          });
+          if (!validatedResponse.valid) {
             console.warn('[ChatController] append-page validation failed', {
-              errors: validation.errors
+              errors: validatedResponse.validation.errors
             });
             return res.status(400).json({
               error: 'Append page validation failed',
-              details: validation.errors
+              details: validatedResponse.validation.errors
             });
           } else {
-            appendResponse.metadata.contractValidation = validation;
-            const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
-            const responsePayload = buildAiResponse({
-              intentResult,
-              scriptId,
-              scriptTitle: appendResult.scriptTitle,
-              response: appendResponse
-            });
-
-            return res.status(200).json(responsePayload);
+            return res.status(200).json(validatedResponse.responsePayload);
           }
         }
       }

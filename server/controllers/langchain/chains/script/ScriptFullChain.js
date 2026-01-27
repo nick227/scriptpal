@@ -1,5 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
+import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
+import { sanitizeScriptLines } from '../helpers/ScriptSanitization.js';
 
 export const FULL_SCRIPT_INTENT = 'SCRIPT_FULL_SCRIPT';
 
@@ -55,13 +57,16 @@ export class ScriptFullChain extends BaseChain {
   buildMessages(context, prompt, retryNote = '') {
     const userPrompt = retryNote ? `${prompt}\n\nCorrection: ${retryNote}` : prompt;
     const scriptContent = context?.scriptContent || '';
+    const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
     const content = scriptContent
-      ? `${userPrompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+      ? `${userPrompt}\n\n${scriptHeader}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
       : userPrompt;
+
+    const systemInstruction = context?.systemInstruction || SYSTEM_INSTRUCTION;
 
     return [{
       role: 'system',
-      content: SYSTEM_INSTRUCTION
+      content: systemInstruction
     }, {
       role: 'user',
       content
@@ -77,73 +82,6 @@ export class ScriptFullChain extends BaseChain {
       .replace(/\r/g, '\n')
       .replace(/<chapter-break\s*\/>/gi, '<chapter-break></chapter-break>')
       .trim();
-  }
-
-  sanitizeScriptLines(text) {
-    const sanitized = [];
-    let invalidTagCount = 0;
-    let coercedCount = 0;
-    let droppedCount = 0;
-    let extractedCount = 0;
-
-    const tagRegex = /<([\w-]+)\s*\/>|<([\w-]+)>([\s\S]*?)<\/\2>/gi;
-    let match = null;
-
-    while ((match = tagRegex.exec(text)) !== null) {
-      const selfClosingTag = match[1];
-      if (selfClosingTag) {
-        const tag = selfClosingTag.toLowerCase();
-        if (tag === 'chapter-break') {
-          sanitized.push('<chapter-break></chapter-break>');
-          extractedCount += 1;
-        } else {
-          droppedCount += 1;
-        }
-        continue;
-      }
-
-      const tag = (match[2] || '').toLowerCase();
-      const content = (match[3] || '').trim();
-      if (VALID_FORMAT_VALUES.includes(tag)) {
-        if (content || tag === 'chapter-break') {
-          sanitized.push(`<${tag}>${content}</${tag}>`);
-          extractedCount += 1;
-        } else {
-          droppedCount += 1;
-        }
-      } else {
-        invalidTagCount += 1;
-        if (content) {
-          sanitized.push(`<action>${content}</action>`);
-          coercedCount += 1;
-          extractedCount += 1;
-        } else {
-          droppedCount += 1;
-        }
-      }
-    }
-
-    if (extractedCount === 0) {
-      const fallbackLines = text
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
-      for (const line of fallbackLines) {
-        sanitized.push(`<action>${line}</action>`);
-        coercedCount += 1;
-      }
-    }
-
-    if (invalidTagCount || coercedCount || droppedCount) {
-      console.warn('[ScriptFullChain] Sanitized AI output', {
-        invalidTagCount,
-        coercedCount,
-        droppedCount,
-        extractedCount
-      });
-    }
-
-    return sanitized;
   }
 
   validateScriptLines(lines) {
@@ -232,7 +170,10 @@ export class ScriptFullChain extends BaseChain {
         ? validated.assistantResponse
         : '';
       lastResponseText = this.normalizeScriptText(formattedScript);
-      const sanitizedLines = this.sanitizeScriptLines(lastResponseText);
+      const { lines: sanitizedLines, stats } = sanitizeScriptLines(lastResponseText, VALID_FORMAT_VALUES);
+      if (stats.invalidTagCount || stats.coercedCount || stats.droppedCount) {
+        console.warn('[ScriptFullChain] Sanitized AI output', stats);
+      }
 
       if (sanitizedLines.length > LINE_MAX) {
         console.warn('[ScriptFullChain] Truncating lines to maximum', {

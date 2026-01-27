@@ -19,6 +19,9 @@ export default {
     sourceType: 'module'
   },
   rules: {
+    // JSDoc noise — explicitly disable
+    'jsdoc/require-jsdoc': 'off',
+    'valid-jsdoc': 'off',
     // General rules
     'no-console': 'warn',
     'no-debugger': 'error',

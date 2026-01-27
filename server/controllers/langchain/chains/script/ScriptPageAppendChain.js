@@ -1,6 +1,8 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
 import { getPromptById } from '../../../../../shared/promptRegistry.js';
+import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
+import { sanitizeScriptLines } from '../helpers/ScriptSanitization.js';
 
 export const APPEND_PAGE_INTENT = 'SCRIPT_APPEND_PAGE';
 const LINE_MIN = 12;
@@ -57,13 +59,16 @@ export class ScriptPageAppendChain extends BaseChain {
       : prompt;
     const shouldAttachScriptContext = context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT;
     const scriptContent = shouldAttachScriptContext ? context.scriptContent : '';
+    const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
     const content = scriptContent
-      ? `${userPrompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+      ? `${userPrompt}\n\n${scriptHeader}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
       : userPrompt;
+
+    const systemInstruction = context?.systemInstruction || SYSTEM_INSTRUCTION;
 
     return [{
       role: 'system',
-      content: SYSTEM_INSTRUCTION
+      content: systemInstruction
     }, {
       role: 'user',
       content: content
@@ -111,72 +116,6 @@ export class ScriptPageAppendChain extends BaseChain {
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .join('\n');
-  }
-
-  sanitizeAppendLines(text) {
-    const sanitized = [];
-    let invalidTagCount = 0;
-    let coercedCount = 0;
-    let droppedCount = 0;
-    let extractedCount = 0;
-
-    const tagRegex = /<([\w-]+)\s*\/>|<([\w-]+)>([\s\S]*?)<\/\2>/g;
-    let match = null;
-
-    while ((match = tagRegex.exec(text)) !== null) {
-      if (match[1]) {
-        const tag = match[1].toLowerCase();
-        if (tag === 'chapter-break') {
-          sanitized.push('<chapter-break></chapter-break>');
-          extractedCount += 1;
-        } else {
-          droppedCount += 1;
-        }
-        continue;
-      }
-
-      const tag = match[2].toLowerCase();
-      const content = (match[3] || '').trim();
-      if (VALID_FORMAT_VALUES.includes(tag)) {
-        if (content || tag === 'chapter-break') {
-          sanitized.push(`<${tag}>${content}</${tag}>`);
-          extractedCount += 1;
-        } else {
-          droppedCount += 1;
-        }
-      } else {
-        invalidTagCount += 1;
-        if (content) {
-          sanitized.push(`<action>${content}</action>`);
-          coercedCount += 1;
-          extractedCount += 1;
-        } else {
-          droppedCount += 1;
-        }
-      }
-    }
-
-    if (extractedCount === 0) {
-      const rawLines = text
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
-      for (const line of rawLines) {
-        sanitized.push(`<action>${line}</action>`);
-        coercedCount += 1;
-      }
-    }
-
-    if (invalidTagCount || coercedCount || droppedCount) {
-      console.warn('[ScriptPageAppendChain] Sanitized AI output', {
-        invalidTagCount,
-        coercedCount,
-        droppedCount,
-        extractedCount
-      });
-    }
-
-    return sanitized;
   }
 
   formatResponse(responseText, context, lineCount, validationError, assistantResponse = '') {
@@ -249,7 +188,10 @@ export class ScriptPageAppendChain extends BaseChain {
         ? validated.assistantResponse
         : '';
       lastResponseText = this.normalizeAppendText(formattedScript);
-      const sanitizedLines = this.sanitizeAppendLines(lastResponseText);
+      const { lines: sanitizedLines, stats } = sanitizeScriptLines(lastResponseText, VALID_FORMAT_VALUES);
+      if (stats.invalidTagCount || stats.coercedCount || stats.droppedCount) {
+        console.warn('[ScriptPageAppendChain] Sanitized AI output', stats);
+      }
       if (sanitizedLines.length > LINE_MAX) {
         console.warn('[ScriptPageAppendChain] Truncating lines to max', {
           originalCount: sanitizedLines.length,

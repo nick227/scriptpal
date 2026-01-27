@@ -1,5 +1,6 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
+import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 
 const VALID_TAGS = VALID_FORMAT_VALUES.join(', ');
@@ -23,7 +24,10 @@ export class ScriptAppendChain extends BaseChain {
 
     buildMessages (context, prompt) {
         const scriptContent = context?.scriptContent || '';
-        const scriptSnippet = scriptContent ? `${prompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}` : prompt;
+        const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
+        const scriptSnippet = scriptContent
+            ? `${prompt}\n\n${scriptHeader}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+            : prompt;
         const systemPrompt = context?.systemInstruction || SYSTEM_INSTRUCTION;
 
         const messages = [{

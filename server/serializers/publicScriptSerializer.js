@@ -36,6 +36,7 @@ export const serializePublicScript = (script) => {
     versionNumber: script.versionNumber || 1,
     content,
     summary: createSummary(content),
+    commentCount: script.commentCount || 0,
     createdAt: script.createdAt,
     updatedAt: script.updatedAt,
     owner: serializeOwner(script)

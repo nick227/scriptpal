@@ -21,7 +21,10 @@ export const STATE_KEYS = Object.freeze({
     // Script state
     CURRENT_SCRIPT: 'currentScript',
     CURRENT_SCRIPT_ID: 'currentScriptId',
+    CURRENT_SCRIPT_ERROR: 'currentScriptError',
     SCRIPTS: 'scripts',
+    SCENES: 'scenes',
+    CURRENT_SCENE_ID: 'currentSceneId',
 
     // Chat state
     CHAT_HISTORY: 'chatHistory',
@@ -59,7 +62,10 @@ export const STATE_SCHEMAS = Object.freeze({
     [STATE_KEYS.ERROR]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.CURRENT_SCRIPT]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.CURRENT_SCRIPT_ID]: { type: 'number', default: null, nullable: true },
+    [STATE_KEYS.CURRENT_SCRIPT_ERROR]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.SCRIPTS]: { type: 'array', default: [] },
+    [STATE_KEYS.SCENES]: { type: 'array', default: [] },
+    [STATE_KEYS.CURRENT_SCENE_ID]: { type: 'number', default: null, nullable: true },
     [STATE_KEYS.CHAT_HISTORY]: { type: 'array', default: [] },
     [STATE_KEYS.TOKEN_USAGE]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.UI_STATE]: { type: 'object', default: null, nullable: true },

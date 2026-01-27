@@ -3,13 +3,15 @@ import { ScriptAppendChain } from './script/ScriptAppendChain.js';
 import { DefaultChain } from './base/DefaultChain.js';
 import { ScriptNextLinesChain } from './script/ScriptNextLinesChain.js';
 import { ScriptReflectionChain } from './script/ScriptReflectionChain.js';
+import { SceneIdeaChain } from './scene/SceneIdeaChain.js';
 
 // Initialize the registry map
 const registry = new Map([
   [INTENT_TYPES.SCRIPT_CONVERSATION, ScriptAppendChain],
   [INTENT_TYPES.GENERAL_CONVERSATION, DefaultChain],
   [INTENT_TYPES.NEXT_FIVE_LINES, ScriptNextLinesChain],
-  [INTENT_TYPES.SCRIPT_REFLECTION, ScriptReflectionChain]
+  [INTENT_TYPES.SCRIPT_REFLECTION, ScriptReflectionChain],
+  [INTENT_TYPES.SCENE_IDEA, SceneIdeaChain]
 ]);
 
 export const chainRegistry = {

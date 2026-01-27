@@ -1,6 +1,7 @@
 import scriptModel from '../../models/script.js';
 import { ScriptFullChain, FULL_SCRIPT_INTENT } from '../langchain/chains/script/ScriptFullChain.js';
 import { normalizeScriptForAppend } from '../langchain/chains/helpers/ScriptNormalization.js';
+import { extractChainResponse } from './helpers/ScriptResponseUtils.js';
 
 export const FULL_SCRIPT_GENERATION_MODE = 'FULL_SCRIPT';
 
@@ -24,6 +25,7 @@ export const generateFullScript = async({ scriptId, userId, prompt, maxAttempts 
     userId,
     scriptId,
     scriptTitle: script.title || 'Untitled Script',
+    scriptDescription: script.description || '',
     scriptContent,
     maxAttempts,
     disableHistory: true,
@@ -32,9 +34,7 @@ export const generateFullScript = async({ scriptId, userId, prompt, maxAttempts 
     }
   }, prompt);
 
-  const responseText = response.response || response;
-  const formattedScript = response?.metadata?.formattedScript || responseText;
-  const assistantResponse = response?.assistantResponse || responseText;
+  const { responseText, formattedScript, assistantResponse } = extractChainResponse(response);
 
   return {
     responseText,

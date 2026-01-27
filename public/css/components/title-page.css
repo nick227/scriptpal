@@ -33,15 +33,6 @@
     gap: 16px;
 }
 
-.title-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 8px;
-}
-
 .title-input {
     width: 100%;
     padding: 16px 20px;
@@ -69,6 +60,18 @@
     cursor: default;
 }
 
+.visibility-label,
+.description-label,
+.title-label,
+.date-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+}
+
 /* Author Section */
 .author-section {
     display: flex;
@@ -85,15 +88,6 @@
     align-items: center;
     width: 100%;
     gap: 16px;
-}
-
-.description-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 8px;
 }
 
 .description-input {
@@ -133,14 +127,6 @@
     align-items: center;
     width: 100%;
     gap: 8px;
-}
-
-.visibility-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 2px;
 }
 
 .visibility-select {
@@ -213,15 +199,6 @@
     align-items: center;
     width: 100%;
     gap: 16px;
-}
-
-.date-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 8px;
 }
 
 .date-input {

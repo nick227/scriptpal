@@ -3,12 +3,12 @@ import { ChatHistoryManager } from './ChatHistoryManager.js';
 import { INTENT_TYPES } from '../langchain/constants.js';
 import { APPEND_SCRIPT_INTENT } from '../scripts/AppendPageService.js';
 import { router } from '../langchain/router/index.js';
-import { normalizeScriptForPrompt } from '../langchain/chains/helpers/ScriptNormalization.js';
 import { IntentClassifier } from '../langchain/chains/system/IntentClassifier.js';
-import { buildAiResponse } from '../aiResponse.js';
-
-const CHAT_ONLY_PATTERN = /\b(?:just chat|talk about|chit chat|quick question|small talk|random|how are you|anything else)\b/i;
-const REFLECTION_REQUEST_PATTERN = /\b(?:critique|feedback|discussion|discuss|analysis|analyze|reflect|reflection|thoughts|review)\b/i;
+import { buildAiResponse, createIntentResult } from '../aiResponse.js';
+import { filterContextOverrides } from './contextUtils.js';
+import { buildScriptContextPayload, buildScriptInfo } from './scriptContextUtils.js';
+import { isGeneralConversation, isReflectionRequest } from './intentUtils.js';
+import { buildChatChainConfig } from './chainConfigUtils.js';
 
 export class Chat {
   static CHAT_ERRORS = {
@@ -47,11 +47,15 @@ export class Chat {
       const script = this.scriptId ? await this.scriptManager.getScript(this.scriptId) : null;
       console.log('Script Details:', script);
 
+      const classifierScriptInfo = buildScriptInfo(script, {
+        includeScriptContext: true,
+        allowStructuredExtraction: false
+      });
       const classifierContext = {
         userId: this.userId,
         scriptId: this.scriptId,
-        scriptTitle: script?.title,
-        scriptContent: normalizeScriptForPrompt(script?.content || '', { allowStructuredExtraction: false })
+        scriptTitle: classifierScriptInfo.scriptTitle,
+        scriptContent: classifierScriptInfo.scriptContent
       };
       const classification = await this.intentClassifier.classify(classifierContext, prompt);
       let intent = this.resolveIntent(classification?.intent);
@@ -59,7 +63,7 @@ export class Chat {
         intent = this.determineIntent(prompt, script);
       }
       console.log('Selected intent:', intent, classification ? { classifier: classification.intent, reason: classification.reason } : null);
-      const intentResult = this.createIntentResult(intent);
+      const intentResult = createIntentResult(intent);
 
       const preparedContext = await this.buildContext(script, context, prompt, intent);
       console.log('Prepared context for routing:', {
@@ -111,27 +115,11 @@ export class Chat {
   }
 
   isGeneralConversation(prompt) {
-    if (!prompt || typeof prompt !== 'string') {
-      return true;
-    }
-
-    return CHAT_ONLY_PATTERN.test(prompt);
+    return isGeneralConversation(prompt);
   }
 
   isReflectionRequest(prompt) {
-    if (!prompt || typeof prompt !== 'string') {
-      return false;
-    }
-    return REFLECTION_REQUEST_PATTERN.test(prompt);
-  }
-
-  createIntentResult(intent) {
-    return {
-      intent,
-      confidence: 1,
-      target: null,
-      value: null
-    };
+    return isReflectionRequest(prompt);
   }
 
   async buildContext(script, enhancedContext, prompt, intent) {
@@ -140,33 +128,32 @@ export class Chat {
       INTENT_TYPES.SCRIPT_REFLECTION,
       INTENT_TYPES.NEXT_FIVE_LINES
     ].includes(intent);
-    const normalizedContent = normalizeScriptForPrompt(script?.content || '', { allowStructuredExtraction });
-
     const includeScriptContext = [
       INTENT_TYPES.SCRIPT_CONVERSATION,
       INTENT_TYPES.SCRIPT_REFLECTION
     ].includes(intent);
+    const {
+      scriptTitle,
+      scriptDescription,
+      scriptContent,
+      scriptMetadata
+    } = buildScriptContextPayload(script, {
+      includeScriptContext,
+      allowStructuredExtraction,
+      updatedAtKey: 'lastUpdated'
+    });
 
     const context = {
       userId: this.userId,
       scriptId: this.scriptId,
       intent,
       includeScriptContext,
-      scriptContent: includeScriptContext ? normalizedContent : '',
-      scriptTitle: script?.title || 'Untitled Script',
+      scriptContent,
+      scriptTitle,
+      scriptDescription,
       disableHistory: true,
-      scriptMetadata: {
-        lastUpdated: script?.updatedAt,
-        versionNumber: script?.versionNumber,
-        status: script?.status
-      },
-      chainConfig: {
-        shouldGenerateQuestions: true,
-        modelConfig: {
-          temperature: 0.7,
-          response_format: { type: 'text' }
-        }
-      },
+      scriptMetadata,
+      chainConfig: buildChatChainConfig(),
       prompt
     };
 
@@ -182,20 +169,16 @@ export class Chat {
     }
 
     if (enhancedContext && Object.keys(enhancedContext).length > 0) {
-      const protectedKeys = new Set([
+      const protectedKeys = [
         'scriptId',
         'scriptTitle',
         'scriptContent',
         'scriptMetadata',
         'intent',
         'userId'
-      ]);
-
-      Object.entries(enhancedContext).forEach(([key, value]) => {
-        if (!protectedKeys.has(key)) {
-          context[key] = value;
-        }
-      });
+      ];
+      const safeOverrides = filterContextOverrides(enhancedContext, protectedKeys);
+      Object.assign(context, safeOverrides);
     }
 
     return context;

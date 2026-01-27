@@ -12,7 +12,6 @@ export class ScriptWidget extends BaseWidget {
         this.renderer = null;
         this.scriptStore = null;
         this.visibilityPicker = null;
-        this.isMinimized  = false;
         this.listContainer = null;
         this.listClickHandler = null;
         this.setManagers(stateManager, eventManager);
@@ -41,7 +40,7 @@ export class ScriptWidget extends BaseWidget {
         const createButton = document.createElement('button');
         createButton.className = 'create-script-button';
         createButton.type = 'button';
-        createButton.innerHTML = '<i class="fas fa-plus"></i>';
+        createButton.innerHTML = 'New Script <i class="fas fa-plus"></i>';
         createButton.title = 'Create New Script';
         createButton.addEventListener('click', () => this.handleCreateScript());
 
@@ -53,20 +52,14 @@ export class ScriptWidget extends BaseWidget {
 
         panelContainer.appendChild(header);
         panelContainer.appendChild(listContainer);
-
-        panelContainer.addEventListener('click', () =>
-            panelContainer.classList.contains('is-minimized') && this.toggleMinimize()
-        );
+        panelContainer.appendChild(createButton);
 
         this.renderer = RendererFactory.createScriptRenderer(listContainer);
 
         this.visibilityPicker = this.createVisibilityPicker();
-        this.minimizeBtn = this.createMinimizeBtn();
         const controls = document.createElement('div');
         controls.className = 'script-panel-header__controls';
-        controls.appendChild(createButton);
         controls.appendChild(this.visibilityPicker);
-        controls.appendChild(this.minimizeBtn);
         header.innerHTML = '';
         header.appendChild(controls);
 
@@ -78,37 +71,6 @@ export class ScriptWidget extends BaseWidget {
         this.handleCurrentScriptUpdate(this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT));
     }
 
-
-    toggleMinimize () {
-        this.isMinimized = !this.isMinimized;
-
-        // fire side-effect
-        this.onMinimizeChange(this.isMinimized);
-    }
-
-    onMinimizeChange (isMinimized) {
-        const panel = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
-        if (!panel) return;
-
-        panel.classList.toggle('is-minimized', isMinimized);
-    }
-
-    createMinimizeBtn () {
-        const btn = document.createElement('button');
-        btn.className = 'chat-action-btn';
-        btn.title = 'Minimize';
-        btn.dataset.action = 'minimize';
-        btn.setAttribute('aria-label', 'Minimize chat');
-        btn.innerHTML = '<i class="fas fa-minus"></i>';
-
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.toggleMinimize();
-            e.preventDefault();
-        });
-
-        return btn;
-    }
 
     /**
      *
@@ -159,9 +121,9 @@ export class ScriptWidget extends BaseWidget {
         if (!scriptItem) {
             return;
         }
-        const scriptId = scriptItem.dataset.scriptId;
+        const { scriptId } = scriptItem.dataset;
         if (actionButton) {
-            const action = actionButton.dataset.action;
+            const { action } = actionButton.dataset;
             if (action === 'delete') {
                 event.preventDefault();
                 event.stopPropagation();

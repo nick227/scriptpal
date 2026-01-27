@@ -15,8 +15,9 @@ button:disabled {
     cursor: not-allowed;
 }
 
+button.is-active,
 button:hover:not(:disabled) {
-    background-color: #0056b3;
+    background-color: #0056b3 !important;
     color: white;
 }
 
@@ -50,4 +51,10 @@ button:hover:not(:disabled) {
     margin-bottom: 1rem;
     padding: 0.5rem;
     flex-wrap: wrap;
+}
+
+.icon-button {
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
 }

@@ -1,5 +1,6 @@
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
+import { ERROR_MESSAGES } from '../../constants.js';
 
 const getSlugFromPath = () => {
     const parts = window.location.pathname.split('/').filter(Boolean);
@@ -70,6 +71,10 @@ export class ScriptsController {
             StateManager.KEYS.USER,
             this.handleUserChange.bind(this)
         );
+        this.stateManager.subscribe(
+            StateManager.KEYS.CURRENT_SCRIPT_ERROR,
+            this.handleScriptError.bind(this)
+        );
 
         this.handleUserChange(this.stateManager.getState(StateManager.KEYS.USER));
     }
@@ -95,6 +100,8 @@ export class ScriptsController {
      * @param {object} user - Current user model.
      */
     async handleUserChange (user) {
+        this.clearScriptNotFoundBanner();
+
         if (!user || !user.id) {
             this.scriptStore.clearState();
             return;
@@ -107,8 +114,18 @@ export class ScriptsController {
             if (loaded) {
                 return;
             }
+            this.scriptStore.setCurrentScript(null, { source: 'slug' });
+            return;
         }
         await this.scriptStore.selectInitialScript({ source: 'startup' });
+    }
+
+    handleScriptError (error) {
+        if (error && error.type === 'slug_not_found' && error.slug) {
+            this.displayScriptNotFoundBanner(error.slug);
+            return;
+        }
+        this.clearScriptNotFoundBanner();
     }
 
     /**
@@ -180,4 +197,40 @@ export class ScriptsController {
 
         window.history.pushState({ scriptId: script.id }, '', nextPath);
     }
+
+    displayScriptNotFoundBanner (slug) {
+        this.clearScriptNotFoundBanner();
+        const banner = document.createElement('div');
+        banner.className = 'script-not-found-banner';
+
+        const message = document.createElement('p');
+        message.className = 'script-not-found-banner__text';
+        message.textContent = ERROR_MESSAGES.SCRIPT_NOT_FOUND;
+
+        const slugText = document.createElement('p');
+        slugText.className = 'script-not-found-banner__slug';
+        slugText.textContent = slug;
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'View my scripts';
+        button.addEventListener('click', () => {
+            this.clearScriptNotFoundBanner();
+            window.history.replaceState({}, '', '/mine');
+            this.scriptStore.setCurrentScript(null, { source: 'slug' });
+        });
+
+        banner.appendChild(message);
+        banner.appendChild(slugText);
+        banner.appendChild(button);
+        document.body.appendChild(banner);
+    }
+
+    clearScriptNotFoundBanner () {
+        const existing = document.querySelector('.script-not-found-banner');
+        if (existing) {
+            existing.remove();
+        }
+    }
+
 }

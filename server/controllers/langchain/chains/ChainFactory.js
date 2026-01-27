@@ -4,6 +4,7 @@ import { chainRegistry } from './registry.js';
 import { ScriptAppendChain } from './script/ScriptAppendChain.js';
 import { ScriptReflectionChain } from './script/ScriptReflectionChain.js';
 import { DefaultChain } from './base/DefaultChain.js';
+import { SceneIdeaChain } from './scene/SceneIdeaChain.js';
 
 // Register the active chains
 try {
@@ -12,6 +13,7 @@ try {
   chainRegistry.registerChain(INTENT_TYPES.SCRIPT_CONVERSATION, ScriptAppendChain);
   chainRegistry.registerChain(INTENT_TYPES.SCRIPT_REFLECTION, ScriptReflectionChain);
   chainRegistry.registerChain(INTENT_TYPES.GENERAL_CONVERSATION, DefaultChain);
+  chainRegistry.registerChain(INTENT_TYPES.SCENE_IDEA, SceneIdeaChain);
 
   if (!chainRegistry.isInitialized()) {
     throw new Error('Chain registry failed to initialize properly');

@@ -38,6 +38,7 @@ export class ScriptsUIBootstrap {
         this.editorToolbar = null;
         this.editorWidget = null;
         this.editorReady = false;
+        this.currentUserId = null;
     }
 
     /**
@@ -83,7 +84,13 @@ export class ScriptsUIBootstrap {
      * @param user
      */
     async handleUserChange (user) {
-        if (user && user.id) {
+        const userId = user && user.id ? user.id : null;
+        if (userId && this.currentUserId && String(this.currentUserId) !== String(userId)) {
+            this.scriptStore.clearState();
+        }
+        this.currentUserId = userId;
+
+        if (userId) {
             this.showScriptsUI();
 
             if (!this.editorWidget) {

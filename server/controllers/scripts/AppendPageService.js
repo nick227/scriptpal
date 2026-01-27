@@ -2,6 +2,7 @@ import scriptModel from '../../models/script.js';
 import { ScriptPageAppendChain, APPEND_PAGE_INTENT } from '../langchain/chains/script/ScriptPageAppendChain.js';
 import { normalizeScriptForAppend } from '../langchain/chains/helpers/ScriptNormalization.js';
 import { getPromptById } from '../../../shared/promptRegistry.js';
+import { extractChainResponse } from './helpers/ScriptResponseUtils.js';
 
 export { APPEND_PAGE_INTENT };
 export const APPEND_SCRIPT_INTENT = 'APPEND_SCRIPT';
@@ -32,6 +33,7 @@ export const generateAppendPage = async({ scriptId, userId, prompt, maxAttempts 
     userId,
     scriptId,
     scriptTitle: script.title || 'Untitled Script',
+    scriptDescription: script.description || '',
     scriptContent,
     attachScriptContext: APPEND_PAGE_PROMPT.attachScriptContext ?? true,
     maxAttempts,
@@ -41,9 +43,7 @@ export const generateAppendPage = async({ scriptId, userId, prompt, maxAttempts 
     }
   }, prompt);
 
-  const responseText = response.response || response;
-  const formattedScript = response?.metadata?.formattedScript || responseText;
-  const assistantResponse = response?.assistantResponse || responseText;
+  const { responseText, formattedScript, assistantResponse } = extractChainResponse(response);
 
   return {
     responseText,

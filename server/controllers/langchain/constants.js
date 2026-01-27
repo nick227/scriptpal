@@ -54,7 +54,8 @@ export const INTENT_DESCRIPTIONS = {
   SCRIPT_CONVERSATION: 'Discuss the current script with the full script context appended so the AI can reason about scenes, characters, and next steps.',
   NEXT_FIVE_LINES: 'Write the next five lines in the script (formatted) and explain why they fit.',
   SCRIPT_REFLECTION: 'Reflect on the script and its themes, characters, and choices without writing new script lines; just offer analysis and questions.',
-  GENERAL_CONVERSATION: 'Handle short-form or unrelated dialogue that should not automatically append the script context.'
+  GENERAL_CONVERSATION: 'Handle short-form or unrelated dialogue that should not automatically append the script context.',
+  SCENE_IDEA: 'Generate a scene title and description based on the script and scene context.'
 };
 
 //=============================================================================

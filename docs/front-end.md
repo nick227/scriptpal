@@ -615,7 +615,7 @@ class ScriptPalUI {
       editorContainer: document.querySelector('.editor-container'),
       editorToolbar: document.querySelector('.editor-toolbar'),
       chatContainer: document.querySelector('.chatbot-container'),
-      userScriptsPanel: document.querySelector('.user-scripts-panel'),
+      sidePanel: document.querySelector('.side-panel-panel'),
       navigationBar: document.querySelector('.navigation-bar')
     };
   }

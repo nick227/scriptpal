@@ -29,7 +29,7 @@ const resolvePublicRoute = (url = '') => {
 const publicRoutesPlugin = () => ({
   name: 'public-routes',
   configureServer(server) {
-    server.middlewares.use((req, res, next) => {
+    server.middlewares.use(async (req, res, next) => {
       const url = req.url ? req.url.split('?')[0] : '';
       const target = resolvePublicRoute(url);
       if (!target) {
@@ -38,9 +38,10 @@ const publicRoutesPlugin = () => ({
       const filePath = path.join(publicRoot, target);
       try {
         const html = fs.readFileSync(filePath, 'utf8');
+        const transformedHtml = await server.transformIndexHtml(url, html);
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.statusCode = 200;
-        res.end(html);
+        res.end(transformedHtml);
       } catch (error) {
         next(error);
       }

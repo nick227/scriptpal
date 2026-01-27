@@ -4,6 +4,7 @@
     --secondary-color: #333333;
     --accent-color: #0066ff;
     --accent-hover: #0052cc;
+    --accent-light: #a89adc;
     --textarea-background: #fff;
     --textarea-background-focus: #fff;
     --textarea-color: #333333;
@@ -17,6 +18,7 @@
     --button-hover: #f0f2f5;
     --button-active: #e8eaf6;
     --navbar-bg: #f8f9fa;
+    --chat-ink: #1f2330;
     /* Spacing */
     --spacing-xs: 0.5rem;
     --spacing-sm: 1rem;

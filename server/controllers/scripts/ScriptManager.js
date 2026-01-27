@@ -15,6 +15,7 @@ export class ScriptManager {
       return {
         content: script.content || '',
         title: script.title || 'Untitled Script',
+        description: script.description || '',
         updatedAt: script.updatedAt || null,
         versionNumber: script.versionNumber || 1,
         status: script.status || 'active'

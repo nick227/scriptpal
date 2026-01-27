@@ -77,6 +77,7 @@ You are an observant assistant providing a status report.
     category: PROMPT_CATEGORIES.SYSTEM,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
+    attachScriptContext: true,
     userPrompt: `
 SYSTEM IDEA NUDGE.
 Analyze the script and propose new directions that could increase momentum.
@@ -98,6 +99,7 @@ You are a creative collaborator.
     id: 'structure',
     label: 'Structure & Pacing',
     clientCopy: 'I can do a structural and pacing check.',
+    attachScriptContext: true,
     category: PROMPT_CATEGORIES.SYSTEM,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
@@ -123,6 +125,7 @@ You are a structure-focused script editor.
     label: 'Production Readiness',
     clientCopy: 'I can surface early production considerations.',
     category: PROMPT_CATEGORIES.SYSTEM,
+    attachScriptContext: true,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
     userPrompt: `
@@ -200,6 +203,30 @@ You are the script continuation specialist.
 - Refer to the existing context before writing so that continuity is preserved.
 - Avoid rewriting previous lines and do not exceed five new lines.
 `,
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // scene-idea
+  createPrompt({
+    id: 'scene-idea',
+    label: 'Scene Idea',
+    clientCopy: 'Generate a scene title and description.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/script/:scriptId/scenes/ai/scene-idea',
+    intent: INTENT_TYPES.SCENE_IDEA,
+    attachScriptContext: true,
+    userPrompt: `
+SCENE IDEA.
+Use the script context, the current scene, and the other scenes to propose a strong title and description.
+Return JSON with "title" and "description".
+`,
+    systemInstruction: `
+You are a scene ideation assistant.
+- Return only JSON with "title" and "description".
+- Keep the title short and specific.
+- The description should be 2-4 sentences and align with the surrounding scenes.
+- Do not include extra keys or commentary.
+`
   })
 ];
 

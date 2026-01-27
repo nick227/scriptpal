@@ -10,11 +10,14 @@ import { EventManager } from './core/EventManager.js';
 import { StateManager } from './core/StateManager.js';
 import { PersistenceManager } from './services/persistence/PersistenceManager.js';
 import { ScriptStore } from './stores/ScriptStore.js';
+import { SceneStore } from './stores/SceneStore.js';
 import { AuthWidget } from './widgets/auth/AuthWidget.js';
 import { ChatIntegration } from './widgets/chat/integration/ChatIntegration.js';
 import { ScriptsUIBootstrap } from './widgets/script/ScriptsUIBootstrap.js';
+import { ScenesUIBootstrap } from './widgets/scene/ScenesUIBootstrap.js';
 import { renderSharedTopBar, getTopBarElements } from './layout/sharedLayout.js';
 import { TokenWatchWidget } from './widgets/ui/TokenWatchWidget.js';
+import { SidePanelWidget } from './widgets/ui/SidePanelWidget.js';
 import { ScriptSyncService } from './services/script/ScriptSyncService.js';
 import { ScriptOrchestrator } from './services/script/ScriptOrchestrator.js';
 
@@ -46,6 +49,7 @@ async function initScriptPal () {
         const authWidget = await initAuthWidget(api, user, stateManager, eventManager, sharedElements);
 
         const scriptStore = new ScriptStore(api, stateManager, eventManager);
+        const sceneStore = new SceneStore(api, stateManager, eventManager);
         const persistenceManager = new PersistenceManager({ api, stateManager, eventManager });
 
         await persistenceManager.ready;
@@ -63,7 +67,9 @@ async function initScriptPal () {
         const initAuthenticatedViews = async () => {
             if (authenticatedViewsInitialized) return;
             authenticatedViewsInitialized = true;
+            await initSidePanelWidget(stateManager, eventManager);
             await initScriptsUI(api, stateManager, eventManager, scriptStore);
+            await initScenesUI(api, stateManager, eventManager, sceneStore);
             await initChat(api, stateManager, eventManager);
             wireScriptOrchestrator(scriptStore, eventManager);
             setAuthLockState(true);
@@ -85,6 +91,7 @@ async function initScriptPal () {
 
         window.scriptPalPersistence = persistenceManager;
         window.scriptPalScriptStore = scriptStore;
+        window.scriptPalSceneStore = sceneStore;
 
 
     } catch (error) {
@@ -97,6 +104,7 @@ async function initScriptPal () {
 
 let orchestratorWireSubscribed = false;
 let orchestratorScriptSelectedSubscribed = false;
+let sidePanelWidget = null;
 
 function wireScriptOrchestrator (scriptStore, eventManager) {
     const scriptsUI = window.scriptPalScriptsUI;
@@ -185,6 +193,16 @@ async function initTokenWatchWidget (container, api, stateManager, eventManager)
     return widget;
 }
 
+async function initSidePanelWidget (stateManager, eventManager) {
+    if (sidePanelWidget) {
+        return sidePanelWidget;
+    }
+    sidePanelWidget = new SidePanelWidget({ stateManager, eventManager });
+    await sidePanelWidget.initialize();
+    window.scriptPalSidePanel = sidePanelWidget;
+    return sidePanelWidget;
+}
+
 /**
  * Initialize script selection UI widgets
  * @param api
@@ -195,6 +213,12 @@ async function initScriptsUI (api, stateManager, eventManager, scriptStore) {
     const scriptsUI = new ScriptsUIBootstrap({ api, stateManager, eventManager, scriptStore });
     await scriptsUI.initialize();
     window.scriptPalScriptsUI = scriptsUI;
+}
+
+async function initScenesUI (api, stateManager, eventManager, sceneStore) {
+    const scenesUI = new ScenesUIBootstrap({ api, stateManager, eventManager, sceneStore });
+    await scenesUI.initialize();
+    window.scriptPalScenesUI = scenesUI;
 }
 
 /**

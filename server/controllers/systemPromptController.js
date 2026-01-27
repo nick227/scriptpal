@@ -3,6 +3,8 @@ import { router } from './langchain/router/index.js';
 import { INTENT_TYPES } from './langchain/constants.js';
 import { SYSTEM_PROMPTS_MAP } from '../../shared/systemPrompts.js';
 import { logger } from '../utils/logger.js';
+import { verifyScriptOwnership } from '../middleware/scriptOwnership.js';
+import { buildAiResponse } from './aiResponse.js';
 
 class SystemPromptController {
   async trigger(req, res) {
@@ -22,7 +24,11 @@ class SystemPromptController {
 
       const resolvedScriptId = scriptId || context.scriptId || null;
       scriptId = resolvedScriptId;
-      const script = resolvedScriptId ? await scriptModel.getScript(resolvedScriptId) : null;
+      let script = null;
+      if (resolvedScriptId) {
+        await verifyScriptOwnership(req.userId, resolvedScriptId);
+        script = await scriptModel.getScript(resolvedScriptId);
+      }
       const intentResult = {
         intent: INTENT_TYPES.SCRIPT_CONVERSATION,
         confidence: 1,
@@ -48,10 +54,18 @@ class SystemPromptController {
         responseLength: response?.response ? response.response.length : 0,
         success: true
       });
-      return res.status(200).json(response);
+      const responsePayload = buildAiResponse({
+        intentResult,
+        scriptId: resolvedScriptId,
+        scriptTitle: script?.title,
+        response
+      });
+      return res.status(200).json(responsePayload);
     } catch (error) {
       logger.error('System prompt controller error', { error, promptType, scriptId });
-      return res.status(500).json({ error: 'Failed to process system prompt' });
+      const status = error?.status || 500;
+      const message = error?.status ? error.message : 'Failed to process system prompt';
+      return res.status(status).json({ error: message });
     }
   }
 }
