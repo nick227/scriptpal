@@ -30,8 +30,10 @@ export class ScriptStore extends BaseManager {
         this.patchQueue = new Map();
         this.patchTimers = new Map();
         this.activePatches = new Set();
-        this.patchFlushDelay = 5000; // milliseconds
+        this.patchFlushDelay = 10000; // milliseconds
+        this.patchRescheduleCooldown = 8000; // milliseconds between flushes
         this.maxPatchRetryDelay = 30000; // milliseconds
+        this.lastSuccessfulFlush = new Map();
         this.visibilityFilter = 'all';
         this.authEventUnsubscribers = [];
         this._bindAuthEvents();
@@ -384,10 +386,24 @@ export class ScriptStore extends BaseManager {
      * @param {number|string} scriptId
      */
     schedulePatchFlush (scriptId, delay = this.patchFlushDelay) {
+        const now = Date.now();
+        const lastSuccess = this.lastSuccessfulFlush.get(scriptId) || 0;
+        const cooldownRemaining = lastSuccess && now - lastSuccess < this.patchRescheduleCooldown
+            ? this.patchRescheduleCooldown - (now - lastSuccess)
+            : 0;
+
+        if (cooldownRemaining > 0 && this.patchTimers.has(scriptId)) {
+            return;
+        }
+
         this.clearPatchTimer(scriptId);
+        const nextDelay = cooldownRemaining > 0
+            ? Math.max(delay, cooldownRemaining)
+            : delay;
+
         const timer = setTimeout(() => {
             this.flushPatch(scriptId);
-        }, delay);
+        }, nextDelay);
         this.patchTimers.set(scriptId, timer);
     }
 
@@ -433,6 +449,7 @@ export class ScriptStore extends BaseManager {
 
         try {
             await this.updateScript(scriptId, payload);
+            this.lastSuccessfulFlush.set(scriptId, Date.now());
             entry.retryDelay = null;
             this.emitSaveState(scriptId, 'SAVE_SAVED', { reason: entry.reason });
             this.patchQueue.delete(scriptId);
@@ -916,6 +933,7 @@ export class ScriptStore extends BaseManager {
         this.patchTimers.clear();
         this.patchQueue.clear();
         this.activePatches.clear();
+        this.lastSuccessfulFlush.clear();
     }
 
     /**

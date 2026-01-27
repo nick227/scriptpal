@@ -14,6 +14,40 @@ export class SecurityMiddleware {
     this.corsConfig = config.getCorsConfig();
   }
 
+  _getSessionToken(req) {
+    const cookieToken = req.cookies && req.cookies.sessionToken;
+    if (cookieToken) {
+      return cookieToken;
+    }
+    const cookieHeader = req.headers && req.headers.cookie;
+    if (!cookieHeader) {
+      return null;
+    }
+    const match = cookieHeader.match(/(?:^|;\s*)sessionToken=([^;]+)/);
+    if (!match) {
+      return null;
+    }
+    return decodeURIComponent(match[1]);
+  }
+
+  _getRateLimitKey(req) {
+    if (req.userId) {
+      return `user:${req.userId}`;
+    }
+    const token = this._getSessionToken(req);
+    if (token) {
+      return `session:${token}`;
+    }
+    return req.ip;
+  }
+
+  _getRateLimitMax(req) {
+    if (req.userId || this._getSessionToken(req)) {
+      return this.securityConfig.rateLimitMaxAuth;
+    }
+    return this.securityConfig.rateLimitMaxAnon;
+  }
+
   /**
      * Get helmet configuration
      * @returns {Object} - Helmet configuration
@@ -54,8 +88,9 @@ export class SecurityMiddleware {
   getRateLimitConfig() {
     return rateLimit({
       windowMs: this.securityConfig.rateLimitWindow,
-      max: this.securityConfig.rateLimitMax,
+      max: (req) => this._getRateLimitMax(req),
       skip: (req) => !req.path.startsWith('/api'),
+      keyGenerator: (req) => this._getRateLimitKey(req),
       message: {
         error: 'Too many requests from this IP, please try again later.',
         retryAfter: Math.ceil(this.securityConfig.rateLimitWindow / 1000)

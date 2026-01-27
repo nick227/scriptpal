@@ -83,6 +83,11 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
+      input: {
+        index: path.join(publicRoot, 'index.html'),
+        publicScripts: path.join(publicRoot, 'public-scripts.html'),
+        publicScript: path.join(publicRoot, 'public-script.html')
+      },
       external: ['fsevents'],
       output: {
         manualChunks: {

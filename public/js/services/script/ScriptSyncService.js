@@ -18,8 +18,8 @@ export class ScriptSyncService {
         this.scriptStore = scriptStore;
         this.eventManager = eventManager;
         this.updateTimeout = null;
-        this.MIN_UPDATE_INTERVAL = 2000;
-        this.DEBOUNCE_DELAY = 4000;
+        this.MIN_UPDATE_INTERVAL = 5000;
+        this.DEBOUNCE_DELAY = 8000;
         this.lastUpdateTime = Date.now();
 
         // Subscribe to content changed events for non-edit updates

@@ -37,6 +37,8 @@ const configSchema = Joi.object({
   SESSION_MAX_AGE: Joi.number().min(3600).default(86400), // 24 hours
   RATE_LIMIT_WINDOW: Joi.number().min(1000).default(900000), // 15 minutes
   RATE_LIMIT_MAX: Joi.number().min(1).default(100),
+  RATE_LIMIT_MAX_AUTH: Joi.number().min(1).optional(),
+  RATE_LIMIT_MAX_ANON: Joi.number().min(1).optional(),
   TRUST_PROXY: Joi.boolean().default(true),
 
   // AI/LLM configuration
@@ -209,7 +211,9 @@ class Config {
       sessionSecret: this.get('SESSION_SECRET'),
       sessionMaxAge: this.get('SESSION_MAX_AGE'),
       rateLimitWindow: this.get('RATE_LIMIT_WINDOW'),
-      rateLimitMax: this.get('RATE_LIMIT_MAX')
+      rateLimitMax: this.get('RATE_LIMIT_MAX'),
+      rateLimitMaxAuth: this.get('RATE_LIMIT_MAX_AUTH') ?? this.get('RATE_LIMIT_MAX'),
+      rateLimitMaxAnon: this.get('RATE_LIMIT_MAX_ANON') ?? this.get('RATE_LIMIT_MAX')
     };
   }
 

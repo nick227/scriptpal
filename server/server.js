@@ -1,5 +1,6 @@
 
 import * as dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -216,7 +217,36 @@ class ScriptPalServer {
      */
   _setupRoutes() {
     const sendClientFile = (res, fileName) => {
-      return res.sendFile(path.join(clientBuildPath, fileName));
+      const filePath = path.join(clientBuildPath, fileName);
+      if (!fs.existsSync(filePath)) {
+        const friendlyName = fileName.replace('.html', '');
+        res.status(404).send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>ScriptPal - Page Not Found</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      body { font-family: Arial, sans-serif; background: #0f1115; color: #f6f7fb; margin: 0; }
+      .wrap { max-width: 720px; margin: 10vh auto; padding: 24px; text-align: center; }
+      h1 { font-size: 32px; margin: 0 0 12px; }
+      p { color: #c6c9d3; margin: 0 0 18px; }
+      a { color: #8ab4ff; text-decoration: none; }
+      .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #1f2430; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="badge">404</div>
+      <h1>That page wandered off</h1>
+      <p>We couldn't find the ScriptPal page for "${friendlyName}".</p>
+      <p><a href="/public">Back to public scripts</a> or <a href="/mine">go home</a>.</p>
+    </div>
+  </body>
+</html>`);
+        return null;
+      }
+      return res.sendFile(filePath);
     };
 
     // Health and monitoring routes (no auth required)

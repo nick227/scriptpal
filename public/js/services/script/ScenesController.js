@@ -16,6 +16,7 @@ export class ScenesController {
         this.sceneStore = options.sceneStore;
         this.stateManager = options.stateManager;
         this.eventManager = options.eventManager;
+        this.currentScriptId = null;
 
         this.setupStateSubscriptions();
         this.setupEventSubscriptions();
@@ -38,10 +39,16 @@ export class ScenesController {
 
     async handleCurrentScriptChange (script) {
         if (!script || !script.id) {
+            this.currentScriptId = null;
             this.sceneStore.clearState();
             return;
         }
-        await this.sceneStore.loadScenes(script.id);
+        const normalizedId = Number(script.id);
+        if (this.currentScriptId === normalizedId) {
+            return;
+        }
+        this.currentScriptId = normalizedId;
+        await this.sceneStore.loadScenes(normalizedId);
     }
 
     handleScriptDeleted (event) {

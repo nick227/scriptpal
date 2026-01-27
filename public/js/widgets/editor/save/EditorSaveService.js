@@ -14,8 +14,10 @@ export class EditorSaveService {
         this.scriptStore = options.scriptStore;
 
         this.debounceDelay = 5000; //ms
+        this.minAutoSaveInterval = 10000; //ms
         this.saveTimer = null;
         this.lastNormalizedContent = '';
+        this.lastAutoSaveAt = 0;
 
         this.handleContentChange = this.handleContentChange.bind(this);
         this.handleFocusOut = this.handleFocusOut.bind(this);
@@ -39,21 +41,26 @@ export class EditorSaveService {
             return;
         }
         this.lastNormalizedContent = normalizedContent;
-        this.scheduleSave('auto');
+        const now = Date.now();
+        const elapsed = this.lastAutoSaveAt ? now - this.lastAutoSaveAt : this.minAutoSaveInterval;
+        const delay = elapsed < this.minAutoSaveInterval
+            ? Math.max(this.debounceDelay, this.minAutoSaveInterval - elapsed)
+            : this.debounceDelay;
+        this.scheduleSave('auto', delay);
     }
 
     handleLineChange (content) {
         this.handleContentChange(content);
     }
 
-    scheduleSave (reason = 'auto') {
+    scheduleSave (reason = 'auto', delay = this.debounceDelay) {
         if (this.saveTimer) {
             clearTimeout(this.saveTimer);
         }
 
         this.saveTimer = setTimeout(() => {
             this.flushSave(reason);
-        }, this.debounceDelay);
+        }, delay);
     }
 
     async flushSave (reason = 'auto', options = {}) {
@@ -80,6 +87,10 @@ export class EditorSaveService {
         this.scriptStore.queuePatch(scriptId, {
             content: contentValue
         }, 'editor');
+
+        if (reason === 'auto') {
+            this.lastAutoSaveAt = Date.now();
+        }
 
         if (options.immediate) {
             this.scriptStore.flushPatch(scriptId);
