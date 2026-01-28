@@ -2,7 +2,7 @@
  * Clean Architecture Entry Point
  * Simple, focused initialization
  */
-import { App } from './App.js';
+import { App } from './app.js';
 import { UI_ELEMENTS } from './constants.js';
 import { EventManager } from './core/EventManager.js';
 import { StateManager } from './core/StateManager.js';

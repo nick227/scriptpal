@@ -23,7 +23,7 @@ export class SidePanelWidget {
         this.minimizeButton = null;
         this.minimizeClickHandler = null;
         this.panelClickHandler = null;
-        this.isMinimized = false;
+        this.isMinimized = true;
         this.activeTarget = options.defaultTarget || 'user-scripts';
     }
 

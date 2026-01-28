@@ -47,6 +47,7 @@ export class ModernChatWidget extends BaseWidget {
         this.createModernUI();
         await super.initialize();
         this.initializeFeatures();
+        this.minimizeChat(true);
     }
 
     /**
@@ -411,11 +412,11 @@ export class ModernChatWidget extends BaseWidget {
     /**
      * Minimize chat
      */
-    minimizeChat () {
+    minimizeChat (initialState = false) {
         const container = this.elements.container;
         if (!container) return;
 
-        const isMinimized = container.classList.toggle('minimized');
+        const isMinimized = initialState ? initialState : container.classList.toggle('minimized') || false;
         this.isMinimized = isMinimized;
 
         const minimizeButton = this.elements.minimizeButton || container.querySelector('[data-action="minimize"]');
