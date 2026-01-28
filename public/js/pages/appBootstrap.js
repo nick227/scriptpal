@@ -6,7 +6,7 @@ const start = async () => {
         return;
     }
 
-    await import('../init-clean.js');
+    await import('../initScriptPal.js');
 };
 
 start().catch((error) => {

@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@next/schema.json",
-  "entry": ["js/init-clean.js", "js/**/*.test.js", "js/**/*.spec.js"],
+  "entry": ["js/initScriptPal.js", "js/**/*.test.js", "js/**/*.spec.js"],
   "project": ["js/**/*.js"],
   "ignore": [],
   "ignoreDependencies": []

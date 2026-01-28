@@ -9,8 +9,8 @@ script-writing AI assistant platform, based on the current code in `public/` and
 - `public/index.html` defines the base DOM containers:
   - `.user-scripts`, `.editor-container`, `.chatbot-container`, `.chat-messages`,
     and auth forms in the navbar.
-- The page loads `public/js/init-clean.js` as the entry script.
-- `init-clean.js` creates a global `window.scriptPalApp`, then calls `App.init()`.
+- The page loads `public/js/initScriptPal.js` as the entry script.
+- `initScriptPal.js` creates a global `window.scriptPalApp`, then calls `App.init()`.
 - `public/js/app.js` initializes core systems, creates scenes, and starts the engine:
   - `EditorScene`, `ChatScene`, `ScriptsScene` are created and registered.
   - The engine switches to the editor scene by default.

@@ -62,21 +62,10 @@ export class ModernChatWidget extends BaseWidget {
         // Create modern chat structure
         container.innerHTML = `
             <div class="chat-header">
-                <div class="chat-header-info">
-                    <div class="chat-avatar">
-                        <span>SP</span>
-                        <span class="chat-status" aria-hidden="true"></span>
-                    </div>
-                    <div class="chat-header-text">
-                        <h3 class="chat-title">ScriptPal Assistant</h3>
-                        <p class="chat-subtitle">Online · Replies in seconds</p>
-                    </div>
-                </div>
-                <div class="chat-header-actions">
+                <h2>Script Assistant</h2>
                     <button class="chat-action-btn" title="Minimize" data-action="minimize" aria-label="Minimize chat">
                         <i class="fas fa-minus"></i>
                     </button>
-                </div>
             </div>
 
             <div class="chat-surface">

@@ -44,11 +44,6 @@ export default {
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/__tests__/config/setup.js'],
 
-  // Module name mapping for ES modules
-  moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1.js'
-  },
-
   // Transform configuration for ES modules
   transform: {
     '^.+\\.js$': ['babel-jest', {

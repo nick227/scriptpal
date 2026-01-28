@@ -64,15 +64,32 @@
     background: transparent;
     justify-content: space-between;
 }
+
+/* Layout */
+
 .navbar {
     height: 6vh;
 }
+.editor-container {
+    width: 100vw;
+    height: 94vh;
+    flex-grow: 1;
+    z-index: 0;
+}
+.chatbot-container {
+    width: 22vw;
+    height: 100vh;
+    position:fixed;
+    right: 0;
+    z-index: 222;
+    top: 0;
+}
 .side-panel-panel {
     width: 500px;
-    height: 90vh;   
+    height: 50vh;   
     position: fixed;
     left: 0;
-    bottom: 0;
+    top: 12vh;
     z-index: 1;
     background: var(--light-color);
     display: flex;
@@ -100,12 +117,12 @@
     display: none;
 }
 .side-panel-panel.is-minimized::after {
-    content: 'MENU';
-    position: absolute;
-    bottom: 10px;
-    left: 10px;
+    content: 'My Stuff';
+    position: fixed;
+    top: 12vh;
+    left: 30px;
     width: 100px;
-    height: 65px;
+    height: 50px;
     border-radius: 15px;
     background: var(--chat-ink);
     color: #fff;
@@ -115,71 +132,13 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    z-index: 1000;
     animation: blinkIn 2s linear;
 }
 @keyframes blinkIn {
     0% { opacity: 0; }
     15% { opacity: 1; }
     100% { opacity: 1; }
-}
-.user-scripts,
-.user-scenes {
-    width: 100%;
-    position: relative;
-    left: 0;
-    z-index: 1;
-    padding: 10px;
-    overflow: auto;
-}
-.user-scripts.is-minimized {
-    width: 75px;
-    height: 75px;
-    padding: 0;
-    margin: 0;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0;
-    overflow: hidden;
-    z-index: 1000;
-    bottom: 20px;
-    left: 20px;
-}
-.user-scripts.is-minimized:after {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    content: 'MENU';
-    color: white;
-    font-size: 12px;
-    font-weight: bold;
-    text-align: center;
-    line-height: 75px;
-    border-radius: 50%;
-    z-index: 1000;
-    cursor: pointer;
-}
-.user-scripts.is-minimized > * {
-    display: none;
-}
-.editor-container {
-    width: 100vw;
-    height: 94vh;
-    flex-grow: 1;
-    z-index: 0;
-}
-.chatbot-container {
-    max-width: 22vw;
-    min-width: 300px;
-    resize: horizontal;
-    height: 97.5vh;
-    position:fixed;
-    right: 0;
-    z-index: 1;
-    overflow: visible;
 }
 
     /* Rows and Columns */

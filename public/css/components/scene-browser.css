@@ -4,8 +4,9 @@
 .panel-navigation {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    width: 100%;
+    justify-content: space-between;
+    padding: 8px 0px;
     border-bottom: 2px solid var(--color-border);
 }
 

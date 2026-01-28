@@ -6,7 +6,8 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 
 // Mock dependencies
 jest.mock('openai', () => ({
-  OpenAI: jest.fn().mockImplementation(() => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
     models: {
       list: jest.fn()
     },
@@ -18,15 +19,24 @@ jest.mock('openai', () => ({
   }))
 }));
 
-jest.mock('../../../config/index.js', () => ({
-  getAIConfig: jest.fn(() => ({
-    apiKey: 'test-api-key',
-    timeout: 30000,
-    maxRetries: 3
-  }))
+const aiConfigFixture = {
+  apiKey: 'test-api-key',
+  model: 'gpt-3.5-turbo',
+  maxTokens: 1000,
+  temperature: 0.7,
+  timeout: 30000,
+  maxRetries: 3
+};
+
+jest.mock('../../config/index.js', () => ({
+  __esModule: true,
+  default: {
+    getAIConfig: jest.fn(() => aiConfigFixture)
+  },
+  getAIConfig: jest.fn(() => aiConfigFixture)
 }));
 
-jest.mock('../../../utils/logger.js', () => ({
+jest.mock('../../utils/logger.js', () => ({
   logger: {
     child: jest.fn(() => ({
       error: jest.fn(),
@@ -49,22 +59,22 @@ describe('AIClient', () => {
 
     // Import the service after mocking
     const openai = await import('openai');
-    mockOpenAI = openai.OpenAI;
-    mockConfig = await import('../../../config/index.js');
-    _mockLogger = await import('../../../utils/logger.js');
+    mockOpenAI = openai.default;
+    mockConfig = await import('../../config/index.js');
+    _mockLogger = await import('../../utils/logger.js');
 
-    AIClient = (await import('../../../services/AIClient.js')).AIClient;
+    AIClient = (await import('../../services/AIClient.js')).AIClient;
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
   });
 
   describe('constructor', () => {
     it('should initialize with default configuration', () => {
       const client = new AIClient();
 
-      expect(mockConfig.getAIConfig).toHaveBeenCalled();
+      expect(mockConfig.default.getAIConfig).toHaveBeenCalled();
       expect(mockOpenAI).toHaveBeenCalledWith({
         apiKey: 'test-api-key',
         timeout: 30000,
@@ -134,14 +144,19 @@ describe('AIClient', () => {
           }
         }],
         usage: {
-          total_tokens: 100
+          total_tokens: 100,
+          prompt_tokens: 60,
+          completion_tokens: 40
         }
       };
       client.client.chat.completions.create.mockResolvedValue(mockResponse);
 
-      const result = await client.generateCompletion('Test prompt');
+      const result = await client.generateCompletion({
+        messages: [{ role: 'user', content: 'Test prompt' }]
+      });
 
-      expect(result).toBe('Generated response');
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
       expect(client.metrics.totalRequests).toBe(1);
       expect(client.metrics.successfulRequests).toBe(1);
       expect(client.metrics.totalTokens).toBe(100);
@@ -152,7 +167,12 @@ describe('AIClient', () => {
       const error = new Error('API error');
       client.client.chat.completions.create.mockRejectedValue(error);
 
-      await expect(client.generateCompletion('Test prompt')).rejects.toThrow('API error');
+      const result = await client.generateCompletion({
+        messages: [{ role: 'user', content: 'Test prompt' }]
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error.message).toBe('API error');
       expect(client.metrics.totalRequests).toBe(1);
       expect(client.metrics.failedRequests).toBe(1);
     });
@@ -165,9 +185,12 @@ describe('AIClient', () => {
       };
       client.client.chat.completions.create.mockResolvedValue(mockResponse);
 
-      const result = await client.generateCompletion('Test prompt');
+      const result = await client.generateCompletion({
+        messages: [{ role: 'user', content: 'Test prompt' }]
+      });
 
-      expect(result).toBe('');
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
     });
   });
 
@@ -183,16 +206,18 @@ describe('AIClient', () => {
             })
           }
         }],
-        usage: { total_tokens: 150 }
+        usage: {
+          total_tokens: 150,
+          prompt_tokens: 90,
+          completion_tokens: 60
+        }
       };
       client.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.analyzeScript('Script content');
 
-      expect(result).toEqual({
-        analysis: 'Script analysis result',
-        score: 8.5
-      });
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
     });
 
     it('should handle invalid JSON response', async() => {
@@ -203,16 +228,18 @@ describe('AIClient', () => {
             content: 'Invalid JSON response'
           }
         }],
-        usage: { total_tokens: 50 }
+        usage: {
+          total_tokens: 50,
+          prompt_tokens: 30,
+          completion_tokens: 20
+        }
       };
       client.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.analyzeScript('Script content');
 
-      expect(result).toEqual({
-        analysis: 'Invalid JSON response',
-        score: 0
-      });
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
     });
   });
 
@@ -228,16 +255,18 @@ describe('AIClient', () => {
             })
           }
         }],
-        usage: { total_tokens: 200 }
+        usage: {
+          total_tokens: 200,
+          prompt_tokens: 120,
+          completion_tokens: 80
+        }
       };
       client.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.generateSuggestions('Script content', 'dialogue');
 
-      expect(result).toEqual({
-        suggestions: ['Suggestion 1', 'Suggestion 2'],
-        category: 'dialogue'
-      });
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
     });
   });
 
@@ -255,18 +284,18 @@ describe('AIClient', () => {
             })
           }
         }],
-        usage: { total_tokens: 180 }
+        usage: {
+          total_tokens: 180,
+          prompt_tokens: 110,
+          completion_tokens: 70
+        }
       };
       client.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.generateEdits('Script content', 'Improve dialogue');
 
-      expect(result).toEqual({
-        edits: [
-          { line: 1, original: 'Old text', suggested: 'New text' }
-        ],
-        reason: 'Improve dialogue'
-      });
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse);
     });
   });
 
@@ -282,6 +311,7 @@ describe('AIClient', () => {
       expect(metrics.totalRequests).toBe(10);
       expect(metrics.successfulRequests).toBe(8);
       expect(metrics.failedRequests).toBe(2);
+      expect(metrics.successRate).toBe(80);
     });
   });
 

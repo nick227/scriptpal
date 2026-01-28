@@ -1,4 +1,14 @@
+/**
+ *
+ */
 export class PromptHelperWidget {
+    /**
+     *
+     * @param root0
+     * @param root0.container
+     * @param root0.sections
+     * @param root0.onHelperClick
+     */
     constructor ({ container, sections = [], onHelperClick }) {
         this.container = container;
         this.sections = sections;
@@ -9,6 +19,9 @@ export class PromptHelperWidget {
         this.indicatorTimeout = null;
     }
 
+    /**
+     *
+     */
     initialize () {
         if (!this.container) {
             return;
@@ -29,7 +42,7 @@ export class PromptHelperWidget {
         this.spinner = document.createElement('div');
         this.spinner.classList.add('prompt-helper-spinner');
         this.spinner.setAttribute('aria-hidden', 'true');
-        this.spinner.style.opacity = '0';
+        this.spinner.style.display = 'none';
 
         this.panel.appendChild(this.indicator);
         this.panel.appendChild(this.spinner);
@@ -52,6 +65,7 @@ export class PromptHelperWidget {
             }
 
             const buttonsBar = this.getnerateButtonBar(section);
+            heading.addEventListener('click', () => this.handleHeadingClick(buttonsBar));
 
             sectionEl.appendChild(buttonsBar);
             this.panel.appendChild(sectionEl);
@@ -60,6 +74,22 @@ export class PromptHelperWidget {
         this.container.appendChild(this.panel);
     }
 
+    /**
+     *
+     * @param buttonsBar
+     */
+    handleHeadingClick (buttonsBar) {
+        if (buttonsBar.style.display === 'none') {
+            buttonsBar.style.display = 'block';
+        } else {
+            buttonsBar.style.display = 'none';
+        }
+    }
+
+    /**
+     *
+     * @param section
+     */
     getnerateButtonBar (section = {}) {
 
         const buttonsBar = document.createElement('div');
@@ -82,31 +112,46 @@ export class PromptHelperWidget {
         return buttonsBar;
     }
 
+    /**
+     *
+     * @param sectionId
+     * @param helper
+     */
     handleHelperClick (sectionId, helper) {
         if (typeof this.onHelperClick === 'function') {
             this.onHelperClick(sectionId, helper);
         }
     }
 
+    /**
+     *
+     */
     showSpinner () {
         if (this.spinner) {
-            this.spinner.style.opacity = '1';
+            this.spinner.style.display = 'block';
         }
     }
 
+    /**
+     *
+     */
     hideSpinner () {
         if (this.spinner) {
-            this.spinner.style.opacity = '0';
+            this.spinner.style.disaply = 'none';
         }
     }
 
+    /**
+     *
+     * @param message
+     */
     updateIndicator (message) {
         if (!this.indicator) {
             return;
         }
 
         this.indicator.textContent = message || '';
-        this.indicator.style.opacity = message ? '1' : '0';
+        this.indicator.style.display = message ? 'block' : 'none';
 
         if (this.indicatorTimeout) {
             clearTimeout(this.indicatorTimeout);
@@ -115,12 +160,15 @@ export class PromptHelperWidget {
         if (message) {
             this.indicatorTimeout = setTimeout(() => {
                 if (this.indicator) {
-                    this.indicator.style.opacity = '0';
+                    this.indicator.style.opacity = 'none';
                 }
             }, 4000);
         }
     }
 
+    /**
+     *
+     */
     destroy () {
         if (this.panel) {
             this.panel.remove();
