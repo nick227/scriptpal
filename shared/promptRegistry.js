@@ -146,7 +146,7 @@ You are a production-minded assistant.
   // append-page
   createPrompt({
     id: 'append-page',
-    label: 'Append Page',
+    label: 'Next Page',
     clientCopy: 'I can add the next page of formatted script lines.',
     category: PROMPT_CATEGORIES.SERVICE,
     route: '/script/:scriptId/append-page',

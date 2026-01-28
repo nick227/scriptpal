@@ -1,6 +1,6 @@
 .site-header {
     display: flex;
-    padding: 1rem 2rem;
+    padding: 0rem 2rem;
     background: var(--header-bg, #ffffff);
     border-bottom: 1px solid var(--border-color, #e1e5e9);
     position: sticky;
@@ -22,6 +22,7 @@
 .site-nav {
     display: flex;
     justify-content: center;
+    align-items: center;
     gap: 1rem;
 }
 
