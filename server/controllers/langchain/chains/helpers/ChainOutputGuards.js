@@ -3,6 +3,22 @@ import { validateAiResponse } from '../../../../../shared/langchainConstants.js'
 
 export { validateAiResponse };
 
+const resolveContractKey = (intent) => {
+  if (intent === 'SCRIPT_FULL_SCRIPT') {
+    return 'FULL_SCRIPT';
+  }
+  return intent;
+};
+
+export const buildContractMetadata = (intent, response) => {
+  const contractKey = resolveContractKey(intent);
+  const validation = validateAiResponse(contractKey, response);
+  return {
+    contract: contractKey,
+    contractValidation: validation
+  };
+};
+
 export const validateStructuredResponseStrict = (response, options = {}) => {
   const defaults = {
     requiredArray: null,

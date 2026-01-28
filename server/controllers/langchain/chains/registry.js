@@ -4,6 +4,9 @@ import { DefaultChain } from './base/DefaultChain.js';
 import { ScriptNextLinesChain } from './script/ScriptNextLinesChain.js';
 import { ScriptReflectionChain } from './script/ScriptReflectionChain.js';
 import { SceneIdeaChain } from './scene/SceneIdeaChain.js';
+import { CharacterIdeaChain } from './item/CharacterIdeaChain.js';
+import { LocationIdeaChain } from './item/LocationIdeaChain.js';
+import { ThemeIdeaChain } from './item/ThemeIdeaChain.js';
 
 // Initialize the registry map
 const registry = new Map([
@@ -11,7 +14,10 @@ const registry = new Map([
   [INTENT_TYPES.GENERAL_CONVERSATION, DefaultChain],
   [INTENT_TYPES.NEXT_FIVE_LINES, ScriptNextLinesChain],
   [INTENT_TYPES.SCRIPT_REFLECTION, ScriptReflectionChain],
-  [INTENT_TYPES.SCENE_IDEA, SceneIdeaChain]
+  [INTENT_TYPES.SCENE_IDEA, SceneIdeaChain],
+  [INTENT_TYPES.CHARACTER_IDEA, CharacterIdeaChain],
+  [INTENT_TYPES.LOCATION_IDEA, LocationIdeaChain],
+  [INTENT_TYPES.THEME_IDEA, ThemeIdeaChain]
 ]);
 
 export const chainRegistry = {

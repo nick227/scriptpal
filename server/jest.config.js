@@ -46,8 +46,7 @@ export default {
 
   // Module name mapping for ES modules
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^(\\.{1,2}/.*)$': '$1'
+    '^(\\.{1,2}/.*)\\.js$': '$1.js'
   },
 
   // Transform configuration for ES modules

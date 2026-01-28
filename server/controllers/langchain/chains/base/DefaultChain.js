@@ -1,6 +1,7 @@
 import { BaseChain } from './BaseChain.js';
 import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX } from '../../constants.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
+import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
 export class DefaultChain extends BaseChain {
   constructor() {
@@ -24,8 +25,13 @@ Be concise but informative.`;
 
     const includeScriptContext = context && context.includeScriptContext;
     const scriptContent = includeScriptContext && context?.scriptContent ? context.scriptContent : '';
-    const userContent = scriptContent
-      ? `${prompt}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+    const collectionBlock = includeScriptContext ? formatScriptCollections(context?.scriptCollections) : '';
+    const contextBlocks = [
+      collectionBlock,
+      scriptContent ? `${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}` : ''
+    ].filter(Boolean).join('\n\n');
+    const userContent = contextBlocks
+      ? `${prompt}\n\n${contextBlocks}`
       : prompt;
 
     const messages = [{

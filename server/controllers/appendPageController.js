@@ -4,7 +4,7 @@ import { buildAiResponse, createIntentResult } from './aiResponse.js';
 const appendPageController = {
   appendPage: async(req, res) => {
     try {
-      const script = req.script;
+      const { script } = req;
       if (!script || !script.id) {
         return res.status(404).json({ error: 'Script not found' });
       }
@@ -32,7 +32,8 @@ const appendPageController = {
             formattedScript: result.formattedScript,
             generationMode: APPEND_PAGE_INTENT
           }
-        }
+        },
+        mode: APPEND_PAGE_INTENT
       });
 
       return res.status(200).json(responsePayload);

@@ -6,11 +6,34 @@ import personaController from './controllers/personaController.js';
 import systemPromptController from './controllers/systemPromptController.js';
 import nextLinesController from './controllers/nextLinesController.js';
 import sceneController from './controllers/sceneController.js';
+import characterController from './controllers/characterController.js';
+import characterIdeaController from './controllers/characterIdeaController.js';
+import locationController from './controllers/locationController.js';
+import locationIdeaController from './controllers/locationIdeaController.js';
+import themeController from './controllers/themeController.js';
+import themeIdeaController from './controllers/themeIdeaController.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import { requireScriptOwnership } from './middleware/scriptOwnership.js';
 import chatController from './controllers/chatController.js';
 import publicScriptController from './controllers/publicScriptController.js';
 import publicScriptCommentController from './controllers/publicScriptCommentController.js';
+
+const scriptOwnership = [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })];
+
+const buildIdeaRoutes = ({ basePath, idParam, ideaSlug, handler }) => ([
+  {
+    path: `${basePath}/:${idParam}/ai/${ideaSlug}`,
+    method: 'post',
+    handler,
+    middleware: scriptOwnership
+  },
+  {
+    path: `${basePath}/ai/${ideaSlug}`,
+    method: 'post',
+    handler,
+    middleware: scriptOwnership
+  }
+]);
 
 const routes = [
 
@@ -270,18 +293,123 @@ const routes = [
     handler: sceneController.deleteScene,
     middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
+  ...buildIdeaRoutes({
+    basePath: '/script/:scriptId/scenes',
+    idParam: 'sceneId',
+    ideaSlug: 'scene-idea',
+    handler: sceneController.generateSceneIdea
+  }),
+  // Character routes
   {
-    path: '/script/:scriptId/scenes/:sceneId/ai/scene-idea',
-    method: 'post',
-    handler: sceneController.generateSceneIdea,
+    path: '/script/:scriptId/characters',
+    method: 'get',
+    handler: characterController.getScriptItems,
     middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
   },
   {
-    path: '/script/:scriptId/scenes/ai/scene-idea',
+    path: '/script/:scriptId/characters',
     method: 'post',
-    handler: sceneController.generateSceneIdea,
+    handler: characterController.createItem,
     middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
-  }
+  },
+  {
+    path: '/script/:scriptId/characters/reorder',
+    method: 'put',
+    handler: characterController.reorderItems,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/characters/:characterId',
+    method: 'put',
+    handler: characterController.updateItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/characters/:characterId',
+    method: 'delete',
+    handler: characterController.deleteItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  ...buildIdeaRoutes({
+    basePath: '/script/:scriptId/characters',
+    idParam: 'characterId',
+    ideaSlug: 'character-idea',
+    handler: characterIdeaController
+  }),
+  // Location routes
+  {
+    path: '/script/:scriptId/locations',
+    method: 'get',
+    handler: locationController.getScriptItems,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/locations',
+    method: 'post',
+    handler: locationController.createItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/locations/reorder',
+    method: 'put',
+    handler: locationController.reorderItems,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/locations/:locationId',
+    method: 'put',
+    handler: locationController.updateItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/locations/:locationId',
+    method: 'delete',
+    handler: locationController.deleteItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  ...buildIdeaRoutes({
+    basePath: '/script/:scriptId/locations',
+    idParam: 'locationId',
+    ideaSlug: 'location-idea',
+    handler: locationIdeaController
+  }),
+  // Theme routes
+  {
+    path: '/script/:scriptId/themes',
+    method: 'get',
+    handler: themeController.getScriptItems,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/themes',
+    method: 'post',
+    handler: themeController.createItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/themes/reorder',
+    method: 'put',
+    handler: themeController.reorderItems,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/themes/:themeId',
+    method: 'put',
+    handler: themeController.updateItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/themes/:themeId',
+    method: 'delete',
+    handler: themeController.deleteItem,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  ...buildIdeaRoutes({
+    basePath: '/script/:scriptId/themes',
+    idParam: 'themeId',
+    ideaSlug: 'theme-idea',
+    handler: themeIdeaController
+  })
 ];
 
 export default routes;

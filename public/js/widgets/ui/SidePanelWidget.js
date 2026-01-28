@@ -1,20 +1,35 @@
 import { UI_ELEMENTS } from '../../constants.js';
 
+import { PanelNavigation } from './PanelNavigation.js';
+
+/**
+ *
+ */
 export class SidePanelWidget {
+    /**
+     *
+     * @param options
+     */
     constructor (options = {}) {
         this.panelSelector = options.panelSelector || UI_ELEMENTS.SIDE_PANEL_PANEL;
         this.navigationSelector = options.navigationSelector || UI_ELEMENTS.PANEL_NAVIGATION;
+        this.targetsMap = options.targetsMap || {
+            'user-scripts': UI_ELEMENTS.USER_SCRIPTS_PANEL,
+            'user-scenes': UI_ELEMENTS.USER_SCENES_PANEL
+        };
         this.panelContainer = null;
         this.navigation = null;
-        this.navButtons = [];
-        this.navButtonHandlers = [];
+        this.panelNavigation = null;
         this.minimizeButton = null;
         this.minimizeClickHandler = null;
         this.panelClickHandler = null;
         this.isMinimized = false;
-        this.activeTarget = 'user-scripts';
+        this.activeTarget = options.defaultTarget || 'user-scripts';
     }
 
+    /**
+     *
+     */
     async initialize () {
         this.panelContainer = document.querySelector(this.panelSelector);
         this.navigation = document.querySelector(this.navigationSelector);
@@ -26,46 +41,31 @@ export class SidePanelWidget {
             throw new Error('Panel navigation element not found');
         }
 
-        this.setupNavigationButtons();
+        this.panelNavigation = new PanelNavigation({
+            navigationElement: this.navigation,
+            targetsMap: this.targetsMap,
+            defaultTarget: this.activeTarget
+        });
+        this.panelNavigation.initialize();
         this.setupPanelClickHandler();
         this.minimizeButton = this.createMinimizeButton();
         this.navigation.appendChild(this.minimizeButton);
-        this.setActive(this.activeTarget);
     }
 
-    setupNavigationButtons () {
-        this.navButtons = Array.from(this.navigation.querySelectorAll('.panel-navigation-button'));
-        this.navButtons.forEach(button => {
-            const handler = () => {
-                const target = button.dataset.target;
-                if (target) {
-                    this.setActive(target);
-                }
-            };
-            button.addEventListener('click', handler);
-            this.navButtonHandlers.push({ button, handler });
-        });
-    }
-
+    /**
+     *
+     * @param target
+     */
     setActive (target) {
-        if (!target) return;
         this.activeTarget = target;
-        this.navButtons.forEach(button => {
-            const isActive = button.dataset.target === target;
-            button.classList.toggle('is-active', isActive);
-        });
-        this.togglePanel(UI_ELEMENTS.USER_SCRIPTS_PANEL, target === 'user-scripts');
-        this.togglePanel(UI_ELEMENTS.USER_SCENES_PANEL, target === 'user-scenes');
-    }
-
-    togglePanel (selector, isVisible) {
-        const panel = document.querySelector(selector);
-        if (!panel) {
-            return;
+        if (this.panelNavigation) {
+            this.panelNavigation.setActive(target);
         }
-        panel.classList.toggle('hidden', !isVisible);
     }
 
+    /**
+     *
+     */
     setupPanelClickHandler () {
         if (!this.panelContainer) {
             return;
@@ -79,6 +79,9 @@ export class SidePanelWidget {
         this.panelContainer.addEventListener('click', this.panelClickHandler);
     }
 
+    /**
+     *
+     */
     toggleMinimize () {
         if (!this.panelContainer) {
             return;
@@ -91,6 +94,9 @@ export class SidePanelWidget {
         }
     }
 
+    /**
+     *
+     */
     createMinimizeButton () {
         const button = document.createElement('button');
         button.type = 'button';
@@ -107,20 +113,22 @@ export class SidePanelWidget {
         return button;
     }
 
+    /**
+     *
+     */
     destroy () {
-        this.navButtonHandlers.forEach(({ button, handler }) => {
-            button.removeEventListener('click', handler);
-        });
-        this.navButtonHandlers = [];
+        if (this.panelNavigation) {
+            this.panelNavigation.destroy();
+        }
         if (this.minimizeButton && this.minimizeClickHandler) {
             this.minimizeButton.removeEventListener('click', this.minimizeClickHandler);
         }
         if (this.panelContainer && this.panelClickHandler) {
             this.panelContainer.removeEventListener('click', this.panelClickHandler);
         }
-        this.navButtons = [];
         this.panelContainer = null;
         this.navigation = null;
+        this.panelNavigation = null;
         this.minimizeButton = null;
         this.minimizeClickHandler = null;
         this.panelClickHandler = null;

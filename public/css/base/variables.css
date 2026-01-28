@@ -19,6 +19,7 @@
     --button-active: #e8eaf6;
     --navbar-bg: #f8f9fa;
     --chat-ink: #1f2330;
+    --light-color: beige;
     /* Spacing */
     --spacing-xs: 0.5rem;
     --spacing-sm: 1rem;
@@ -42,4 +43,5 @@
     --chat-controls-height: 80px;
     --chat-textarea-height: 56px;
     --navbar-height: 70px;
+    --top-bar-height: 6vh;
 }

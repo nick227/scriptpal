@@ -227,6 +227,78 @@ You are a scene ideation assistant.
 - The description should be 2-4 sentences and align with the surrounding scenes.
 - Do not include extra keys or commentary.
 `
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // character-idea
+  createPrompt({
+    id: 'character-idea',
+    label: 'Character Idea',
+    clientCopy: 'Generate a character title and description.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/script/:scriptId/characters/ai/character-idea',
+    intent: INTENT_TYPES.CHARACTER_IDEA,
+    attachScriptContext: true,
+    userPrompt: `
+CHARACTER IDEA.
+Use the script context, current character, and other characters to propose a strong title and description.
+Return JSON with "title" and "description".
+`,
+    systemInstruction: `
+You are a character ideation assistant.
+- Return only JSON with "title" and "description".
+- Keep the title short and specific.
+- The description should be 2-4 sentences and align with the script.
+- Do not include extra keys or commentary.
+`
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // location-idea
+  createPrompt({
+    id: 'location-idea',
+    label: 'Location Idea',
+    clientCopy: 'Generate a location item title and description.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/script/:scriptId/locations/ai/location-idea',
+    intent: INTENT_TYPES.LOCATION_IDEA,
+    attachScriptContext: true,
+    userPrompt: `
+LOCATION IDEA.
+Use the script context, current location item, and other location items to propose a strong title and description.
+Return JSON with "title" and "description".
+`,
+    systemInstruction: `
+You are a location ideation assistant.
+- Return only JSON with "title" and "description".
+- Keep the title short and specific.
+- The description should be 2-4 sentences and align with the script.
+- Do not include extra keys or commentary.
+`
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // theme-idea
+  createPrompt({
+    id: 'theme-idea',
+    label: 'Theme Idea',
+    clientCopy: 'Generate a theme title and description.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/script/:scriptId/themes/ai/theme-idea',
+    intent: INTENT_TYPES.THEME_IDEA,
+    attachScriptContext: true,
+    userPrompt: `
+THEME IDEA.
+Use the script context, current theme, and other themes to propose a strong title and description.
+Return JSON with "title" and "description".
+`,
+    systemInstruction: `
+You are a theme ideation assistant.
+- Return only JSON with "title" and "description".
+- Keep the title short and specific.
+- The description should be 2-4 sentences and align with the script.
+- Do not include extra keys or commentary.
+`
   })
 ];
 

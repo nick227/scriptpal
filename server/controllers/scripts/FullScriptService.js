@@ -2,6 +2,7 @@ import scriptModel from '../../models/script.js';
 import { ScriptFullChain, FULL_SCRIPT_INTENT } from '../langchain/chains/script/ScriptFullChain.js';
 import { normalizeScriptForAppend } from '../langchain/chains/helpers/ScriptNormalization.js';
 import { extractChainResponse } from './helpers/ScriptResponseUtils.js';
+import { buildScriptContextBundle } from '../contextBuilder.js';
 
 export const FULL_SCRIPT_GENERATION_MODE = 'FULL_SCRIPT';
 
@@ -20,13 +21,21 @@ export const generateFullScript = async({ scriptId, userId, prompt, maxAttempts 
     throw error;
   }
 
+  const contextBundle = await buildScriptContextBundle({
+    scriptId,
+    script,
+    includeScriptContext: true,
+    allowStructuredExtraction: true
+  });
+
   const chain = new ScriptFullChain();
   const response = await chain.run({
     userId,
     scriptId,
-    scriptTitle: script.title || 'Untitled Script',
-    scriptDescription: script.description || '',
+    scriptTitle: contextBundle.scriptTitle,
+    scriptDescription: contextBundle.scriptDescription,
     scriptContent,
+    scriptCollections: contextBundle.scriptCollections,
     maxAttempts,
     disableHistory: true,
     chainConfig: {

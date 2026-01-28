@@ -1,4 +1,5 @@
 import prisma from '../db/prismaClient.js';
+import { listScriptItems } from '../utils/queryUtils.js';
 import scriptRepository from '../repositories/scriptRepository.js';
 import scriptCommentRepository from '../repositories/scriptCommentRepository.js';
 import scriptVersionRepository from '../repositories/scriptVersionRepository.js';
@@ -171,11 +172,19 @@ const scriptModel = {
     const personas = await prisma.persona.findMany({
       where: { scriptId: Number(id) }
     });
+    const scenes = await listScriptItems(prisma.scene, Number(id));
+    const characters = await listScriptItems(prisma.character, Number(id));
+    const locations = await listScriptItems(prisma.location, Number(id));
+    const themes = await listScriptItems(prisma.theme, Number(id));
 
     return {
       ...script,
       elements,
-      personas
+      personas,
+      scenes,
+      characters,
+      locations,
+      themes
     };
   },
   getScriptStats: async(id) => {
@@ -204,6 +213,9 @@ const scriptModel = {
       await tx.scriptPage.deleteMany({ where: { scriptId } });
       await tx.persona.deleteMany({ where: { scriptId } });
       await tx.scene.deleteMany({ where: { scriptId } });
+      await tx.character.deleteMany({ where: { scriptId } });
+      await tx.location.deleteMany({ where: { scriptId } });
+      await tx.theme.deleteMany({ where: { scriptId } });
 
       const deletedScript = await tx.script.delete({
         where: { id: scriptId }

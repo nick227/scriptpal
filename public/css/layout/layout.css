@@ -26,6 +26,7 @@
     
     .container-main {
         display: flex;
+        margin-top: var(--top-bar-height);
     }
     /* Vertical Layout */
     
@@ -67,15 +68,17 @@
     height: 6vh;
 }
 .side-panel-panel {
-    width: 300px;
-    height: 94vh;
+    width: 500px;
+    height: 90vh;   
     position: fixed;
     left: 0;
-    top: 6vh;
+    bottom: 0;
     z-index: 1;
-    background: beige;
+    background: var(--light-color);
     display: flex;
     flex-direction: column;
+    padding: 1.2rem;
+    border-top-right-radius: 10px;
 }
 .side-panel-panel.is-minimized {
     width: 75px;
@@ -126,7 +129,6 @@
     left: 0;
     z-index: 1;
     padding: 10px;
-    background: beige;
     overflow: auto;
 }
 .user-scripts.is-minimized {

@@ -3,6 +3,7 @@ import { ScriptPageAppendChain, APPEND_PAGE_INTENT } from '../langchain/chains/s
 import { normalizeScriptForAppend } from '../langchain/chains/helpers/ScriptNormalization.js';
 import { getPromptById } from '../../../shared/promptRegistry.js';
 import { extractChainResponse } from './helpers/ScriptResponseUtils.js';
+import { buildScriptContextBundle } from '../contextBuilder.js';
 
 export { APPEND_PAGE_INTENT };
 export const APPEND_SCRIPT_INTENT = 'APPEND_SCRIPT';
@@ -28,14 +29,22 @@ export const generateAppendPage = async({ scriptId, userId, prompt, maxAttempts 
     throw error;
   }
 
+  const contextBundle = await buildScriptContextBundle({
+    scriptId,
+    script,
+    includeScriptContext: APPEND_PAGE_PROMPT.attachScriptContext ?? true,
+    allowStructuredExtraction: true
+  });
+
   const chain = new ScriptPageAppendChain();
   const response = await chain.run({
     userId,
     scriptId,
-    scriptTitle: script.title || 'Untitled Script',
-    scriptDescription: script.description || '',
+    scriptTitle: contextBundle.scriptTitle,
+    scriptDescription: contextBundle.scriptDescription,
     scriptContent,
     attachScriptContext: APPEND_PAGE_PROMPT.attachScriptContext ?? true,
+    scriptCollections: contextBundle.scriptCollections,
     maxAttempts,
     disableHistory: true,
     chainConfig: {

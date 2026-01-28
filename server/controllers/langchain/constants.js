@@ -55,7 +55,10 @@ export const INTENT_DESCRIPTIONS = {
   NEXT_FIVE_LINES: 'Write the next five lines in the script (formatted) and explain why they fit.',
   SCRIPT_REFLECTION: 'Reflect on the script and its themes, characters, and choices without writing new script lines; just offer analysis and questions.',
   GENERAL_CONVERSATION: 'Handle short-form or unrelated dialogue that should not automatically append the script context.',
-  SCENE_IDEA: 'Generate a scene title and description based on the script and scene context.'
+  SCENE_IDEA: 'Generate a scene title and description based on the script and scene context.',
+  CHARACTER_IDEA: 'Generate a character title and description based on the script and character context.',
+  LOCATION_IDEA: 'Generate a location item title and description based on the script and location context.',
+  THEME_IDEA: 'Generate a theme title and description based on the script and theme context.'
 };
 
 //=============================================================================

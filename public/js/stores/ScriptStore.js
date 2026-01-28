@@ -4,6 +4,7 @@ import { StateManager } from '../core/StateManager.js';
 import { debugLog } from '../core/logger.js';
 import { removeFromStorage } from '../services/persistence/PersistenceManager.js';
 import { ScriptFormatter } from '../services/format/ScriptFormatter.js';
+import { resolveCacheState } from './storeLoadUtils.js';
 import { ERROR_MESSAGES } from '../constants.js';
 
 /**
@@ -157,12 +158,18 @@ export class ScriptStore extends BaseManager {
 
         this.clearScriptError();
 
-        if (this.currentUserId && String(this.currentUserId) !== String(normalizedUserId)) {
+        const cacheState = resolveCacheState({
+            currentId: this.currentUserId,
+            nextId: normalizedUserId,
+            items: this.scripts,
+            force: options.force
+        });
+        if (cacheState.hasChanged) {
             this.clearState();
         }
         this.currentUserId = normalizedUserId;
 
-        if (this.scripts.length > 0 && !options.force) {
+        if (cacheState.shouldReturnCache) {
             return this.scripts;
         }
 

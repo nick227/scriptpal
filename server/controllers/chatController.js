@@ -8,9 +8,10 @@ import { createIntentResult } from './aiResponse.js';
 import { router } from './langchain/router/index.js';
 import { getPromptById } from '../../shared/promptRegistry.js';
 import { isAppendPageRequest, isNextFiveLinesRequest, isFullScriptRequest } from './chat/intentUtils.js';
-import { buildNextFiveLinesContext } from './chat/nextFiveLinesContext.js';
-import { loadOwnedScript } from './scripts/scriptAccessUtils.js';
+import { buildNextFiveLinesChainConfig } from './chat/chainConfigUtils.js';
 import { buildValidatedChatResponse } from './chat/responseUtils.js';
+import { loadScriptOrThrow } from './scripts/scriptRequestUtils.js';
+import { buildPromptContext } from './contextBuilder.js';
 
 const NEXT_FIVE_LINES_PROMPT = getPromptById('next-five-lines');
 
@@ -231,25 +232,11 @@ const chatController = {
       // Handle enhanced context
       const rawContext = req.body.context || {};
 
-      // Handle scriptId - check both req.body.scriptId and context.scriptId
-      let scriptId = null;
-      const scriptIdSource = req.body.scriptId || rawContext.scriptId;
-      if (scriptIdSource !== null && scriptIdSource !== undefined) {
-        scriptId = parseInt(scriptIdSource, 10);
-        if (isNaN(scriptId)) {
-          return res.status(400).json({ error: 'Invalid script ID' });
-        }
-      }
-
-      let ownedScript = null;
-      if (scriptId) {
-        ownedScript = await loadOwnedScript({
-          scriptId,
-          userId: req.userId,
-          allowPublic: false,
-          requireEditable: true
-        });
-      }
+      const { scriptId, script: ownedScript } = await loadScriptOrThrow(req, {
+        required: false,
+        allowPublic: false,
+        requireEditable: true
+      });
 
       const context = {
         ...rawContext,
@@ -330,13 +317,19 @@ const chatController = {
       const shouldGenerateNextFiveLines = scriptId && isNextFiveLinesRequest(req.body.prompt);
       if (shouldGenerateNextFiveLines) {
         console.log('[ChatController] next-five-lines detected, generating');
-        const context = buildNextFiveLinesContext({
+        const context = await buildPromptContext({
           scriptId,
           script: ownedScript,
+          userId: req.userId,
+          intent: INTENT_TYPES.NEXT_FIVE_LINES,
           promptDefinition: NEXT_FIVE_LINES_PROMPT,
+          includeScriptContext: NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false,
+          allowStructuredExtraction: true,
+          updatedAtKey: 'updatedAt',
+          chainConfig: buildNextFiveLinesChainConfig(),
           overrides: {
-            userId: req.userId,
-            ...rawContext
+            ...rawContext,
+            disableHistory: true
           }
         });
         const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
@@ -346,7 +339,8 @@ const chatController = {
           scriptId,
           scriptTitle: ownedScript.title,
           response,
-          validationIntent: INTENT_TYPES.NEXT_FIVE_LINES
+          validationIntent: INTENT_TYPES.NEXT_FIVE_LINES,
+          mode: INTENT_TYPES.NEXT_FIVE_LINES
         });
         if (!validatedResponse.valid) {
           console.warn('[ChatController] next-five-lines validation failed, falling back to chat', {

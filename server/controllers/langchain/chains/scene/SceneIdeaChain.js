@@ -1,5 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX } from '../../constants.js';
+import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
+import { formatItemBlock, formatItemList } from '../helpers/ItemListFormatter.js';
 
 const SCENE_IDEA_FUNCTIONS = [{
   name: 'provide_scene_idea',
@@ -25,40 +27,6 @@ const DEFAULT_SYSTEM_INSTRUCTION = `You are a scene ideation assistant.
 - Keep the title short and specific.
 - The description should be 2-4 sentences and align with the surrounding scenes.
 - Do not include extra keys or commentary.`;
-
-const formatSceneBlock = (scene) => {
-  if (!scene || typeof scene !== 'object') {
-    return 'None.';
-  }
-  const title = scene.title || 'Untitled Scene';
-  const description = scene.description || '';
-  const notes = scene.notes || '';
-  const tags = Array.isArray(scene.tags) ? scene.tags.join(', ') : '';
-  const sortIndex = Number.isFinite(scene.sortIndex) ? scene.sortIndex : null;
-
-  const lines = [
-    `Title: ${title}`,
-    description ? `Description: ${description}` : null,
-    notes ? `Notes: ${notes}` : null,
-    tags ? `Tags: ${tags}` : null,
-    sortIndex !== null ? `Order: ${sortIndex}` : null
-  ].filter(Boolean);
-
-  return lines.join('\n');
-};
-
-const formatOtherScenes = (scenes) => {
-  if (!Array.isArray(scenes) || scenes.length === 0) {
-    return 'None.';
-  }
-  return scenes.map(scene => {
-    const title = scene.title || 'Untitled Scene';
-    const description = scene.description || '';
-    const sortIndex = Number.isFinite(scene.sortIndex) ? scene.sortIndex : null;
-    const orderLabel = sortIndex !== null ? `#${sortIndex}` : 'Unordered';
-    return `${orderLabel}: ${title}${description ? ` — ${description}` : ''}`;
-  }).join('\n');
-};
 
 export class SceneIdeaChain extends BaseChain {
   constructor() {
@@ -92,8 +60,9 @@ export class SceneIdeaChain extends BaseChain {
     const systemInstruction = context?.systemInstruction || DEFAULT_SYSTEM_INSTRUCTION;
     const scriptTitle = context?.scriptTitle || 'Untitled Script';
     const scriptDescription = context?.scriptDescription || '';
-    const currentScene = formatSceneBlock(context?.currentScene);
-    const otherScenes = formatOtherScenes(context?.otherScenes);
+    const currentScene = formatItemBlock(context?.currentScene, 'Scene');
+    const otherScenes = formatItemList(context?.otherScenes, 'Scene');
+    const collectionBlock = formatScriptCollections(context?.scriptCollections);
     const scriptContext = context?.scriptContent
       ? `${SCRIPT_CONTEXT_PREFIX}\n${context.scriptContent}`
       : 'No script content available.';
@@ -109,6 +78,8 @@ ${currentScene}
 
 Other Scenes:
 ${otherScenes}
+
+${collectionBlock}
 
 ${scriptContext}
 `;

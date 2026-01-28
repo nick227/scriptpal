@@ -51,6 +51,23 @@ export class ScriptPalAPI {
         return null;
     }
 
+    _requireScriptId (scriptId) {
+        if (!scriptId) {
+            throw new Error('Script ID is required');
+        }
+    }
+
+    _requireScriptAndItemId (scriptId, itemId, label) {
+        if (!scriptId || !itemId) {
+            throw new Error(`Script ID and ${label} ID are required`);
+        }
+    }
+
+    _scriptItemPath (scriptId, segment, itemId) {
+        const base = `${API_ENDPOINTS.SCRIPT}/${scriptId}/${segment}`;
+        return itemId ? `${base}/${itemId}` : base;
+    }
+
     // Auth message handling
     /**
      *
@@ -499,10 +516,23 @@ export class ScriptPalAPI {
     }
 
     async getScenes (scriptId) {
-        if (!scriptId) {
-            throw new Error('Script ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes`, 'GET');
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes'), 'GET');
+    }
+
+    async getCharacters (scriptId) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'characters'), 'GET');
+    }
+
+    async getLocations (scriptId) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'locations'), 'GET');
+    }
+
+    async getThemes (scriptId) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'themes'), 'GET');
     }
 
     /**
@@ -573,53 +603,155 @@ export class ScriptPalAPI {
     }
 
     async createScene (scriptId, sceneData) {
-        if (!scriptId) {
-            throw new Error('Script ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes`, 'POST', sceneData);
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes'), 'POST', sceneData);
     }
 
     async updateScene (scriptId, sceneId, sceneData) {
-        if (!scriptId || !sceneId) {
-            throw new Error('Script ID and scene ID are required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/${sceneId}`, 'PUT', sceneData);
+        this._requireScriptAndItemId(scriptId, sceneId, 'scene');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes', sceneId), 'PUT', sceneData);
     }
 
     async deleteScene (scriptId, sceneId) {
-        if (!scriptId || !sceneId) {
-            throw new Error('Script ID and scene ID are required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/${sceneId}`, 'DELETE');
+        this._requireScriptAndItemId(scriptId, sceneId, 'scene');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes', sceneId), 'DELETE');
     }
 
     async generateSceneIdea (scriptId, sceneId, payload = {}) {
-        if (!scriptId || !sceneId) {
-            throw new Error('Script ID and scene ID are required');
-        }
+        this._requireScriptAndItemId(scriptId, sceneId, 'scene');
         return this._makeRequest(
-            `${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/${sceneId}/ai/scene-idea`,
+            `${this._scriptItemPath(scriptId, 'scenes', sceneId)}/ai/scene-idea`,
             'POST',
             payload
         );
     }
 
     async generateSceneIdeaDraft (scriptId, payload = {}) {
-        if (!scriptId) {
-            throw new Error('Script ID is required');
-        }
+        this._requireScriptId(scriptId);
         return this._makeRequest(
-            `${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/ai/scene-idea`,
+            `${this._scriptItemPath(scriptId, 'scenes')}/ai/scene-idea`,
             'POST',
             payload
         );
     }
 
     async reorderScenes (scriptId, order) {
-        if (!scriptId) {
-            throw new Error('Script ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/scenes/reorder`, 'PUT', { order });
+        this._requireScriptId(scriptId);
+        return this._makeRequest(`${this._scriptItemPath(scriptId, 'scenes')}/reorder`, 'PUT', { order });
+    }
+
+    async createCharacter (scriptId, characterData) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'characters'), 'POST', characterData);
+    }
+
+    async updateCharacter (scriptId, characterId, characterData) {
+        this._requireScriptAndItemId(scriptId, characterId, 'character');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'characters', characterId), 'PUT', characterData);
+    }
+
+    async deleteCharacter (scriptId, characterId) {
+        this._requireScriptAndItemId(scriptId, characterId, 'character');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'characters', characterId), 'DELETE');
+    }
+
+    async reorderCharacters (scriptId, order) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(`${this._scriptItemPath(scriptId, 'characters')}/reorder`, 'PUT', { order });
+    }
+
+    async generateCharacterIdea (scriptId, characterId, payload = {}) {
+        this._requireScriptAndItemId(scriptId, characterId, 'character');
+        return this._makeRequest(
+            `${this._scriptItemPath(scriptId, 'characters', characterId)}/ai/character-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async generateCharacterIdeaDraft (scriptId, payload = {}) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(
+            `${this._scriptItemPath(scriptId, 'characters')}/ai/character-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async createLocation (scriptId, locationData) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'locations'), 'POST', locationData);
+    }
+
+    async updateLocation (scriptId, locationId, locationData) {
+        this._requireScriptAndItemId(scriptId, locationId, 'location');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'locations', locationId), 'PUT', locationData);
+    }
+
+    async deleteLocation (scriptId, locationId) {
+        this._requireScriptAndItemId(scriptId, locationId, 'location');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'locations', locationId), 'DELETE');
+    }
+
+    async reorderLocations (scriptId, order) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(`${this._scriptItemPath(scriptId, 'locations')}/reorder`, 'PUT', { order });
+    }
+
+    async generateLocationIdea (scriptId, locationId, payload = {}) {
+        this._requireScriptAndItemId(scriptId, locationId, 'location');
+        return this._makeRequest(
+            `${this._scriptItemPath(scriptId, 'locations', locationId)}/ai/location-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async generateLocationIdeaDraft (scriptId, payload = {}) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(
+            `${this._scriptItemPath(scriptId, 'locations')}/ai/location-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async createTheme (scriptId, themeData) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(this._scriptItemPath(scriptId, 'themes'), 'POST', themeData);
+    }
+
+    async updateTheme (scriptId, themeId, themeData) {
+        this._requireScriptAndItemId(scriptId, themeId, 'theme');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'themes', themeId), 'PUT', themeData);
+    }
+
+    async deleteTheme (scriptId, themeId) {
+        this._requireScriptAndItemId(scriptId, themeId, 'theme');
+        return this._makeRequest(this._scriptItemPath(scriptId, 'themes', themeId), 'DELETE');
+    }
+
+    async reorderThemes (scriptId, order) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(`${this._scriptItemPath(scriptId, 'themes')}/reorder`, 'PUT', { order });
+    }
+
+    async generateThemeIdea (scriptId, themeId, payload = {}) {
+        this._requireScriptAndItemId(scriptId, themeId, 'theme');
+        return this._makeRequest(
+            `${this._scriptItemPath(scriptId, 'themes', themeId)}/ai/theme-idea`,
+            'POST',
+            payload
+        );
+    }
+
+    async generateThemeIdeaDraft (scriptId, payload = {}) {
+        this._requireScriptId(scriptId);
+        return this._makeRequest(
+            `${this._scriptItemPath(scriptId, 'themes')}/ai/theme-idea`,
+            'POST',
+            payload
+        );
     }
 
     /**

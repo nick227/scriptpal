@@ -1,9 +1,9 @@
 import { ScriptManager } from './scripts/ScriptManager.js';
 import { router } from './langchain/router/index.js';
 import { INTENT_TYPES, validateAiResponse } from './langchain/constants.js';
-import { normalizeScriptForPrompt } from './langchain/chains/helpers/ScriptNormalization.js';
 import { getPromptById } from '../../shared/promptRegistry.js';
 import { buildAiResponse, createIntentResult } from './aiResponse.js';
+import { buildPromptContext } from './contextBuilder.js';
 
 const NEXT_FIVE_LINES_PROMPT = getPromptById('next-five-lines');
 
@@ -24,7 +24,7 @@ class NextLinesController {
 
     try {
       const script = await this.scriptManager.getScript(scriptId);
-      const context = this.buildContext(scriptId, script, req.body?.context || {});
+      const context = await this.buildContext(scriptId, script, req.body?.context || {});
       const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
 
       const response = await router.route(intentResult, context, NEXT_FIVE_LINES_PROMPT.userPrompt);
@@ -52,7 +52,9 @@ class NextLinesController {
         intentResult,
         scriptId,
         scriptTitle: script.title,
-        response: responseWithMetadata
+        response: responseWithMetadata,
+        mode: INTENT_TYPES.NEXT_FIVE_LINES,
+        validation
       });
 
       return res.status(200).json(payload);
@@ -62,50 +64,29 @@ class NextLinesController {
     }
   }
 
-  buildContext (scriptId, script, overrides = {}) {
+  async buildContext (scriptId, script, overrides = {}) {
     const includeScriptContext = NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false;
-    const scriptContent = includeScriptContext
-      ? normalizeScriptForPrompt(script.content || '', { allowStructuredExtraction: false })
-      : '';
-
-    const protectedKeys = new Set([
-      'scriptId',
-      'scriptTitle',
-      'scriptContent',
-      'includeScriptContext',
-      'attachScriptContext',
-      'expectsFormattedScript',
-      'scriptMetadata',
-      'chainConfig'
-    ]);
-    const safeOverrides = Object.fromEntries(
-      Object.entries(overrides || {}).filter(([key]) => !protectedKeys.has(key))
-    );
-
-    return {
-      userId: overrides.userId || null,
+    return buildPromptContext({
       scriptId,
-      scriptTitle: script.title,
-      scriptContent,
+      script,
+      userId: overrides.userId,
+      intent: INTENT_TYPES.NEXT_FIVE_LINES,
+      promptDefinition: NEXT_FIVE_LINES_PROMPT,
       includeScriptContext,
-      attachScriptContext: includeScriptContext,
-      expectsFormattedScript: NEXT_FIVE_LINES_PROMPT.expectsFormattedScript ?? false,
-      disableHistory: true,
-      scriptMetadata: {
-        updatedAt: script.updatedAt,
-        versionNumber: script.versionNumber,
-        status: script.status
-      },
+      allowStructuredExtraction: false,
+      systemInstruction: NEXT_FIVE_LINES_PROMPT.systemInstruction,
       chainConfig: {
         shouldGenerateQuestions: false,
         modelConfig: {
           temperature: 0.3,
-        response_format: { type: 'json_object' }
+          response_format: { type: 'json_object' }
         }
       },
-      systemInstruction: NEXT_FIVE_LINES_PROMPT.systemInstruction,
-      ...safeOverrides
-    };
+      overrides: {
+        ...overrides,
+        disableHistory: true
+      }
+    });
   }
 }
 

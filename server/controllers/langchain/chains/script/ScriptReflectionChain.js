@@ -1,6 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES } from '../../constants.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
+import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
 const SYSTEM_INSTRUCTION = `
 You are a thoughtful script consultant who helps the writer understand the current material.
@@ -25,10 +26,14 @@ export class ScriptReflectionChain extends BaseChain {
     const scriptContext = context?.scriptContent
       ? `Current script:\n${context.scriptContent}`
       : 'No script context was supplied.';
+    const collectionBlock = formatScriptCollections(context?.scriptCollections);
+    const combinedContext = collectionBlock
+      ? `${scriptContext}\n\n${collectionBlock}`
+      : scriptContext;
 
     const userContent = prompt
-      ? `${prompt}\n\n${scriptContext}`
-      : scriptContext;
+      ? `${prompt}\n\n${combinedContext}`
+      : combinedContext;
 
     const messages = [{
       role: 'system',

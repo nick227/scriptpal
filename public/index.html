@@ -23,7 +23,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
 </head>
 
-<body class="auth-locked">
+<body>
     <div id="shared-topbar"></div>
 
         <div class="container-main">
@@ -32,9 +32,15 @@
             <div class="panel-navigation">
                 <button class="panel-navigation-button is-active" data-target="user-scripts">Scripts</button>
                 <button class="panel-navigation-button" data-target="user-scenes">Scenes</button>
+                <button class="panel-navigation-button" data-target="user-characters">Characters</button>
+                <button class="panel-navigation-button" data-target="user-location">Location</button>
+                <button class="panel-navigation-button" data-target="user-themes">Themes</button>
             </div>
             <div class="user-scripts"></div>
             <div class="user-scenes hidden"></div>
+            <div class="user-characters hidden"></div>
+            <div class="user-location hidden"></div>
+            <div class="user-themes hidden"></div>
         </div>
 
         <!-- Script Editor Panel -->
@@ -48,7 +54,7 @@
     </div>
 
     <!-- Scripts -->
-    <script type="module" src="/js/init-clean.js"></script>
+    <script type="module" src="/js/pages/appBootstrap.js"></script>
 </body>
 
 </html>

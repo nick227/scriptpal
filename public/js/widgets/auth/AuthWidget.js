@@ -1,4 +1,3 @@
-import { MESSAGE_TYPES } from '../../constants.js';
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
 import { RendererFactory } from '../../renderers.js';
@@ -217,7 +216,6 @@ export class AuthWidget extends BaseWidget {
             this.elements.userInfo.style.display = 'flex';
             this.userBadge.update(user);
         }
-        this.setAuthLockState(true);
         this.setAuthMode('login', { silent: true });
 
         if (this.stateManager) {
@@ -244,7 +242,6 @@ export class AuthWidget extends BaseWidget {
 
         this.formViews.login.clearFeedback();
         this.formViews.register.clearFeedback();
-        this.setAuthLockState(false);
         this.setAuthMode('login');
 
         if (this.stateManager) {
@@ -324,12 +321,6 @@ export class AuthWidget extends BaseWidget {
      *
      * @param isAuthenticated
      */
-    setAuthLockState (isAuthenticated) {
-        if (document?.body) {
-            document.body.classList.toggle('auth-locked', !isAuthenticated);
-        }
-    }
-
     /**
      *
      */

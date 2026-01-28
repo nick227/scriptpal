@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal · Sign in</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
+</head>
+
+<body class="auth-page">
+    <main class="auth-page__content">
+        <div class="auth-widget">
+            <div class="user-info auth-user" aria-live="polite" style="display: none;">
+                <span class="auth-avatar" aria-hidden="true"></span>
+                <span class="auth-identity">
+                    <span class="auth-name"></span>
+                    <span style="display:none;" class="auth-email"></span>
+                </span>
+            </div>
+            <button class="logout-button auth-logout" style="display: none;">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+            <div class="user-forms auth-forms"></div>
+        </div>
+    </main>
+
+    <script type="module" src="/js/pages/authPage.js"></script>
+</body>
+
+</html>

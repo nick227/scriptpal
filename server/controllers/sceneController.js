@@ -3,28 +3,12 @@ import { router } from './langchain/router/index.js';
 import { getPromptById } from '../../shared/promptRegistry.js';
 import { createIntentResult } from './aiResponse.js';
 import { INTENT_TYPES } from './langchain/constants.js';
-import { loadOwnedScript } from './scripts/scriptAccessUtils.js';
+import { loadScriptOrThrow } from './scripts/scriptRequestUtils.js';
 import { ensureSceneOwnership } from '../middleware/scriptOwnership.js';
-import { normalizeScriptForPrompt } from './langchain/chains/helpers/ScriptNormalization.js';
-
-const parseNumericId = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-  return Math.floor(parsed);
-};
-
-const parseSortIndex = (value) => {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return null;
-  }
-  return Math.floor(parsed);
-};
+import { buildScriptContextBundle } from './contextBuilder.js';
+import { parseNumericId, parseSortIndex } from '../utils/idUtils.js';
+import { requireNumericParam } from '../utils/requestUtils.js';
+import { listScriptItems } from '../utils/queryUtils.js';
 
 const SCENE_IDEA_PROMPT = getPromptById('scene-idea');
 
@@ -242,15 +226,14 @@ const sceneController = {
 
   generateSceneIdea: async(req, res) => {
     try {
-      const scriptId = parseNumericId(req.params.scriptId);
+      const scriptId = requireNumericParam(req, res, 'scriptId', 'script ID');
       if (!scriptId) {
-        return res.status(400).json({ error: 'Invalid script ID' });
+        return;
       }
       const sceneId = parseNumericId(req.params.sceneId);
 
-      const script = await loadOwnedScript({
-        scriptId,
-        userId: req.userId,
+      const { script } = await loadScriptOrThrow(req, {
+        required: true,
         allowPublic: false,
         requireEditable: true
       });
@@ -263,13 +246,7 @@ const sceneController = {
         }
       }
 
-      const scenes = await prisma.scene.findMany({
-        where: { scriptId },
-        orderBy: [
-          { sortIndex: 'asc' },
-          { createdAt: 'asc' }
-        ]
-      });
+      const scenes = await listScriptItems(prisma.scene, scriptId);
       const otherScenes = scenes
         .filter(item => (sceneId ? Number(item.id) !== Number(sceneId) : true))
         .map(item => ({
@@ -290,18 +267,24 @@ const sceneController = {
           tags: Array.isArray(draft?.tags) ? draft.tags : [],
           sortIndex: null
         };
-      const scriptContent = normalizeScriptForPrompt(script.content || '', { allowStructuredExtraction: true });
+      const contextBundle = await buildScriptContextBundle({
+        scriptId,
+        script,
+        includeScriptContext: true,
+        allowStructuredExtraction: true
+      });
 
       const intentResult = createIntentResult(INTENT_TYPES.SCENE_IDEA);
       const response = await router.route(intentResult, {
         userId: req.userId,
         scriptId,
         intent: INTENT_TYPES.SCENE_IDEA,
-        scriptTitle: script.title || 'Untitled Script',
-        scriptDescription: script.description || '',
-        scriptContent,
+        scriptTitle: contextBundle.scriptTitle,
+        scriptDescription: contextBundle.scriptDescription,
+        scriptContent: contextBundle.scriptContent,
         currentScene,
         otherScenes,
+        scriptCollections: contextBundle.scriptCollections,
         disableHistory: true,
         chainConfig: {
           shouldGenerateQuestions: false

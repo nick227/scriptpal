@@ -1,10 +1,10 @@
-import scriptModel from '../models/script.js';
 import { router } from './langchain/router/index.js';
 import { INTENT_TYPES } from './langchain/constants.js';
 import { SYSTEM_PROMPTS_MAP } from '../../shared/systemPrompts.js';
 import { logger } from '../utils/logger.js';
-import { verifyScriptOwnership } from '../middleware/scriptOwnership.js';
 import { buildAiResponse } from './aiResponse.js';
+import { buildScriptContextBundle } from './contextBuilder.js';
+import { loadScriptOrThrow } from './scripts/scriptRequestUtils.js';
 
 class SystemPromptController {
   async trigger(req, res) {
@@ -25,9 +25,30 @@ class SystemPromptController {
       const resolvedScriptId = scriptId || context.scriptId || null;
       scriptId = resolvedScriptId;
       let script = null;
+      let scriptCollections = null;
       if (resolvedScriptId) {
-        await verifyScriptOwnership(req.userId, resolvedScriptId);
-        script = await scriptModel.getScript(resolvedScriptId);
+        const request = {
+          ...req,
+          body: {
+            ...req.body,
+            scriptId: resolvedScriptId
+          }
+        };
+        const result = await loadScriptOrThrow(request, {
+          required: true,
+          allowPublic: false,
+          requireEditable: true
+        });
+        script = result.script;
+        if (definition.attachScriptContext) {
+          const contextBundle = await buildScriptContextBundle({
+            scriptId: resolvedScriptId,
+            script,
+            includeScriptContext: true,
+            allowStructuredExtraction: true
+          });
+          scriptCollections = contextBundle.scriptCollections;
+        }
       }
       const intentResult = {
         intent: INTENT_TYPES.SCRIPT_CONVERSATION,
@@ -41,6 +62,7 @@ class SystemPromptController {
         scriptId: resolvedScriptId,
         scriptTitle: script?.title,
         scriptMetadata: script || null,
+        scriptCollections,
         promptType,
         systemInstruction: definition.systemInstruction,
         ...context
@@ -58,7 +80,8 @@ class SystemPromptController {
         intentResult,
         scriptId: resolvedScriptId,
         scriptTitle: script?.title,
-        response
+        response,
+        mode: 'system-prompt'
       });
       return res.status(200).json(responsePayload);
     } catch (error) {

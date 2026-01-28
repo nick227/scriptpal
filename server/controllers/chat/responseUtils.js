@@ -6,7 +6,8 @@ export const buildValidatedChatResponse = ({
   scriptId,
   scriptTitle,
   response,
-  validationIntent
+  validationIntent,
+  mode
 }) => {
   const validation = validateAiResponse(validationIntent, response);
   if (!validation.valid) {
@@ -28,7 +29,9 @@ export const buildValidatedChatResponse = ({
       intentResult,
       scriptId,
       scriptTitle,
-      response: responseWithMetadata
+      response: responseWithMetadata,
+      validation,
+      mode: mode || validationIntent
     })
   };
 };

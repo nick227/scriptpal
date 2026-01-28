@@ -30,19 +30,19 @@ jest.mock('../../../controllers/chat/ChatHistoryManager.js', () => ({
   }
 }));
 
-const classifyMock = jest.fn();
+const mockClassify = jest.fn();
 jest.mock('../../../controllers/langchain/chains/system/IntentClassifier.js', () => ({
   IntentClassifier: class {
     constructor () {
-      this.classify = classifyMock;
+      this.classify = mockClassify;
     }
   }
 }));
 
-const routeMock = jest.fn();
+const mockRoute = jest.fn();
 jest.mock('../../../controllers/langchain/router/index.js', () => ({
   router: {
-    route: routeMock
+    route: mockRoute
   }
 }));
 
@@ -55,12 +55,12 @@ describe('Chat intent response mapping', () => {
   });
 
   it('maps SCRIPT_CONVERSATION responses to APPEND_SCRIPT intent', async() => {
-    classifyMock.mockResolvedValue({
+    mockClassify.mockResolvedValue({
       intent: INTENT_TYPES.SCRIPT_CONVERSATION,
       confidence: 0.9,
       reason: 'append the script'
     });
-    routeMock.mockResolvedValue({
+    mockRoute.mockResolvedValue({
       response: '<action>Appended line</action>',
       metadata: {}
     });
@@ -73,12 +73,12 @@ describe('Chat intent response mapping', () => {
   });
 
   it('keeps NEXT_FIVE_LINES intent unchanged', async() => {
-    classifyMock.mockResolvedValue({
+    mockClassify.mockResolvedValue({
       intent: INTENT_TYPES.NEXT_FIVE_LINES,
       confidence: 0.9,
       reason: 'next five lines'
     });
-    routeMock.mockResolvedValue({
+    mockRoute.mockResolvedValue({
       response: 'Reasoning response',
       metadata: {
         formattedScript: '<action>Line 1</action>'

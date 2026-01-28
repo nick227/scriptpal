@@ -1,5 +1,6 @@
 import prisma from '../db/prismaClient.js';
 import scriptRepository from '../repositories/scriptRepository.js';
+import { parseNumericId } from '../utils/idUtils.js';
 
 class OwnershipError extends Error {
   constructor (message, status = 403) {
@@ -7,17 +8,6 @@ class OwnershipError extends Error {
     this.status = status;
   }
 }
-
-const parseNumericId = (value) => {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-  return Math.floor(parsed);
-};
 
 const defaultScriptIdResolver = (req) => {
   const candidates = [

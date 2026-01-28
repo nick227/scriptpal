@@ -213,6 +213,7 @@
 .message.user .message-content {
     border-radius: 6px;
     border: none;
+    background: var(--light-color);
 }
 
 .message.error .message-content {

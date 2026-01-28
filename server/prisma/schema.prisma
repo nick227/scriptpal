@@ -81,6 +81,9 @@ model Script {
   pages          ScriptPage[]
   personas       Persona[]
   scenes         Scene[]
+  characters     Character[]
+  locations      Location[]
+  themes         Theme[]
   chatMessages   ChatMessage[]
   scriptComments ScriptComment[]
 
@@ -191,6 +194,60 @@ model Scene {
   @@index([scriptId])
   @@index([sortIndex])
   @@map("scenes")
+}
+
+model Character {
+  id          Int      @id @default(autoincrement())
+  scriptId    Int
+  title       String
+  description String?  @db.LongText
+  notes       String?  @db.LongText
+  tags        Json
+  sortIndex   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  script Script @relation(fields: [scriptId], references: [id])
+
+  @@index([scriptId])
+  @@index([sortIndex])
+  @@map("characters")
+}
+
+model Location {
+  id          Int      @id @default(autoincrement())
+  scriptId    Int
+  title       String
+  description String?  @db.LongText
+  notes       String?  @db.LongText
+  tags        Json
+  sortIndex   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  script Script @relation(fields: [scriptId], references: [id])
+
+  @@index([scriptId])
+  @@index([sortIndex])
+  @@map("locations")
+}
+
+model Theme {
+  id          Int      @id @default(autoincrement())
+  scriptId    Int
+  title       String
+  description String?  @db.LongText
+  notes       String?  @db.LongText
+  tags        Json
+  sortIndex   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  script Script @relation(fields: [scriptId], references: [id])
+
+  @@index([scriptId])
+  @@index([sortIndex])
+  @@map("themes")
 }
 
 model ScriptComment {

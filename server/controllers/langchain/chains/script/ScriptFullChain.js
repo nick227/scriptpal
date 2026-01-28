@@ -2,6 +2,8 @@ import { BaseChain } from '../base/BaseChain.js';
 import { SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { sanitizeScriptLines } from '../helpers/ScriptSanitization.js';
+import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
+import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
 export const FULL_SCRIPT_INTENT = 'SCRIPT_FULL_SCRIPT';
 
@@ -58,8 +60,13 @@ export class ScriptFullChain extends BaseChain {
     const userPrompt = retryNote ? `${prompt}\n\nCorrection: ${retryNote}` : prompt;
     const scriptContent = context?.scriptContent || '';
     const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
-    const content = scriptContent
-      ? `${userPrompt}\n\n${scriptHeader}\n\n${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}`
+    const collectionBlock = formatScriptCollections(context?.scriptCollections);
+    const contextBlocks = [
+      collectionBlock,
+      scriptContent ? `${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}` : ''
+    ].filter(Boolean).join('\n\n');
+    const content = contextBlocks
+      ? `${userPrompt}\n\n${scriptHeader}\n\n${contextBlocks}`
       : userPrompt;
 
     const systemInstruction = context?.systemInstruction || SYSTEM_INSTRUCTION;
@@ -131,12 +138,14 @@ export class ScriptFullChain extends BaseChain {
       metadata.pageCount = validation.pageCount;
     }
 
-    return {
+    const response = {
       response: responseContent,
       assistantResponse: responseContent,
       type: FULL_SCRIPT_INTENT,
       metadata
     };
+    Object.assign(response.metadata, buildContractMetadata(FULL_SCRIPT_INTENT, response));
+    return response;
   }
 
   async run(context, prompt) {

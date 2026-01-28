@@ -1,8 +1,9 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
-import { validateAiResponse } from '../helpers/ChainOutputGuards.js';
+import { buildContractMetadata, validateAiResponse } from '../helpers/ChainOutputGuards.js';
 import { normalizeFormattedScript } from '../../../../lib/scriptFormatter.js';
+import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
 const NEXT_FIVE_FUNCTIONS = [{
   name: 'provide_next_lines',
@@ -49,8 +50,13 @@ export class ScriptNextLinesChain extends BaseChain {
 
   buildMessages (context, prompt) {
     const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
-    const scriptContext = context?.scriptContent
-      ? `${scriptHeader}\n\n${SCRIPT_CONTEXT_PREFIX}\n${context.scriptContent}`
+    const collectionBlock = formatScriptCollections(context?.scriptCollections);
+    const contextBlocks = [
+      collectionBlock,
+      context?.scriptContent ? `${SCRIPT_CONTEXT_PREFIX}\n${context.scriptContent}` : ''
+    ].filter(Boolean).join('\n\n');
+    const scriptContext = contextBlocks
+      ? `${scriptHeader}\n\n${contextBlocks}`
       : 'No script content available.';
 
     const systemInstruction = context?.systemInstruction;
@@ -97,7 +103,6 @@ ${scriptContext}
       metadata: {
         ...baseMetadata,
         formattedScript: normalizedScript,
-        contract: INTENT_TYPES.NEXT_FIVE_LINES,
         timestamp: new Date().toISOString()
       }
     };
@@ -105,7 +110,7 @@ ${scriptContext}
     if (!validation.valid) {
       throw new Error(`ai_response_invalid: ${validation.errors.join('; ')}`);
     }
-    formattedResponse.metadata.contractValidation = validation;
+    Object.assign(formattedResponse.metadata, buildContractMetadata(INTENT_TYPES.NEXT_FIVE_LINES, formattedResponse));
     return formattedResponse;
   }
 

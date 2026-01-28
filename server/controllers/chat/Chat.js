@@ -6,7 +6,8 @@ import { router } from '../langchain/router/index.js';
 import { IntentClassifier } from '../langchain/chains/system/IntentClassifier.js';
 import { buildAiResponse, createIntentResult } from '../aiResponse.js';
 import { filterContextOverrides } from './contextUtils.js';
-import { buildScriptContextPayload, buildScriptInfo } from './scriptContextUtils.js';
+import { buildScriptInfo } from './scriptContextUtils.js';
+import { buildScriptContextBundle } from '../contextBuilder.js';
 import { isGeneralConversation, isReflectionRequest } from './intentUtils.js';
 import { buildChatChainConfig } from './chainConfigUtils.js';
 
@@ -30,7 +31,8 @@ export class Chat {
     return buildAiResponse({
       intentResult,
       scriptId: this.scriptId,
-      response
+      response,
+      mode: 'chat'
     });
   }
 
@@ -136,8 +138,11 @@ export class Chat {
       scriptTitle,
       scriptDescription,
       scriptContent,
-      scriptMetadata
-    } = buildScriptContextPayload(script, {
+      scriptMetadata,
+      scriptCollections
+    } = await buildScriptContextBundle({
+      scriptId: this.scriptId,
+      script,
       includeScriptContext,
       allowStructuredExtraction,
       updatedAtKey: 'lastUpdated'
@@ -153,6 +158,7 @@ export class Chat {
       scriptDescription,
       disableHistory: true,
       scriptMetadata,
+      scriptCollections,
       chainConfig: buildChatChainConfig(),
       prompt
     };

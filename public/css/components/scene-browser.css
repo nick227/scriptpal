@@ -44,25 +44,30 @@
     background: var(--color-primary-light);
 }
 
-.scene-panel-header {
+.scene-panel-header,
+.list-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 10px;
+    margin-top: 10px;
 }
 
-.scene-panel-title {
+.scene-panel-title,
+.list-panel-title {
     font-size: 14px;
     margin: 0;
 }
 
-.scene-panel-controls {
+.scene-panel-controls,
+.list-panel-controls {
     display: flex;
     gap: 8px;
 }
 
-.scene-empty {
+.scene-empty,
+.list-empty {
     color: var(--color-text-secondary, #666);
     font-size: 12px;
 }
@@ -70,7 +75,8 @@
 /* =========================
    Shared Scene Tile Styles
    ========================= */
-.scene-tile {
+.scene-tile,
+.list-tile {
     background: #fff;
     border: 1px solid var(--color-border);
     border-radius: 8px;
@@ -82,11 +88,13 @@
     background-color: var(--color-bg-light);
 }
 
-.scene-tile.is-dragging {
+.scene-tile.is-dragging,
+.list-tile.is-dragging {
     opacity: 0.6;
 }
 
-.scene-tile__title {
+.scene-tile__title,
+.list-tile__title {
     font-size: 4rem;
     font-weight: 600;
     text-align: center;
@@ -95,7 +103,8 @@
     text-overflow: ellipsis;
 }
 
-.scene-tile__title-input {
+.scene-tile__title-input,
+.list-tile__title-input {
     width: 100%;
     border: 1px solid var(--color-border);
     border-radius: 4px;
@@ -103,7 +112,8 @@
     padding: 2px 4px;
 }
 
-.scene-tile__meta {
+.scene-tile__meta,
+.list-tile__meta {
     font-size: 11px;
     color: var(--color-text-secondary, #666);
     text-align: center;
@@ -111,13 +121,15 @@
     text-overflow: ellipsis;
 }
 
-.scene-tile__actions {
+.scene-tile__actions,
+.list-tile__actions {
     display: flex;
     gap: 6px;
     margin-top: auto;
 }
 
-.scene-tile__actions button {
+.scene-tile__actions button,
+.list-tile__actions button {
     border: none;
     background: transparent;
     cursor: pointer;
@@ -127,14 +139,16 @@
 /* =========================
    Side Panel Scene Grid
    ========================= */
-.scene-grid {
+.scene-grid,
+.list-grid {
     display: flex;
     flex-direction: column;
     gap: 10px;
     width: 100%;
 }
 
-.scene-grid .scene-tile {
+.scene-grid .scene-tile,
+.list-grid .list-tile {
     position: relative;
     width: 100%;
     min-height: 64px;
@@ -143,17 +157,22 @@
     padding: 20px 0 40px 0;
 }
 
-.scene-grid .scene-tile.is-dragging {
+.scene-grid .scene-tile.is-dragging,
+.list-grid .list-tile.is-dragging {
     cursor: grabbing;
 }
 
 .scene-grid .scene-tile__meta,
 .scene-grid .scene-tile__tags,
-.scene-grid .scene-tile__notes {
+.scene-grid .scene-tile__notes,
+.list-grid .list-tile__meta,
+.list-grid .list-tile__tags,
+.list-grid .list-tile__notes {
     display: none;
 }
 
-.scene-grid .scene-tile__actions {
+.scene-grid .scene-tile__actions,
+.list-grid .list-tile__actions {
     position: absolute;
     right: 6px;
     bottom: 6px;
@@ -161,17 +180,20 @@
     margin-top: 0;
 }
 
-.scene-grid .scene-tile__actions button {
+.scene-grid .scene-tile__actions button,
+.list-grid .list-tile__actions button {
     font-size: 10px;
     padding: 2px 4px;
     opacity: 0.7;
 }
 
-.scene-grid .scene-tile__actions button[data-action="edit"] {
+.scene-grid .scene-tile__actions button[data-action="edit"],
+.list-grid .list-tile__actions button[data-action="edit"] {
     display: none;
 }
 
-.scene-grid .scene-tile__actions button[data-action="delete"] {
+.scene-grid .scene-tile__actions button[data-action="delete"],
+.list-grid .list-tile__actions button[data-action="delete"] {
     text-transform: uppercase;
     letter-spacing: 0.02em;
 }
@@ -186,7 +208,8 @@
     height: 80vh;
     margin: auto;
    ========================= */
-.scene-browser-modal {
+.scene-browser-modal,
+.list-browser-modal {
 
     z-index: 90;
   width: 100%;
@@ -196,13 +219,15 @@
   top: 76px;
 }
 
-.scene-browser-modal__backdrop {
+.scene-browser-modal__backdrop,
+.list-browser-modal__backdrop {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
 }
 
-.scene-browser-modal__content {
+.scene-browser-modal__content,
+.list-browser-modal__content {
     position: relative;
     background: #fff;
     height: 100%;
@@ -211,7 +236,8 @@
     flex-direction: column;
 }
 
-.scene-browser-modal__header {
+.scene-browser-modal__header,
+.list-browser-modal__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -219,7 +245,8 @@
     border-bottom: 1px solid var(--color-border);
 }
 
-.scene-browser-modal__grid {
+.scene-browser-modal__grid,
+.list-browser-modal__grid {
     flex: 1;
     padding: 16px;
     overflow-y: auto;
@@ -229,15 +256,18 @@
     align-content: start;
 }
 
-.scene-browser-modal__grid.is-few {
+.scene-browser-modal__grid.is-few,
+.list-browser-modal__grid.is-few {
     grid-auto-rows: minmax(180px, 50%);
 }
 
-.scene-browser-modal__grid.is-few .scene-tile {
+.scene-browser-modal__grid.is-few .scene-tile,
+.list-browser-modal__grid.is-few .list-tile {
     height: 100%;
 }
 
-.scene-browser-modal__grid .scene-tile {
+.scene-browser-modal__grid .scene-tile,
+.list-browser-modal__grid .list-tile {
     position: relative;
     min-height: 170px;
     padding: 14px 16px 48px;
@@ -245,17 +275,21 @@
     align-items: center;
 }
 
-.side-panel-panel .scene-tile__title {
+.side-panel-panel .scene-tile__title,
+.side-panel-panel .list-tile__title {
     font-size: 16px;
 }
 
-.scene-browser-modal__grid .scene-tile__meta {
+.scene-browser-modal__grid .scene-tile__meta,
+.list-browser-modal__grid .list-tile__meta {
     font-size: 12px;
     max-height: 2.6em;
 }
 
 .scene-browser-modal__grid .scene-tile__tags,
-.scene-browser-modal__grid .scene-tile__notes {
+.scene-browser-modal__grid .scene-tile__notes,
+.list-browser-modal__grid .list-tile__tags,
+.list-browser-modal__grid .list-tile__notes {
     position: absolute;
     left: 12px;
     right: 12px;
@@ -265,7 +299,8 @@
     text-align: center;
 }
 
-.scene-browser-modal__grid .scene-tile__actions {
+.scene-browser-modal__grid .scene-tile__actions,
+.list-browser-modal__grid .list-tile__actions {
     position: absolute;
     left: 12px;
     right: 12px;
@@ -276,19 +311,22 @@
 /* =========================
    Scene Editor Modal
    ========================= */
-.scene-editor-modal {
+.scene-editor-modal,
+.list-editor-modal {
     position: fixed;
     inset: 0;
     z-index: 2100;
 }
 
-.scene-editor-modal__backdrop {
+.scene-editor-modal__backdrop,
+.list-editor-modal__backdrop {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
 }
 
-.scene-editor-modal__content {
+.scene-editor-modal__content,
+.list-editor-modal__content {
     position: relative;
     max-width: 520px;
     margin: 10vh auto;
@@ -297,32 +335,37 @@
     padding: 16px;
 }
 
-.scene-editor-modal__header {
+.scene-editor-modal__header,
+.list-editor-modal__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
-.scene-editor-modal__form {
+.scene-editor-modal__form,
+.list-editor-modal__form {
     display: flex;
     flex-direction: column;
     gap: 12px;
     margin-top: 12px;
 }
 
-.scene-editor-modal__form label {
+.scene-editor-modal__form label,
+.list-editor-modal__form label {
     display: flex;
     flex-direction: column;
     gap: 6px;
     font-size: 12px;
 }
 
-.scene-editor-modal__actions {
+.scene-editor-modal__actions,
+.list-editor-modal__actions {
     display: flex;
     justify-content: flex-end;
 }
 
-.scene-editor-modal__save {
+.scene-editor-modal__save,
+.list-editor-modal__save {
     border: 1px solid var(--color-border);
     background: var(--color-primary-light, #eef2ff);
     padding: 6px 10px;
@@ -330,15 +373,18 @@
     cursor: pointer;
 }
 
-.scene-editor-modal__form .row {
+.scene-editor-modal__form .row,
+.list-editor-modal__form .row {
     display: flex;
     justify-content: space-between;
 }
 
-.scene-editor-modal__form .row input {
+.scene-editor-modal__form .row input,
+.list-editor-modal__form .row input {
     width: 74%;
 }
 
-.scene-editor-modal__form .row button {
+.scene-editor-modal__form .row button,
+.list-editor-modal__form .row button {
     width: 25%;
 }

@@ -1,19 +1,19 @@
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
 
-export class ScenesController {
+export class ScriptItemController {
     constructor (options) {
-        if (!options.sceneStore) {
-            throw new Error('SceneStore is required for ScenesController');
+        if (!options.store) {
+            throw new Error('Store is required for ScriptItemController');
         }
         if (!options.stateManager) {
-            throw new Error('StateManager is required for ScenesController');
+            throw new Error('StateManager is required for ScriptItemController');
         }
         if (!options.eventManager) {
-            throw new Error('EventManager is required for ScenesController');
+            throw new Error('EventManager is required for ScriptItemController');
         }
 
-        this.sceneStore = options.sceneStore;
+        this.store = options.store;
         this.stateManager = options.stateManager;
         this.eventManager = options.eventManager;
         this.currentScriptId = null;
@@ -40,7 +40,7 @@ export class ScenesController {
     async handleCurrentScriptChange (script) {
         if (!script || !script.id) {
             this.currentScriptId = null;
-            this.sceneStore.clearState();
+            this.store.clearState();
             return;
         }
         const normalizedId = Number(script.id);
@@ -48,13 +48,13 @@ export class ScenesController {
             return;
         }
         this.currentScriptId = normalizedId;
-        await this.sceneStore.loadScenes(normalizedId);
+        await this.store.loadItems(normalizedId);
     }
 
     handleScriptDeleted (event) {
         const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
         if (currentScript && String(currentScript.id) === String(event.scriptId)) {
-            this.sceneStore.clearState();
+            this.store.clearState();
         }
     }
 }
