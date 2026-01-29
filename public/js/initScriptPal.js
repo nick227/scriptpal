@@ -2,6 +2,8 @@
  * Clean Architecture Entry Point
  * Simple, focused initialization
  */
+import { AuthenticatedAppBootstrap } from './app/bootstrap/AuthenticatedAppBootstrap.js';
+import { ServiceRegistry } from './app/core/ServiceRegistry.js';
 import { App } from './App.js';
 import { UI_ELEMENTS } from './constants.js';
 import { EventManager } from './core/EventManager.js';
@@ -10,21 +12,12 @@ import { renderSharedTopBar, getTopBarElements } from './layout/sharedLayout.js'
 import { ScriptPalAPI } from './services/api/ScriptPalAPI.js';
 import { ScriptPalUser } from './services/api/ScriptPalUser.js';
 import { PersistenceManager } from './services/persistence/PersistenceManager.js';
-import { ScriptOrchestrator } from './services/script/ScriptOrchestrator.js';
-import { ScriptSyncService } from './services/script/ScriptSyncService.js';
 import { CharacterStore } from './stores/CharacterStore.js';
 import { LocationStore } from './stores/LocationStore.js';
 import { SceneStore } from './stores/SceneStore.js';
 import { ScriptStore } from './stores/ScriptStore.js';
 import { ThemeStore } from './stores/ThemeStore.js';
 import { AuthWidget } from './widgets/auth/AuthWidget.js';
-import { CharactersUIBootstrap } from './widgets/character/CharactersUIBootstrap.js';
-import { ChatIntegration } from './widgets/chat/integration/ChatIntegration.js';
-import { LocationUIBootstrap } from './widgets/location/LocationUIBootstrap.js';
-import { ScenesUIBootstrap } from './widgets/scene/ScenesUIBootstrap.js';
-import { ScriptsUIBootstrap } from './widgets/script/ScriptsUIBootstrap.js';
-import { ThemesUIBootstrap } from './widgets/theme/ThemesUIBootstrap.js';
-import { SidePanelWidget } from './widgets/ui/SidePanelWidget.js';
 import { TokenWatchWidget } from './widgets/ui/TokenWatchWidget.js';
 
 // Global app instance
@@ -48,6 +41,7 @@ async function initScriptPal () {
         const user = new ScriptPalUser(api);
         const stateManager = new StateManager();
         const eventManager = new EventManager();
+        const registry = new ServiceRegistry();
 
         await initTokenWatchWidget(sharedElements.tokenWatchContainer, api, stateManager, eventManager);
 
@@ -71,19 +65,19 @@ async function initScriptPal () {
             }
         }
 
-        let authenticatedViewsInitialized = false;
-        const initAuthenticatedViews = async () => {
-            if (authenticatedViewsInitialized) return;
-            authenticatedViewsInitialized = true;
-            await initSidePanelWidget(stateManager, eventManager);
-            await initScriptsUI(api, stateManager, eventManager, scriptStore);
-            await initScenesUI(api, stateManager, eventManager, sceneStore);
-            await initCharactersUI(api, stateManager, eventManager, characterStore);
-            await initLocationUI(api, stateManager, eventManager, locationStore);
-            await initThemesUI(api, stateManager, eventManager, themeStore);
-            await initChat(api, stateManager, eventManager);
-            wireScriptOrchestrator(scriptStore, eventManager);
-        };
+        const authenticatedBootstrap = new AuthenticatedAppBootstrap({
+            api,
+            stateManager,
+            eventManager,
+            registry,
+            stores: {
+                script: scriptStore,
+                scene: sceneStore,
+                character: characterStore,
+                location: locationStore,
+                theme: themeStore
+            }
+        });
 
         const redirectToAuth = () => {
             const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -96,7 +90,7 @@ async function initScriptPal () {
                 redirectToAuth();
                 return;
             }
-            await initAuthenticatedViews();
+            await authenticatedBootstrap.init();
         };
 
         stateManager.subscribe(StateManager.KEYS.AUTHENTICATED, handleAuthChange);
@@ -118,60 +112,6 @@ async function initScriptPal () {
 
         // Show error to user
         showError('Failed to initialize ScriptPal. Please refresh the page.');
-    }
-}
-
-let orchestratorWireSubscribed = false;
-let orchestratorScriptSelectedSubscribed = false;
-let sidePanelWidget = null;
-
-/**
- *
- * @param scriptStore
- * @param eventManager
- */
-function wireScriptOrchestrator (scriptStore, eventManager) {
-    const scriptsUI = window.scriptPalScriptsUI;
-    const chat = window.scriptPalChat;
-    if (!scriptsUI || !chat) {
-        console.warn('[init] Cannot wire orchestrator: missing scripts UI or chat');
-        return;
-    }
-
-    const editorWidget = scriptsUI.getEditorWidget && scriptsUI.getEditorWidget();
-    if (!editorWidget || !scriptsUI.isEditorReady || !scriptsUI.isEditorReady()) {
-        console.debug('[init] Editor not ready for orchestrator wiring');
-        if (!orchestratorWireSubscribed && eventManager?.subscribe) {
-            orchestratorWireSubscribed = true;
-            eventManager.subscribe(EventManager.EVENTS.EDITOR.EDITOR_AREA_READY, () => {
-                if (window.scriptPalApp?.stateManager) {
-                    window.scriptPalApp.stateManager.setState(StateManager.KEYS.EDITOR_READY, true);
-                }
-                wireScriptOrchestrator(scriptStore, eventManager);
-            });
-        }
-        if (!orchestratorScriptSelectedSubscribed && eventManager?.subscribe) {
-            orchestratorScriptSelectedSubscribed = true;
-            eventManager.subscribe(EventManager.EVENTS.SCRIPT.SELECTED, () => {
-                wireScriptOrchestrator(scriptStore, eventManager);
-            });
-        }
-        return;
-    }
-
-    if (!window.scriptPalOrchestrator) {
-        const syncService = new ScriptSyncService(scriptStore, eventManager);
-        window.scriptPalOrchestrator = new ScriptOrchestrator(
-            scriptStore,
-            syncService,
-            editorWidget.container,
-            editorWidget
-        );
-        console.log('[init] ScriptOrchestrator wired');
-    }
-
-    if (typeof chat.setScriptOrchestrator === 'function') {
-        chat.setScriptOrchestrator(window.scriptPalOrchestrator);
     }
 }
 
@@ -223,109 +163,6 @@ async function initTokenWatchWidget (container, api, stateManager, eventManager)
     await widget.initialize();
     window.scriptPalTokenWatch = widget;
     return widget;
-}
-
-/**
- *
- * @param stateManager
- * @param eventManager
- */
-async function initSidePanelWidget (stateManager, eventManager) {
-    if (sidePanelWidget) {
-        return sidePanelWidget;
-    }
-    sidePanelWidget = new SidePanelWidget({
-        stateManager,
-        eventManager,
-        targetsMap: {
-            'user-scripts': UI_ELEMENTS.USER_SCRIPTS_PANEL,
-            'user-scenes': UI_ELEMENTS.USER_SCENES_PANEL,
-            'user-characters': UI_ELEMENTS.USER_CHARACTERS_PANEL,
-            'user-location': UI_ELEMENTS.USER_LOCATION_PANEL,
-            'user-themes': UI_ELEMENTS.USER_THEMES_PANEL
-        },
-        defaultTarget: 'user-scripts'
-    });
-    await sidePanelWidget.initialize();
-    window.scriptPalSidePanel = sidePanelWidget;
-    return sidePanelWidget;
-}
-
-/**
- * Initialize script selection UI widgets
- * @param api
- * @param stateManager
- * @param eventManager
- * @param scriptStore
- */
-async function initScriptsUI (api, stateManager, eventManager, scriptStore) {
-    const scriptsUI = new ScriptsUIBootstrap({ api, stateManager, eventManager, scriptStore });
-    await scriptsUI.initialize();
-    window.scriptPalScriptsUI = scriptsUI;
-}
-
-/**
- *
- * @param api
- * @param stateManager
- * @param eventManager
- * @param sceneStore
- */
-async function initScenesUI (api, stateManager, eventManager, sceneStore) {
-    const scenesUI = new ScenesUIBootstrap({ api, stateManager, eventManager, sceneStore });
-    await scenesUI.initialize();
-    window.scriptPalScenesUI = scenesUI;
-}
-
-/**
- *
- * @param api
- * @param stateManager
- * @param eventManager
- * @param characterStore
- */
-async function initCharactersUI (api, stateManager, eventManager, characterStore) {
-    const charactersUI = new CharactersUIBootstrap({ api, stateManager, eventManager, characterStore });
-    await charactersUI.initialize();
-    window.scriptPalCharactersUI = charactersUI;
-}
-
-/**
- *
- * @param api
- * @param stateManager
- * @param eventManager
- * @param locationStore
- */
-async function initLocationUI (api, stateManager, eventManager, locationStore) {
-    const locationUI = new LocationUIBootstrap({ api, stateManager, eventManager, locationStore });
-    await locationUI.initialize();
-    window.scriptPalLocationUI = locationUI;
-}
-
-/**
- *
- * @param api
- * @param stateManager
- * @param eventManager
- * @param themeStore
- */
-async function initThemesUI (api, stateManager, eventManager, themeStore) {
-    const themesUI = new ThemesUIBootstrap({ api, stateManager, eventManager, themeStore });
-    await themesUI.initialize();
-    window.scriptPalThemesUI = themesUI;
-}
-
-/**
- * Initialize modern chat integration
- * @param api
- * @param stateManager
- * @param eventManager
- */
-async function initChat (api, stateManager, eventManager) {
-    const chat = new ChatIntegration(api, stateManager, eventManager);
-    await chat.initialize();
-    window.scriptPalChat = chat;
 }
 
 /**

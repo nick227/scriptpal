@@ -50,13 +50,11 @@ export class App {
      * Setup controllers
      */
     async setupControllers () {
-
         const editorController = new EditorController();
 
         this.appController.addController('editor', editorController);
 
         this.appController.setActiveView('editor');
-
     }
 
     /**
