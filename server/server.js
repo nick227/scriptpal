@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename);
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '.env') });
 const clientBuildPath = path.join(__dirname, '..', 'public', 'dist');
+const publicImagesPath = path.join(__dirname, '..', 'public', 'images');
 
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -198,6 +199,9 @@ class ScriptPalServer {
 
     // Cookie parsing middleware
     this.app.use(cookieParser());
+
+    // Serve static images from source public folder
+    this.app.use('/images', express.static(publicImagesPath));
 
     // Serve built frontend assets
     this.app.use(express.static(clientBuildPath));
