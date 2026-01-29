@@ -27,6 +27,20 @@ const getEnvNumber = (key, fallback) => {
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const getEnvBoolean = (key, fallback) => {
+  const raw = trimEnvValue(process.env[key]);
+  if (raw === undefined) {
+    return fallback;
+  }
+  const normalized = raw.toLowerCase();
+  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+    return false;
+  }
+  return fallback;
+};
 
 const buildPoolConfig = () => {
   const baseConfig = {
@@ -46,6 +60,10 @@ const buildPoolConfig = () => {
       getEnvValue('DB_NAME') ||
       (url.pathname ? url.pathname.slice(1) : undefined) ||
       'scriptpal';
+    const allowPublicKeyRetrieval = getEnvBoolean(
+      'DB_ALLOW_PUBLIC_KEY_RETRIEVAL',
+      url.searchParams.get('allowPublicKeyRetrieval') === 'true'
+    );
 
     return {
       ...baseConfig,
@@ -53,9 +71,17 @@ const buildPoolConfig = () => {
       port,
       user,
       password,
-      database
+      database,
+      ...(allowPublicKeyRetrieval === undefined
+        ? {}
+        : { allowPublicKeyRetrieval })
     };
   }
+
+  const allowPublicKeyRetrieval = getEnvBoolean(
+    'DB_ALLOW_PUBLIC_KEY_RETRIEVAL',
+    undefined
+  );
 
   return {
     ...baseConfig,
@@ -63,7 +89,10 @@ const buildPoolConfig = () => {
     port: getEnvNumber('DB_PORT', 3306),
     user: getEnvValue('DB_USER') || 'root',
     password: process.env.DB_PASSWORD ?? '',
-    database: getEnvValue('DB_NAME') || 'scriptpal'
+    database: getEnvValue('DB_NAME') || 'scriptpal',
+    ...(allowPublicKeyRetrieval === undefined
+      ? {}
+      : { allowPublicKeyRetrieval })
   };
 };
 
