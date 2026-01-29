@@ -14,6 +14,9 @@ const resolvePublicRoute = (url = '') => {
   if (url === '/public' || url === '/public/') {
     return 'public-scripts.html';
   }
+  if (url === '/auth' || url === '/auth/' || url === '/auth.html') {
+    return 'auth.html';
+  }
   if (/^\/public\/[^/]+\/?$/.test(url)) {
     return 'public-script.html';
   }
@@ -86,7 +89,8 @@ export default defineConfig({
       input: {
         index: path.join(publicRoot, 'index.html'),
         publicScripts: path.join(publicRoot, 'public-scripts.html'),
-        publicScript: path.join(publicRoot, 'public-script.html')
+        publicScript: path.join(publicRoot, 'public-script.html'),
+        auth: path.join(publicRoot, 'auth.html')
       },
       external: ['fsevents'],
       output: {
