@@ -88,8 +88,8 @@
     width: 500px;
     height: 50vh;   
     position: fixed;
-    left: 0;
-    top: 12vh;
+    left: 1vw;
+    top: 17vh;
     z-index: 1;
     background: var(--light-color);
     display: flex;
@@ -116,7 +116,7 @@
 .side-panel-panel.is-minimized > * {
     display: none;
 }
-.side-panel-panel.is-minimized::after {
+.side-panel-panel::after {
     content: 'My Stuff';
     position: fixed;
     top: 12vh;
