@@ -18,9 +18,17 @@
 }
 .chatbot-container {
     width: 100vw;
-    height: auto;
+    height: 40vh;
+    position: fixed !important;
+    right: 0px !important;
+    bottom: 0px !important;
+    top: 60vh;
+    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.4);
 }
 
+.toolbar-separator,
+.page-counter,
+.prompt-helper-section,
 .token-watch-widget,
 .auth-avatar,
 .auth-forms .logo-image {
@@ -41,10 +49,23 @@
 }
 
 .chat-action-btn {
-    font-size: 1em;
+    position: absolute;
     right: 10px;
-    top: 5em;
-    display: none !important;
+    top: 10px;
+}
+.chatbot-container.minimized {
+    box-shadow: none !important;
+    bottom: 10px !important;
+    right: 10px !important;
+    position: fixed !important;
+    top: 90vh;
+    left: 36vh;
+}
+.chatbot-container.minimized .chat-action-btn {
+    position: relative !important;
+}
+.chatbot-container.minimized .chat-action-btn {
+    width: 60px;
 }
 .side-panel-panel h3 {
     top: 10vh;
@@ -68,8 +89,9 @@
 }
 
 .editor-toolbar {
-    height: 16vh;
+    height: 11vh;
     flex-wrap: wrap;
+    top: 6vh;
 }
 
 .public-script-view-header {

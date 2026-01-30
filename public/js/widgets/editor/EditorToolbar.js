@@ -107,11 +107,9 @@ export class EditorToolbar extends BaseWidget {
             }
 
             // Initialize all toolbar components in correct order
-            this.createUndoRedoButtons();
-
             this.createFormatButtons();
 
-            this.createPageNumButtons();
+            // this.createPageNumButtons();
 
             this.setupEventListeners();
 
