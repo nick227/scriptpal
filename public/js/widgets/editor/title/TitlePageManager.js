@@ -218,7 +218,6 @@ export class TitlePageManager {
         this.titlePageData.description = this.descriptionInput?.value || '';
         this.titlePageData.visibility = this.normalizeVisibility(this.visibilitySelect?.value);
         this.schedulePersist();
-        this.adjustInputHeights();
     }
 
     /**

@@ -113,11 +113,10 @@
     left: 20px;
     overflow: visible;
 }
-.side-panel-panel.is-minimized > * {
+.side-panel-panel.is-minimized > *:not(h3) {
     display: none;
 }
-.side-panel-panel::after {
-    content: 'My Stuff';
+.side-panel-panel h3 {
     position: fixed;
     top: 12vh;
     left: 30px;
@@ -132,6 +131,7 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    pointer-events: auto;
     z-index: 1000;
     animation: blinkIn 2s linear;
 }

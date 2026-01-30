@@ -21,4 +21,63 @@
     height: auto;
 }
 
+.token-watch-widget,
+.auth-avatar,
+.auth-forms .logo-image {
+    display:none !important;
+}
+
+.site-header {
+    flex-wrap: wrap;
+    height: 6vh;
+}
+
+.site-brand {
+    height: auto;
+}
+
+.container-main {
+    margin-top: 0;
+}
+
+.chat-action-btn {
+    font-size: 1em;
+    right: 10px;
+    top: 5em;
+    display: none !important;
+}
+.side-panel-panel h3 {
+    top: 10vh;
+    right: 10px;
+    display: none;
+}
+
+.title {
+    font-size: 1.2rem !important;
+    margin: 0 !important;
+}
+
+.site-header {
+    padding: 3px;
+}
+
+.format-buttons-container {
+    flex-wrap: wrap;
+    width: 100%;
+    flex-grow: 1;
+}
+
+.editor-toolbar {
+    height: 16vh;
+    flex-wrap: wrap;
+}
+
+.public-script-view-header {
+    padding: 0 10px;
+}
+
+.shared-topbar {
+    height: 6vh;
+}
+
 }

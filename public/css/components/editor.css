@@ -108,6 +108,7 @@
             width: 8.5in;
             height: 11in;
             max-height: 11in;
+            max-width: 100%;
             padding: 1in;
             margin-top: var(--spacing-lg);
             margin-bottom: var(--spacing-lg);
@@ -425,76 +426,7 @@
         .script-page.current-page {
             box-shadow: 0 0 0 2px var(--color-speaker), 0 4px 20px var(--color-page-shadow);
         }
-        /* Mobile Optimizations */
-        
-        @media (max-width: 480px) {
-            .editor-toolbar {
-                padding: 0 var(--spacing-md);
-            }
-            .format-button {
-                padding: 0 var(--spacing-sm);
-            }
-            .editor-page {
-                padding: var(--spacing-xs) var(--spacing-sm);
-                width: 100%;
-                height: auto;
-                min-height: 11in;
-            }
-        }
-        /* Tablet Optimizations */
-        
-        @media (min-width: 481px) and (max-width: 768px) {
-            .editor-page {
-                padding: var(--spacing-sm) var(--spacing-md);
-                width: 100%;
-                height: auto;
-                min-height: 11in;
-            }
-        }
-        /* Desktop Optimizations */
-        
-        @media (min-width: 769px) {
-            .editor-page {
-                padding: var(--spacing-sm) var(--spacing-xl);
-            }
-        }
-        /* Print Styles */
-        
-        @media print {
-            .editor-toolbar,
-            .page-break::after {
-                display: none;
-            }
-            .editor-page {
-                box-shadow: none;
-                page-break-after: always;
-                width: 8.5in;
-                height: 11in;
-                padding: 1in;
-                margin: 0;
-            }
-            .editor-area {
-                padding: 0;
-            }
-        }
-        /* High DPI Screens */
-        
-        @media (-webkit-min-device-pixel-ratio: 2),
-        (min-resolution: 192dpi) {
-            .script-page {
-                box-shadow: 0 4px 16px var(--color-page-shadow);
-            }
-        }
-        /* Dark Mode Support */
-        
-        @media (prefers-color-scheme: dark) {
-             :root {
-                --color-bg-workspace: #1a1d21;
-                --color-page-container: #2c3338;
-                --color-text-muted: #888;
-                --color-text-dim: #aaa;
-            }
-        }
+
         /* Line Selection Styles */
         
         .script-line.selected {

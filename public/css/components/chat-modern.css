@@ -40,7 +40,7 @@
     border-radius: 22px !important;
     z-index: 1000 !important;
     position: fixed !important;
-    display: flex !important;
+    display: flex;
     justify-content: flex-end !important;
     align-items: flex-end !important; 
     bottom: 20px;
@@ -54,12 +54,12 @@
 .chatbot-container.minimized .chat-action-btn,
 .chatbot-container.minimized .chat-header-actions,
 .chatbot-container.minimized .chat-header {
-    padding: 0 !important;
-    margin: 0 !important;
-    height: 75px !important;
-    width: 175px !important;
+    padding: 0;
+    margin: 0;
+    height: 75px;
+    width: 175px;
     border: none;
-    display: flex !important;
+    display: flex;
     justify-content: center !important;
     align-items: center !important; 
     background: transparent !important;

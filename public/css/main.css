@@ -9,6 +9,7 @@
 @import 'components/chat-modern.css';
 @import 'components/navbar.css';
 @import 'components/editor.css';
+@import 'components/editor-mobile.css';
 @import 'components/uploader.css';
 @import 'components/spinner.css';
 @import 'components/script-list.css';

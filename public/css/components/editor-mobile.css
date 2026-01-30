@@ -1,0 +1,99 @@
+/* Mobile-specific editor overrides that keep the 8.5"x11" proportions while
+   using the full width available on small screens. */
+
+@media (max-width: 768px) {
+    :root {
+        --editor-mobile-page-padding: 1rem;
+        --editor-mobile-page-margin: 0.75rem;
+        --editor-mobile-line-vertical-spacing: 0.25rem;
+        --editor-mobile-speaker-left: 150px;
+        --editor-mobile-speaker-right: 8px;
+        --editor-mobile-dialog-left: 20px;
+        --editor-mobile-dialog-right: 10px;
+        --editor-mobile-directions-left: 24px;
+        --editor-mobile-chapter-break-padding: 48px;
+        --editor-mobile-break-spacing: 0.5rem;
+    }
+
+    .editor-container {
+        height: auto;
+        padding: 0 0.25rem;
+        overflow-x: hidden;
+    }
+
+    .editor-toolbar {
+        padding: 0 0.5rem;
+        gap: 0.25rem;
+    }
+
+    .editor-area {
+        padding: 0.35rem 0;
+        width: 100%;
+        margin-top: 20vh;
+    }
+
+    .editor-page {
+        width: 100%;
+        max-width: calc(100% - 0.5rem);
+        aspect-ratio: 8.5 / 11;
+        padding: var(--editor-mobile-page-padding);
+        margin: var(--editor-mobile-page-margin) auto;
+        box-shadow: 0 0 12px rgba(0, 0, 0, 0.08);
+        box-sizing: border-box;
+        overflow-wrap: anywhere;
+        overflow-x: hidden;
+    }
+
+    .editor-page-content {
+        font-size: 0.95rem;
+        line-height: 1.4;
+        font-family: var(--font-family-mono);
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        padding: 0 10px !important;
+    }
+
+    .script-line {
+        padding: var(--editor-mobile-line-vertical-spacing) 0;
+        font-size: 0.95rem;
+        line-height: 1.35;
+        box-sizing: border-box;
+        width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .script-line.format-speaker {
+        margin-left: var(--editor-mobile-speaker-left);
+        margin-right: var(--editor-mobile-speaker-right);
+        margin-top: var(--editor-mobile-line-vertical-spacing);
+        text-transform: uppercase;
+        max-width: calc(100% - var(--editor-mobile-speaker-left) - var(--editor-mobile-speaker-right));
+    }
+
+    .script-line.format-dialog {
+        margin-left: var(--editor-mobile-dialog-left);
+        margin-right: var(--editor-mobile-dialog-right);
+        max-width: calc(100% - var(--editor-mobile-dialog-left) - var(--editor-mobile-dialog-right));
+    }
+
+    .script-line.format-directions {
+        margin-left: var(--editor-mobile-directions-left);
+        text-align: left;
+        max-width: calc(100% - var(--editor-mobile-directions-left) - var(--editor-mobile-dialog-right));
+    }
+
+    .script-line.format-break {
+        margin: var(--editor-mobile-break-spacing) 0;
+    }
+
+    .script-line.format-chapter-break {
+        margin: var(--editor-mobile-break-spacing) 0;
+        padding-left: var(--editor-mobile-chapter-break-padding);
+        max-width: calc(100% - var(--editor-mobile-chapter-break-padding));
+    }
+
+    .page-break {
+        margin: var(--editor-mobile-break-spacing) 0;
+    }
+}

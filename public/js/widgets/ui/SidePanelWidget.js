@@ -23,6 +23,7 @@ export class SidePanelWidget {
         this.minimizeButton = null;
         this.minimizeClickHandler = null;
         this.panelClickHandler = null;
+        this.panelHeader = null;
         this.isMinimized = true;
         this.activeTarget = options.defaultTarget || 'user-scripts';
     }
@@ -70,13 +71,15 @@ export class SidePanelWidget {
         if (!this.panelContainer) {
             return;
         }
-        this.panelClickHandler = () => {
-            if (!this.isMinimized) {
-                return;
-            }
+        this.panelHeader = this.panelContainer.querySelector('h3');
+        if (!this.panelHeader) {
+            throw new Error('Side panel header not found');
+        }
+        this.panelClickHandler = (event) => {
+            event.preventDefault();
             this.toggleMinimize();
         };
-        this.panelContainer.addEventListener('click', this.panelClickHandler);
+        this.panelHeader.addEventListener('click', this.panelClickHandler);
     }
 
     /**
@@ -124,7 +127,7 @@ export class SidePanelWidget {
             this.minimizeButton.removeEventListener('click', this.minimizeClickHandler);
         }
         if (this.panelContainer && this.panelClickHandler) {
-            this.panelContainer.removeEventListener('click', this.panelClickHandler);
+            this.panelHeader.removeEventListener('click', this.panelClickHandler);
         }
         this.panelContainer = null;
         this.navigation = null;
@@ -132,6 +135,7 @@ export class SidePanelWidget {
         this.minimizeButton = null;
         this.minimizeClickHandler = null;
         this.panelClickHandler = null;
+        this.panelHeader = null;
         this.isMinimized = false;
     }
 }
