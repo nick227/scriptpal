@@ -20,6 +20,6 @@ export const createThemeEditorAdapter = () => createTaggedEditorAdapter({
     labels: {
         title: ITEM_LABELS.THEME,
         close: 'cancel',
-        save: 'Save'
+        save: 'save'
     }
 });

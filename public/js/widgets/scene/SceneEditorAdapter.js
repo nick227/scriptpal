@@ -6,7 +6,7 @@ export const createSceneEditorAdapter = () => createTaggedEditorAdapter({
     labels: {
         title: ITEM_LABELS.SCENE,
         close: 'cancel',
-        save: 'Save',
-        aiGenerate: 'ai generate'
+        save: 'save',
+        aiGenerate: 'generate'
     }
 });

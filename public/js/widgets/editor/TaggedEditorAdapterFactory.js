@@ -13,10 +13,10 @@ const DEFAULT_CLASS_NAMES = {
 };
 
 const DEFAULT_LABELS = {
-    title: 'Item',
+    title: 'item',
     close: 'cancel',
-    save: 'Save',
-    aiGenerate: 'ai generate'
+    save: 'save',
+    aiGenerate: 'generate'
 };
 
 export const createTaggedEditorAdapter = (options = {}) => {

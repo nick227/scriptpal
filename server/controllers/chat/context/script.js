@@ -1,4 +1,4 @@
-import { normalizeScriptForPrompt } from '../langchain/chains/helpers/ScriptNormalization.js';
+import { normalizeScriptForPrompt } from '../../langchain/chains/helpers/ScriptNormalization.js';
 
 export const buildScriptInfo = (script, options = {}) => {
   const {

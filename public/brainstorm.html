@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal · Brainstorm</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
+</head>
+
+<body>
+    <div id="shared-topbar"></div>
+
+    <main class="brainstorm-page">
+        <section class="brainstorm-panel" aria-label="Brainstorming canvas">
+            <header class="brainstorm-header">
+                <div class="brainstorm-header__text">
+                    <h2>Brainstorm</h2>
+                    <p>Start with a seed concept, then expand ideas by category.</p>
+                </div>
+                <div class="brainstorm-header__controls">
+                    <div class="brainstorm-board-controls">
+                        <label class="brainstorm-board-label" for="brainstorm-board-select">Boards</label>
+                        <div class="brainstorm-board-inputs">
+                            <select id="brainstorm-board-select" class="brainstorm-board-select"></select>
+                            <button class="brainstorm-board-new" type="button">New board</button>
+                        </div>
+                    </div>
+                    <div class="brainstorm-title-controls">
+                        <label class="brainstorm-title-label" for="brainstorm-title-input">Board title</label>
+                        <input id="brainstorm-title-input" class="brainstorm-title-input" type="text" placeholder="Auto-generated title" maxlength="80">
+                    </div>
+                </div>
+            </header>
+
+            <div class="brainstorm-board" aria-live="polite">
+                <div class="brainstorm-seed-row">
+                    <form class="brainstorm-seed-form" autocomplete="off">
+                        <label class="brainstorm-seed-label" for="brainstorm-seed-input">Seed concepts</label>
+                        <div class="brainstorm-seed-inputs">
+                            <input id="brainstorm-seed-input" class="brainstorm-seed-input" name="seed" type="text" placeholder="Enter one or more seeds (comma-separated)" maxlength="120" required>
+                            <button class="brainstorm-seed-button" type="submit">Set seed</button>
+                        </div>
+                    </form>
+                    <div class="brainstorm-actions" aria-label="Generate ideas">
+                        <button class="brainstorm-action" data-category="general" type="button" disabled>+ Associate</button>
+                        <button class="brainstorm-action" data-category="story" type="button" disabled>+ Story</button>
+                        <button class="brainstorm-action" data-category="character" type="button" disabled>+ Character</button>
+                        <button class="brainstorm-action" data-category="location" type="button" disabled>+ Location</button>
+                    </div>
+                </div>
+                <div class="brainstorm-status" aria-live="polite"></div>
+                <div class="brainstorm-columns">
+                    <section class="brainstorm-column" data-category="general">
+                        <h3>General</h3>
+                        <div class="brainstorm-column__add">
+                            <input class="brainstorm-column__input" type="text" placeholder="Add idea">
+                            <button class="brainstorm-column__button" type="button">Add</button>
+                        </div>
+                        <div class="brainstorm-column__notes"></div>
+                    </section>
+                    <section class="brainstorm-column" data-category="story">
+                        <h3>Story</h3>
+                        <div class="brainstorm-column__add">
+                            <input class="brainstorm-column__input" type="text" placeholder="Add idea">
+                            <button class="brainstorm-column__button" type="button">Add</button>
+                        </div>
+                        <div class="brainstorm-column__notes"></div>
+                    </section>
+                    <section class="brainstorm-column" data-category="character">
+                        <h3>Character</h3>
+                        <div class="brainstorm-column__add">
+                            <input class="brainstorm-column__input" type="text" placeholder="Add idea">
+                            <button class="brainstorm-column__button" type="button">Add</button>
+                        </div>
+                        <div class="brainstorm-column__notes"></div>
+                    </section>
+                    <section class="brainstorm-column" data-category="location">
+                        <h3>Location</h3>
+                        <div class="brainstorm-column__add">
+                            <input class="brainstorm-column__input" type="text" placeholder="Add idea">
+                            <button class="brainstorm-column__button" type="button">Add</button>
+                        </div>
+                        <div class="brainstorm-column__notes"></div>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="/js/pages/brainstormPage.js"></script>
+</body>
+
+</html>

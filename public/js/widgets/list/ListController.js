@@ -31,6 +31,7 @@ export class ListController {
             return;
         }
         if (type === 'delete') {
+            if (!window.confirm('Delete this item?')) return false;
             await this.model.deleteItem(payload.itemId);
             return;
         }

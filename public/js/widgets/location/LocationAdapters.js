@@ -20,6 +20,6 @@ export const createLocationEditorAdapter = () => createTaggedEditorAdapter({
     labels: {
         title: ITEM_LABELS.LOCATION_ITEM,
         close: 'cancel',
-        save: 'Save'
+        save: 'save'
     }
 });

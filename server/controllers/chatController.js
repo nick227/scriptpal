@@ -1,5 +1,5 @@
 import { ERROR_TYPES, INTENT_TYPES } from './langchain/constants.js';
-import { Chat } from './chat/Chat.js';
+import { ConversationCoordinator } from './chat/orchestrator/ConversationCoordinator.js';
 import chatMessageRepository from '../repositories/chatMessageRepository.js';
 import { verifyScriptOwnership } from '../middleware/scriptOwnership.js';
 import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from './scripts/AppendPageService.js';
@@ -7,9 +7,9 @@ import { generateFullScript, FULL_SCRIPT_GENERATION_MODE } from './scripts/FullS
 import { createIntentResult } from './aiResponse.js';
 import { router } from './langchain/router/index.js';
 import { getPromptById } from '../../shared/promptRegistry.js';
-import { isAppendPageRequest, isNextFiveLinesRequest, isFullScriptRequest } from './chat/intentUtils.js';
-import { buildNextFiveLinesChainConfig } from './chat/chainConfigUtils.js';
-import { buildValidatedChatResponse } from './chat/responseUtils.js';
+import { isAppendPageRequest, isNextFiveLinesRequest, isFullScriptRequest } from './chat/intent/heuristics.js';
+import { buildNextFiveLinesChainConfig } from './chat/chain/config.js';
+import { buildValidatedChatResponse } from './chat/response/validation.js';
 import { loadScriptOrThrow } from './scripts/scriptRequestUtils.js';
 import { buildPromptContext } from './contextBuilder.js';
 
@@ -51,7 +51,7 @@ function handleChatError(error) {
   } else if (error.message?.includes('Script not found')) {
     errorResponse.status = 404;
     errorResponse.body.error = 'Script not found';
-  } else if (error.message?.includes(Chat.CHAT_ERRORS.INVALID_INTENT)) {
+  } else if (error.message?.includes(ConversationCoordinator.CHAT_ERRORS.INVALID_INTENT)) {
     errorResponse.status = 400;
     errorResponse.body.error = 'Invalid intent';
   } else if (
@@ -429,7 +429,7 @@ const chatController = {
 
       // 2. Create and execute chat
       console.log('[ChatController] startChat', { userId: req.userId, scriptId, requestId: req.headers['x-correlation-id'] || null });
-      const chat = new Chat(req.userId, scriptId);
+      const chat = new ConversationCoordinator(req.userId, scriptId);
       const result = await chat.processMessage(req.body.prompt, context);
 
       // 3. Return standardized response

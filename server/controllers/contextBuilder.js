@@ -1,5 +1,5 @@
-import { buildScriptContextPayload } from './chat/scriptContextUtils.js';
-import { filterContextOverrides } from './chat/contextUtils.js';
+import { buildScriptContextPayload } from './chat/context/script.js';
+import { filterContextOverrides } from './chat/context/overrides.js';
 import { getScriptCollections } from './scriptContextCollections.js';
 
 const DEFAULT_PROTECTED_KEYS = [

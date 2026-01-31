@@ -267,6 +267,7 @@ class ScriptPalServer {
     this.app.get('/public/:slug', (req, res) => sendClientFile(res, 'public-script.html'));
     this.app.get('/mine', validateSession, (req, res) => sendClientFile(res, 'index.html'));
     this.app.get('/mine/:slug', validateSession, (req, res) => sendClientFile(res, 'index.html'));
+    this.app.get('/brainstorm', validateSession, (req, res) => sendClientFile(res, 'brainstorm.html'));
 
     // Legacy redirects (querystring -> slug routes)
     this.app.get('/public-script.html', async(req, res) => {

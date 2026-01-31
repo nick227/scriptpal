@@ -1,7 +1,7 @@
 import { ERROR_TYPES } from '../../langchain/constants.js';
 import { aiSystemEventHandler } from '../../langchain/handlers/AISystemEventHandler.js';
 
-export class SaveElementHandler {
+export class SaveElementCommand {
   constructor(scriptId, intentResult) {
     this.scriptId = scriptId;
     this.intentResult = intentResult;

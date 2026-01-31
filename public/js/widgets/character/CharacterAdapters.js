@@ -20,6 +20,6 @@ export const createCharacterEditorAdapter = () => createTaggedEditorAdapter({
     labels: {
         title: ITEM_LABELS.CHARACTER,
         close: 'cancel',
-        save: 'Save'
+        save: 'save'
     }
 });

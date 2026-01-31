@@ -299,6 +299,116 @@ You are a theme ideation assistant.
 - The description should be 2-4 sentences and align with the script.
 - Do not include extra keys or commentary.
 `
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // brainstorm-general
+  createPrompt({
+    id: 'brainstorm-general',
+    label: 'Brainstorm · General',
+    clientCopy: 'Generate word associations for the seed concepts.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/brainstorm/boards/:boardId/ai/general',
+    intent: INTENT_TYPES.BRAINSTORM_GENERAL,
+    userPrompt: `
+BRAINSTORM GENERAL.
+Generate 6-10 concise word associations (target 8) for the seed concepts.
+Return only a JSON array of strings (no extra keys, no commentary).
+`,
+    systemInstruction: `
+You are a brainstorming assistant focused on word association.
+- Use controlled randomness and fresh associations.
+- Keep each note short and readable at default zoom.
+- Return only a JSON array of strings.
+`
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // brainstorm-story
+  createPrompt({
+    id: 'brainstorm-story',
+    label: 'Brainstorm · Story',
+    clientCopy: 'Generate story ideas for the seed concepts.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/brainstorm/boards/:boardId/ai/story',
+    intent: INTENT_TYPES.BRAINSTORM_STORY,
+    userPrompt: `
+BRAINSTORM STORY.
+Generate 1-3 concise story ideas (target 2) for the seed concepts.
+Return only a JSON array of strings (no extra keys, no commentary).
+`,
+    systemInstruction: `
+You are a brainstorming assistant focused on story ideas.
+- Prioritize clarity and distinctness.
+- Keep each note concise and readable.
+- Return only a JSON array of strings.
+`
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // brainstorm-character
+  createPrompt({
+    id: 'brainstorm-character',
+    label: 'Brainstorm · Character',
+    clientCopy: 'Generate character ideas for the seed concepts.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/brainstorm/boards/:boardId/ai/character',
+    intent: INTENT_TYPES.BRAINSTORM_CHARACTER,
+    userPrompt: `
+BRAINSTORM CHARACTER.
+Generate 2-4 concise character ideas (target 3) for the seed concepts.
+Return only a JSON array of strings (no extra keys, no commentary).
+`,
+    systemInstruction: `
+You are a brainstorming assistant focused on character ideas.
+- Prioritize clarity and distinctness.
+- Keep each note concise and readable.
+- Return only a JSON array of strings.
+`
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // brainstorm-location
+  createPrompt({
+    id: 'brainstorm-location',
+    label: 'Brainstorm · Location',
+    clientCopy: 'Generate location ideas for the seed concepts.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/brainstorm/boards/:boardId/ai/location',
+    intent: INTENT_TYPES.BRAINSTORM_LOCATION,
+    userPrompt: `
+BRAINSTORM LOCATION.
+Generate 2-4 concise location ideas (target 3) for the seed concepts.
+Return only a JSON array of strings (no extra keys, no commentary).
+`,
+    systemInstruction: `
+You are a brainstorming assistant focused on location ideas.
+- Prioritize clarity and distinctness.
+- Keep each note concise and readable.
+- Return only a JSON array of strings.
+`
+  }),
+  // ---------------------------------
+  // PROMPT_REGISTRY
+  // brainstorm-title
+  createPrompt({
+    id: 'brainstorm-title',
+    label: 'Brainstorm · Title',
+    clientCopy: 'Generate a concise title for this board.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/brainstorm/boards/:boardId/ai/title',
+    intent: INTENT_TYPES.BRAINSTORM_TITLE,
+    userPrompt: `
+BRAINSTORM TITLE.
+Generate one concise title for the brainstorming board based on the seed concepts.
+Return JSON with a single key: "title".
+`,
+    systemInstruction: `
+You are a brainstorming assistant focused on titles.
+- Return only JSON with "title".
+- Keep the title short and specific.
+- Avoid punctuation-heavy titles.
+`
   })
 ];
 

@@ -12,6 +12,8 @@ import locationController from './controllers/locationController.js';
 import locationIdeaController from './controllers/locationIdeaController.js';
 import themeController from './controllers/themeController.js';
 import themeIdeaController from './controllers/themeIdeaController.js';
+import brainstormBoardController from './controllers/brainstormBoardController.js';
+import brainstormPromptController from './controllers/brainstormPromptController.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import { requireScriptOwnership } from './middleware/scriptOwnership.js';
 import chatController from './controllers/chatController.js';
@@ -199,6 +201,36 @@ const routes = [
     method: 'get',
     handler: scriptController.getScriptStats,
     middleware: [validateSession, requireScriptOwnership()]
+  },
+  {
+    path: '/brainstorm/boards',
+    method: 'get',
+    handler: brainstormBoardController.list,
+    middleware: [validateSession]
+  },
+  {
+    path: '/brainstorm/boards/:id',
+    method: 'get',
+    handler: brainstormBoardController.get,
+    middleware: [validateSession]
+  },
+  {
+    path: '/brainstorm/boards',
+    method: 'post',
+    handler: brainstormBoardController.create,
+    middleware: [validateSession]
+  },
+  {
+    path: '/brainstorm/boards/:id',
+    method: 'put',
+    handler: brainstormBoardController.update,
+    middleware: [validateSession]
+  },
+  {
+    path: '/brainstorm/boards/:id/ai/:category',
+    method: 'post',
+    handler: brainstormPromptController.trigger,
+    middleware: [validateSession]
   },
   // Story Elements routes
   {

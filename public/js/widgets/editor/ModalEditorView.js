@@ -22,11 +22,11 @@ export class ModalEditorView {
             <div class="${classNames.content}">
                 <header class="${classNames.header}">
                     <h3 class="${classNames.title}">${labels.title}</h3>
-                    <button type="button" class="${classNames.close}" data-action="close">${labels.close}</button>
                 </header>
                 <form class="${classNames.form}">
                     ${fields.map(field => this.renderField(field, classNames, labels)).join('')}
                     <div class="${classNames.actions}">
+                        <button type="button" class="${classNames.close}" data-action="close">${labels.close}</button>
                         <button type="submit" class="${classNames.save}">${labels.save}</button>
                     </div>
                 </form>

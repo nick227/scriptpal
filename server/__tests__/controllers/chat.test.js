@@ -21,8 +21,8 @@ jest.mock('../../../controllers/scripts/ScriptManager.js', () => ({
   }
 }));
 
-jest.mock('../../../controllers/chat/ChatHistoryManager.js', () => ({
-  ChatHistoryManager: class {
+jest.mock('../../../controllers/chat/history/HistoryManager.js', () => ({
+  HistoryManager: class {
     constructor () {
       this.getHistory = jest.fn().mockResolvedValue([]);
       this.saveInteraction = jest.fn().mockResolvedValue(true);
@@ -51,7 +51,7 @@ describe('Chat intent response mapping', () => {
 
   beforeEach(async() => {
     jest.clearAllMocks();
-    Chat = (await import('../../../controllers/chat/Chat.js')).Chat;
+    Chat = (await import('../../../controllers/chat/orchestrator/ConversationCoordinator.js')).ConversationCoordinator;
   });
 
   it('maps SCRIPT_CONVERSATION responses to APPEND_SCRIPT intent', async() => {

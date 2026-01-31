@@ -1,6 +1,6 @@
-import chatMessageRepository from '../../repositories/chatMessageRepository.js';
+import chatMessageRepository from '../../../repositories/chatMessageRepository.js';
 
-export class ChatHistoryManager {
+export class HistoryManager {
   constructor(userId, scriptId = null) {
     this.userId = userId;
     this.scriptId = scriptId;
@@ -8,11 +8,11 @@ export class ChatHistoryManager {
 
   _ensureHistoryScope(scriptId, context) {
     if (!this.userId) {
-      console.warn(`[ChatHistoryManager] Cannot ${context} without userId`);
+      console.warn(`[HistoryManager] Cannot ${context} without userId`);
       return false;
     }
     if (!scriptId) {
-      console.warn(`[ChatHistoryManager] Cannot ${context} without scriptId`);
+      console.warn(`[HistoryManager] Cannot ${context} without scriptId`);
       return false;
     }
     return true;
@@ -37,7 +37,7 @@ export class ChatHistoryManager {
         : null;
 
       if (aiUsage?.loggedByBaseChain) {
-        console.log('[ChatHistoryManager] Skipping save; BaseChain already logged usage', {
+        console.log('[HistoryManager] Skipping save; BaseChain already logged usage', {
           userId: this.userId,
           scriptId: targetScriptId
         });
@@ -49,7 +49,7 @@ export class ChatHistoryManager {
       const totalTokens = Number(aiUsage?.totalTokens ?? aiUsage?.total_tokens ?? promptTokens + completionTokens);
       const costUsd = Number(aiUsage?.costUsd ?? aiUsage?.cost_usd ?? 0);
 
-      console.log('[ChatHistoryManager] saveInteraction', {
+      console.log('[HistoryManager] saveInteraction', {
         userId: this.userId,
         scriptId: targetScriptId,
         promptTokens,
@@ -84,7 +84,7 @@ export class ChatHistoryManager {
       if (!this._ensureHistoryScope(targetScriptId, 'fetch history')) {
         return [];
       }
-      console.log('[ChatHistoryManager] fetchHistory', {
+      console.log('[HistoryManager] fetchHistory', {
         userId: this.userId,
         scriptId: targetScriptId,
         limit
@@ -132,7 +132,7 @@ export class ChatHistoryManager {
       if (!this._ensureHistoryScope(scriptId, 'fetch script history')) {
         return [];
       }
-      console.log('[ChatHistoryManager] getScriptHistory', {
+      console.log('[HistoryManager] getScriptHistory', {
         userId: this.userId,
         scriptId
       });
@@ -179,7 +179,7 @@ export class ChatHistoryManager {
       if (!this._ensureHistoryScope(scriptId, 'clear history')) {
         return false;
       }
-      console.log('[ChatHistoryManager] clearScriptHistory', {
+      console.log('[HistoryManager] clearScriptHistory', {
         userId: this.userId,
         scriptId
       });

@@ -1,17 +1,17 @@
-import { ScriptManager } from '../scripts/ScriptManager.js';
-import { ChatHistoryManager } from './ChatHistoryManager.js';
-import { INTENT_TYPES } from '../langchain/constants.js';
-import { APPEND_SCRIPT_INTENT } from '../scripts/AppendPageService.js';
-import { router } from '../langchain/router/index.js';
-import { IntentClassifier } from '../langchain/chains/system/IntentClassifier.js';
-import { buildAiResponse, createIntentResult } from '../aiResponse.js';
-import { filterContextOverrides } from './contextUtils.js';
-import { buildScriptInfo } from './scriptContextUtils.js';
-import { buildScriptContextBundle } from '../contextBuilder.js';
-import { isGeneralConversation, isReflectionRequest } from './intentUtils.js';
-import { buildChatChainConfig } from './chainConfigUtils.js';
+import { ScriptManager } from '../../scripts/ScriptManager.js';
+import { HistoryManager } from '../history/HistoryManager.js';
+import { INTENT_TYPES } from '../../langchain/constants.js';
+import { APPEND_SCRIPT_INTENT } from '../../scripts/AppendPageService.js';
+import { router } from '../../langchain/router/index.js';
+import { IntentClassifier } from '../../langchain/chains/system/IntentClassifier.js';
+import { buildAiResponse, createIntentResult } from '../../aiResponse.js';
+import { filterContextOverrides } from '../context/overrides.js';
+import { buildScriptInfo } from '../context/script.js';
+import { buildScriptContextBundle } from '../../contextBuilder.js';
+import { isGeneralConversation, isReflectionRequest } from '../intent/heuristics.js';
+import { buildChatChainConfig } from '../chain/config.js';
 
-export class Chat {
+export class ConversationCoordinator {
   static CHAT_ERRORS = {
     SCRIPT_NOT_FOUND: 'SCRIPT_NOT_FOUND',
     INVALID_INTENT: 'INVALID_INTENT',
@@ -23,7 +23,7 @@ export class Chat {
     this.userId = userId;
     this.scriptId = scriptId;
     this.scriptManager = new ScriptManager();
-    this.historyManager = new ChatHistoryManager(userId, scriptId);
+    this.historyManager = new HistoryManager(userId, scriptId);
     this.intentClassifier = new IntentClassifier();
   }
 

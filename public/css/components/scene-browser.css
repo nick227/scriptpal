@@ -45,6 +45,10 @@
     background: var(--color-primary-light);
 }
 
+.list-panel-button {
+    min-width: 150px;
+}
+
 .scene-panel-header,
 .list-panel-header {
     display: flex;
@@ -155,7 +159,7 @@
     min-height: 64px;
     justify-content: center;
     cursor: grab;
-    padding: 20px 0 40px 0;
+    padding: 10px;
 }
 
 .scene-grid .scene-tile.is-dragging,
@@ -240,10 +244,10 @@
 .scene-browser-modal__header,
 .list-browser-modal__header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     padding: 12px 16px;
     border-bottom: 1px solid var(--color-border);
+    gap: 10px;
 }
 
 .scene-browser-modal__grid,
@@ -323,7 +327,7 @@
 .list-editor-modal__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.95);
 }
 
 .scene-editor-modal__content,

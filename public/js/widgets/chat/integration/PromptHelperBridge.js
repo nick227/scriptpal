@@ -61,7 +61,6 @@ export class PromptHelperBridge {
         return [
             {
                 id: 'all-prompts',
-                title:'Quick Prompts',
                 helpers: SYSTEM_PROMPTS.map(prompt => ({
                     id: prompt.id,
                     label: prompt.label,

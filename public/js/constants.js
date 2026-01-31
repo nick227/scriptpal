@@ -11,13 +11,15 @@ export const API_ENDPOINTS = {
     CHAT: '/chat',
     SCRIPT: '/script',
     USER: '/user',
-    SYSTEM_PROMPTS: '/system-prompts'
+    SYSTEM_PROMPTS: '/system-prompts',
+    BRAINSTORM_BOARDS: '/brainstorm/boards'
 };
 API_ENDPOINTS.USER_TOKEN_WATCH = '/user/token-watch';
 API_ENDPOINTS.PUBLIC_SCRIPTS = '/public/scripts';
 API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG = '/public/scripts/slug';
 API_ENDPOINTS.SCRIPT_SLUG = '/script/slug';
 API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS = (scriptId) => `/public/scripts/${scriptId}/comments`;
+API_ENDPOINTS.BRAINSTORM_AI = (boardId, category) => `/brainstorm/boards/${boardId}/ai/${category}`;
 
 export const API_HEADERS = {
     'Content-Type': 'application/json'

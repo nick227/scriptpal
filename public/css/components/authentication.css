@@ -35,7 +35,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    padding-bottom: 1rem;
 }
 
 .auth-label {
@@ -52,12 +51,10 @@
     background: var(--input-bg, #ffffff);
     color: var(--text-color, #1a1a1a);
     font-size: 0.875rem;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .auth-input:focus {
     border-color: var(--accent-color, #0066ff);
-    box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.15);
     outline: none;
 }
 
@@ -183,7 +180,6 @@
     background: var(--background-color, #ffffff);
     padding: 1.5rem;
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
 /* Authentication Container */
@@ -193,7 +189,6 @@
     padding: 2rem;
     background: var(--bg-primary, #ffffff);
     border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     border: 1px solid var(--border-color, #e1e5e9);
 }
 
@@ -271,7 +266,6 @@
 
 .form-input:focus {
     border-color: var(--primary-color, #3b82f6);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .form-input:invalid {
@@ -334,7 +328,6 @@
 .auth-button-primary:hover:not(:disabled) {
     background: var(--primary-hover, #2563eb);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .auth-button-secondary {
@@ -356,7 +349,6 @@
 .auth-button-danger:hover:not(:disabled) {
     background: var(--error-hover, #dc2626);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* Button Loading State */
@@ -417,7 +409,6 @@
     justify-content: center;
     color: white;
     font-size: 2rem;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
 }
 
 .profile-info {
@@ -512,7 +503,6 @@
     
     .form-input:focus {
         border-color: var(--primary-color, #3b82f6);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
     }
     
     .form-input::placeholder {
@@ -559,7 +549,6 @@
 /* Focus Management */
 .auth-container:focus-within .form-input:focus {
     border-color: var(--primary-color, #3b82f6);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* Accessibility */

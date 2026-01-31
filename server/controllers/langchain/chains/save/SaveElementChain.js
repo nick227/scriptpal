@@ -2,7 +2,7 @@ import { BaseChain } from '../base/BaseChain.js';
 import { OUTPUT_FORMATS } from '../../constants.js';
 import { ai } from '../../../../lib/ai.js';
 
-import { SaveElementHandler } from '../../../chat/handlers/SaveElementHandler.js';
+import { SaveElementCommand } from '../../../chat/system/SaveElementCommand.js';
 
 export class SaveElementChain extends BaseChain {
   constructor(config = {}) {
@@ -54,7 +54,7 @@ Use the script content below for context and provide the safest target/value pai
       const saveCommand = this.parseSaveCommand(content);
 
       // Create handler instance
-      const handler = new SaveElementHandler(scriptId, saveCommand);
+      const handler = new SaveElementCommand(scriptId, saveCommand);
 
       // Execute the save operation
       const handlerResult = await handler.execute();

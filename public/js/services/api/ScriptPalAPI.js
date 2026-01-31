@@ -506,6 +506,54 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.CHAT}/messages/${scriptId}`, 'DELETE');
     }
 
+    // Brainstorm endpoints
+    async listBrainstormBoards () {
+        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_BOARDS, 'GET');
+    }
+
+    async getBrainstormBoard (boardId) {
+        if (!boardId) {
+            throw new Error('Board ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'GET');
+    }
+
+    async createBrainstormBoard ({ title, seed, notes }) {
+        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_BOARDS, 'POST', {
+            title,
+            seed,
+            notes
+        });
+    }
+
+    async updateBrainstormBoard (boardId, { title, seed, notes }) {
+        if (!boardId) {
+            throw new Error('Board ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'PUT', {
+            title,
+            seed,
+            notes
+        });
+    }
+
+    async requestBrainstormNotes (boardId, category) {
+        if (!boardId) {
+            throw new Error('Board ID is required');
+        }
+        if (!category) {
+            throw new Error('Category is required');
+        }
+        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_AI(boardId, category), 'POST', {});
+    }
+
+    async requestBrainstormTitle (boardId) {
+        if (!boardId) {
+            throw new Error('Board ID is required');
+        }
+        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_AI(boardId, 'title'), 'POST', {});
+    }
+
     // Script endpoints
     /**
      *

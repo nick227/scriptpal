@@ -34,6 +34,13 @@ enum ElementSource {
   system
 }
 
+enum BrainstormCategory {
+  general
+  story
+  character
+  location
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
@@ -46,6 +53,7 @@ model User {
   personas       Persona[]
   chatMessages   ChatMessage[]
   scriptComments ScriptComment[]
+  brainstormBoards BrainstormBoard[]
 
   @@map("users")
 }
@@ -266,4 +274,32 @@ model ScriptComment {
   @@index([scriptId])
   @@index([scriptId, isDeleted])
   @@map("script_comments")
+}
+
+model BrainstormBoard {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String   @default("Untitled Board")
+  seed      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User             @relation(fields: [userId], references: [id])
+  notes BrainstormNote[]
+
+  @@index([userId])
+  @@map("brainstorm_boards")
+}
+
+model BrainstormNote {
+  id        Int                @id @default(autoincrement())
+  boardId   Int
+  category  BrainstormCategory
+  content   String
+  createdAt DateTime           @default(now())
+
+  board BrainstormBoard @relation(fields: [boardId], references: [id])
+
+  @@index([boardId])
+  @@map("brainstorm_notes")
 }
