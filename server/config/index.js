@@ -52,6 +52,18 @@ const configSchema = Joi.object({
   OPENAI_TEMPERATURE: Joi.number().min(0).max(2).default(0.7),
   OPENAI_TIMEOUT: Joi.number().min(1000).default(90000),
   OPENAI_MAX_RETRIES: Joi.number().min(0).max(5).default(3),
+  AI_PROVIDER: Joi.string().valid('openai', 'anthropic').default('openai'),
+  ANTHROPIC_API_KEY: Joi.string().when('AI_PROVIDER', {
+    is: 'anthropic',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }),
+  ANTHROPIC_MODEL: Joi.string().default('claude-3-haiku-20240307'),
+  ANTHROPIC_MAX_TOKENS: Joi.number().min(1).max(4000).default(1000),
+  ANTHROPIC_TEMPERATURE: Joi.number().min(0).max(2).default(0.7),
+  ANTHROPIC_TIMEOUT: Joi.number().min(1000).default(90000),
+  ANTHROPIC_MAX_RETRIES: Joi.number().min(0).max(5).default(3),
+  AI_PRICING_JSON: Joi.string().optional(),
 
   // Logging configuration
   LOG_LEVEL: Joi.string().valid('fatal', 'error', 'warn', 'info', 'debug', 'trace').default('info'),
@@ -80,6 +92,30 @@ function parseCorsOrigins(origins) {
     return '*';
   }
   return origins.split(',').map(origin => origin.trim());
+}
+
+const DEFAULT_AI_PRICING = {
+  openai: {
+    'gpt-3.5-turbo': {
+      prompt: 0.0015,
+      completion: 0.002
+    }
+  }
+};
+
+function parsePricingMap(value) {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Pricing map must be an object');
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(`Invalid AI_PRICING_JSON: ${error.message}`);
+  }
 }
 
 /**
@@ -222,13 +258,29 @@ class Config {
      * @returns {Object} - AI configuration
      */
   getAIConfig() {
+    const pricingOverride = parsePricingMap(this.get('AI_PRICING_JSON'));
+    const pricing = pricingOverride || DEFAULT_AI_PRICING;
     return {
-      apiKey: this.get('OPENAI_API_KEY'),
-      model: this.get('OPENAI_MODEL'),
-      maxTokens: this.get('OPENAI_MAX_TOKENS'),
-      temperature: this.get('OPENAI_TEMPERATURE'),
-      timeout: this.get('OPENAI_TIMEOUT'),
-      maxRetries: this.get('OPENAI_MAX_RETRIES')
+      provider: this.get('AI_PROVIDER'),
+      pricing,
+      providers: {
+        openai: {
+          apiKey: this.get('OPENAI_API_KEY'),
+          model: this.get('OPENAI_MODEL'),
+          maxTokens: this.get('OPENAI_MAX_TOKENS'),
+          temperature: this.get('OPENAI_TEMPERATURE'),
+          timeout: this.get('OPENAI_TIMEOUT'),
+          maxRetries: this.get('OPENAI_MAX_RETRIES')
+        },
+        anthropic: {
+          apiKey: this.get('ANTHROPIC_API_KEY'),
+          model: this.get('ANTHROPIC_MODEL'),
+          maxTokens: this.get('ANTHROPIC_MAX_TOKENS'),
+          temperature: this.get('ANTHROPIC_TEMPERATURE'),
+          timeout: this.get('ANTHROPIC_TIMEOUT'),
+          maxRetries: this.get('ANTHROPIC_MAX_RETRIES')
+        }
+      }
     };
   }
 

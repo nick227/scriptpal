@@ -19,7 +19,7 @@ const SERVICE_HELPERS = PROMPT_REGISTRY
     }));
 
 export class PromptHelperBridge {
-    constructor ({ api, chatManager, eventManager, stateManager, helperContainer }) {
+    constructor({ api, chatManager, eventManager, stateManager, helperContainer }) {
         if (!api) throw new Error('API instance is required for PromptHelperBridge');
         if (!eventManager) throw new Error('EventManager instance is required for PromptHelperBridge');
         this.api = api;
@@ -32,7 +32,7 @@ export class PromptHelperBridge {
         this.subscriptions = [];
     }
 
-    initialize () {
+    initialize() {
         if (!this.helperContainer) {
             console.warn('[PromptHelperBridge] Helper container missing');
             return;
@@ -57,21 +57,31 @@ export class PromptHelperBridge {
         this.subscribe(EventManager.EVENTS.SYSTEM_PROMPT.FAILED, this.handlePromptFailed.bind(this));
     }
 
-    buildSections () {
+    buildSections() {
+        const helpers = [
+            ...SYSTEM_PROMPTS.map(prompt => ({
+                id: prompt.id,
+                label: prompt.label,
+                description: prompt.clientCopy,
+                type: 'system'
+            })),
+            ...SERVICE_HELPERS,
+            ...ROUTE_HELPERS
+        ];
+
+        const uniqueHelpers = Array.from(
+            new Map(helpers.map(h => [h.label, h])).values()
+        );
+
         return [
             {
                 id: 'all-prompts',
-                helpers: SYSTEM_PROMPTS.map(prompt => ({
-                    id: prompt.id,
-                    label: prompt.label,
-                    description: prompt.clientCopy,
-                    type: 'system'
-                })).concat(SERVICE_HELPERS).concat(ROUTE_HELPERS)
+                helpers: uniqueHelpers
             }
         ];
     }
 
-    handleHelperClick (sectionId, helper) {
+    handleHelperClick(sectionId, helper) {
         if (!helper) {
             return;
         }
@@ -84,14 +94,14 @@ export class PromptHelperBridge {
         this.sendManualRoutePrompt(helper);
     }
 
-    fireSystemPrompt (promptId) {
+    fireSystemPrompt(promptId) {
         const script = this.stateManager?.getState?.(STATE_KEYS.CURRENT_SCRIPT) || null;
         const scriptId = script ? script.id : null;
         this.orchestrator?.firePrompt(promptId, scriptId, { manual: true })
             .catch(error => console.error('[PromptHelperBridge] System prompt failed:', error));
     }
 
-    sendManualRoutePrompt (helper) {
+    sendManualRoutePrompt(helper) {
         if (!this.chatManager) {
             console.warn('[PromptHelperBridge] ChatManager missing for manual prompt');
             return;
@@ -105,7 +115,7 @@ export class PromptHelperBridge {
         this.chatManager.handleSend(text);
     }
 
-    normalizePrompt (value) {
+    normalizePrompt(value) {
         if (!value || typeof value !== 'string') {
             return '';
         }
@@ -117,29 +127,29 @@ export class PromptHelperBridge {
             .join(' ');
     }
 
-    subscribe (event, handler) {
+    subscribe(event, handler) {
         const unsub = this.eventManager.subscribe(event, handler);
         if (typeof unsub === 'function') {
             this.subscriptions.push(unsub);
         }
     }
 
-    handlePromptReady () {
+    handlePromptReady() {
         this.ui?.showSpinner();
         this.ui?.updateIndicator('✓');
     }
 
-    handlePromptFired () {
+    handlePromptFired() {
         this.ui?.hideSpinner();
         this.ui?.updateIndicator('-');
     }
 
-    handlePromptFailed () {
+    handlePromptFailed() {
         this.ui?.hideSpinner();
         this.ui?.updateIndicator('E');
     }
 
-    destroy () {
+    destroy() {
         if (this.orchestrator) {
             this.orchestrator.destroy();
             this.orchestrator = null;

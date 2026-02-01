@@ -5,6 +5,51 @@
 
 import { jest } from '@jest/globals';
 
+jest.mock('../../db/prismaClient.js', () => ({
+  __esModule: true,
+  default: {
+    $connect: jest.fn(),
+    $disconnect: jest.fn(),
+    $executeRaw: jest.fn(),
+    $queryRaw: jest.fn(),
+    $transaction: jest.fn(),
+    chatMessage: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn()
+    },
+    scene: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    character: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    location: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    theme: {
+      findMany: jest.fn().mockResolvedValue([])
+    },
+    script: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn()
+    },
+    user: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn()
+    },
+    session: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      deleteMany: jest.fn()
+    }
+  }
+}));
+
 // Mock environment variables
 process.env.NODE_ENV = 'test';
 process.env.PORT = '3001';

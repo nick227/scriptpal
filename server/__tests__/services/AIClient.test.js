@@ -20,12 +20,33 @@ jest.mock('openai', () => ({
 }));
 
 const aiConfigFixture = {
-  apiKey: 'test-api-key',
-  model: 'gpt-3.5-turbo',
-  maxTokens: 1000,
-  temperature: 0.7,
-  timeout: 30000,
-  maxRetries: 3
+  provider: 'openai',
+  pricing: {
+    openai: {
+      'gpt-3.5-turbo': {
+        prompt: 0.0015,
+        completion: 0.002
+      }
+    }
+  },
+  providers: {
+    openai: {
+      apiKey: 'test-api-key',
+      model: 'gpt-3.5-turbo',
+      maxTokens: 1000,
+      temperature: 0.7,
+      timeout: 30000,
+      maxRetries: 3
+    },
+    anthropic: {
+      apiKey: 'anthropic-key',
+      model: 'claude-3-haiku-20240307',
+      maxTokens: 1000,
+      temperature: 0.7,
+      timeout: 30000,
+      maxRetries: 3
+    }
+  }
 };
 
 jest.mock('../../config/index.js', () => ({
@@ -96,7 +117,8 @@ describe('AIClient', () => {
         totalTokens: 0,
         totalCost: 0,
         averageResponseTime: 0,
-        lastRequestTime: null
+        lastRequestTime: null,
+        lastFailureAttempts: 0
       });
     });
   });
@@ -105,18 +127,18 @@ describe('AIClient', () => {
     it('should return true when AI service is healthy', async() => {
       const client = new AIClient();
       const mockResponse = { data: ['model1', 'model2'] };
-      client.client.models.list.mockResolvedValue(mockResponse);
+      client.provider.client.models.list.mockResolvedValue(mockResponse);
 
       const result = await client.healthCheck();
 
       expect(result).toBe(true);
-      expect(client.client.models.list).toHaveBeenCalled();
+      expect(client.provider.client.models.list).toHaveBeenCalled();
     });
 
     it('should return false when AI service is unhealthy', async() => {
       const client = new AIClient();
       const error = new Error('API connection failed');
-      client.client.models.list.mockRejectedValue(error);
+      client.provider.client.models.list.mockRejectedValue(error);
 
       const result = await client.healthCheck();
 
@@ -126,7 +148,7 @@ describe('AIClient', () => {
     it('should return false when response data is invalid', async() => {
       const client = new AIClient();
       const mockResponse = { data: null };
-      client.client.models.list.mockResolvedValue(mockResponse);
+      client.provider.client.models.list.mockResolvedValue(mockResponse);
 
       const result = await client.healthCheck();
 
@@ -149,7 +171,7 @@ describe('AIClient', () => {
           completion_tokens: 40
         }
       };
-      client.client.chat.completions.create.mockResolvedValue(mockResponse);
+      client.provider.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.generateCompletion({
         messages: [{ role: 'user', content: 'Test prompt' }]
@@ -165,7 +187,7 @@ describe('AIClient', () => {
     it('should handle completion errors', async() => {
       const client = new AIClient();
       const error = new Error('API error');
-      client.client.chat.completions.create.mockRejectedValue(error);
+      client.provider.client.chat.completions.create.mockRejectedValue(error);
 
       const result = await client.generateCompletion({
         messages: [{ role: 'user', content: 'Test prompt' }]
@@ -181,9 +203,13 @@ describe('AIClient', () => {
       const client = new AIClient();
       const mockResponse = {
         choices: [],
-        usage: { total_tokens: 0 }
+        usage: {
+          total_tokens: 0,
+          prompt_tokens: 0,
+          completion_tokens: 0
+        }
       };
-      client.client.chat.completions.create.mockResolvedValue(mockResponse);
+      client.provider.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.generateCompletion({
         messages: [{ role: 'user', content: 'Test prompt' }]
@@ -212,7 +238,7 @@ describe('AIClient', () => {
           completion_tokens: 60
         }
       };
-      client.client.chat.completions.create.mockResolvedValue(mockResponse);
+      client.provider.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.analyzeScript('Script content');
 
@@ -234,7 +260,7 @@ describe('AIClient', () => {
           completion_tokens: 20
         }
       };
-      client.client.chat.completions.create.mockResolvedValue(mockResponse);
+      client.provider.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.analyzeScript('Script content');
 
@@ -261,7 +287,7 @@ describe('AIClient', () => {
           completion_tokens: 80
         }
       };
-      client.client.chat.completions.create.mockResolvedValue(mockResponse);
+      client.provider.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.generateSuggestions('Script content', 'dialogue');
 
@@ -290,7 +316,7 @@ describe('AIClient', () => {
           completion_tokens: 70
         }
       };
-      client.client.chat.completions.create.mockResolvedValue(mockResponse);
+      client.provider.client.chat.completions.create.mockResolvedValue(mockResponse);
 
       const result = await client.generateEdits('Script content', 'Improve dialogue');
 

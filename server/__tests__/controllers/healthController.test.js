@@ -17,8 +17,7 @@ describe('HealthController', () => {
 
   it('should be importable', () => {
     expect(() => {
-      // eslint-disable-next-line no-unused-vars
-      const healthController = require('../../controllers/healthController.js');
+      require('../../controllers/healthController.js');
     }).not.toThrow();
   });
 

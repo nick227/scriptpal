@@ -151,7 +151,6 @@ const scriptModel = {
           take: 1,
           select: {
             versionNumber: true,
-            content: true,
             createdAt: true
           }
         }
@@ -162,20 +161,25 @@ const scriptModel = {
   },
   getScriptProfile: async(id) => {
     console.log('getScriptProfile');
-    const script = await scriptModel.getScript(id);
+    const scriptId = Number(id);
+    const [
+      script,
+      elements,
+      personas,
+      scenes,
+      characters,
+      locations,
+      themes
+    ] = await Promise.all([
+      scriptModel.getScript(scriptId),
+      prisma.scriptElement.findMany({ where: { scriptId } }),
+      prisma.persona.findMany({ where: { scriptId } }),
+      listScriptItems(prisma.scene, scriptId),
+      listScriptItems(prisma.character, scriptId),
+      listScriptItems(prisma.location, scriptId),
+      listScriptItems(prisma.theme, scriptId)
+    ]);
     if (!script) return null;
-
-    // Get additional profile data
-    const elements = await prisma.scriptElement.findMany({
-      where: { scriptId: Number(id) }
-    });
-    const personas = await prisma.persona.findMany({
-      where: { scriptId: Number(id) }
-    });
-    const scenes = await listScriptItems(prisma.scene, Number(id));
-    const characters = await listScriptItems(prisma.character, Number(id));
-    const locations = await listScriptItems(prisma.location, Number(id));
-    const themes = await listScriptItems(prisma.theme, Number(id));
 
     return {
       ...script,
@@ -230,6 +234,11 @@ const scriptModel = {
     const scripts = (result.scripts || []).map((script) => {
       const version = Array.isArray(script.versions) ? script.versions[0] : null;
       return toScriptWithVersion(script, version);
+    });
+    const scriptIds = scripts.map((script) => script.id);
+    const commentCounts = await scriptCommentRepository.countByScripts(scriptIds);
+    scripts.forEach((script) => {
+      script.commentCount = commentCounts[script.id] || 0;
     });
     return {
       scripts,

@@ -7,7 +7,7 @@ import { ChapterManager } from './chapters/ChapterManager.js';
 import { EDITOR_EVENTS } from './constants.js';
 // ContentManager functionality now consolidated into EditorContent.js
 import { ScriptContextManager } from './context/ScriptContextManager.js';
-import { EditorContent } from './EditorContent.js';
+import { EditorCoordinator } from './EditorCoordinator.js';
 import { EditorToolbar } from './EditorToolbar.js';
 import { EditorDOMHandler } from './handlers/EditorDOMHandler.js';
 import { EditorHistory } from './history/EditorHistory.js';
@@ -158,7 +158,7 @@ export class EditorWidget {
                         throw new Error('Required dependencies not available for content');
                     }
 
-                    const content = new EditorContent({
+                    const content = new EditorCoordinator({
                         container: this.container,
                         stateManager: stateManager,
                         pageManager: pageManager,

@@ -27,8 +27,7 @@ describe('Logger', () => {
 
   it('should be importable', () => {
     expect(() => {
-      // eslint-disable-next-line no-unused-vars
-      const logger = require('../../utils/logger.js');
+      require('../../utils/logger.js');
     }).not.toThrow();
   });
 

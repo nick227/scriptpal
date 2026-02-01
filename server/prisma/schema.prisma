@@ -68,6 +68,7 @@ model Session {
   user User @relation(fields: [userId], references: [id])
 
   @@map("sessions")
+  @@index([expiresAt])
 }
 
 model Script {
@@ -110,6 +111,7 @@ model ScriptVersion {
   script Script @relation(fields: [scriptId], references: [id])
 
   @@unique([scriptId, versionNumber])
+  @@index([scriptId, versionNumber])
   @@map("script_versions")
 }
 
@@ -157,6 +159,10 @@ model ChatMessage {
   script Script? @relation(fields: [scriptId], references: [id])
 
   @@map("chat_messages")
+  @@index([userId])
+  @@index([scriptId])
+  @@index([createdAt])
+  @@index([userId, scriptId])
 }
 
 model Persona {

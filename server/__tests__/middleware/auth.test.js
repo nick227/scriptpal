@@ -17,8 +17,7 @@ describe('Auth Middleware', () => {
 
   it('should be importable', () => {
     expect(() => {
-      // eslint-disable-next-line no-unused-vars
-      const authMiddleware = require('../../middleware/auth.js');
+      require('../../middleware/auth.js');
     }).not.toThrow();
   });
 

@@ -1,0 +1,7 @@
+.mini-chat-widget {
+    background-color: aquamarine;
+    width: 50%;
+    min-height: calc(100vh - var(--top-bar-height));
+    content: "";
+    margin-top: var(--top-bar-height);
+}

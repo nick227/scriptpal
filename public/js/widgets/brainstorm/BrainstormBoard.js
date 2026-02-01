@@ -6,7 +6,7 @@ import { BrainstormDom } from './BrainstormDom.js';
 import { buildId } from './brainstormUtils.js';
 
 export class BrainstormBoard {
-    constructor ({ api, rootSelector = '.brainstorm-page' } = {}) {
+    constructor ({ api, rootSelector = '.brainstorm-widget' } = {}) {
         if (!api) {
             throw new Error('Brainstorm API is required');
         }
@@ -22,11 +22,21 @@ export class BrainstormBoard {
         this.saveTimer = null;
         this.userEditedTitle = false;
         this.titleRequestInFlight = false;
+        this.seedSavedText = '';
+        this.titleAutoSuggestionUsed = false;
     }
 
     async initialize () {
         this.dom.bindSeedSubmit((seedValue) => {
             this.setSeed(seedValue);
+        });
+        this.dom.bindSeedInputChange((value) => {
+            this.handleSeedInputChange(value);
+        });
+        this.dom.setSeedButtonEnabled(false);
+        this.updateBoardActionButtons();
+        this.dom.bindDeleteBoard(() => {
+            this.handleDeleteBoard();
         });
         this.dom.bindActionClicks((categoryKey) => {
             this.handleGenerate(categoryKey);
@@ -63,13 +73,34 @@ export class BrainstormBoard {
         this.clearNotes();
         this.dom.clearStatusMessage();
         this.boardId = null;
-        await this.saveBoard();
-        await this.generateTitleIfNeeded();
+        const saved = await this.saveBoard();
+        if (saved) {
+            this.seedSavedText = this.seedText;
+            this.dom.setSeedButtonEnabled(false);
+            this.updateBoardActionButtons();
+            if (!this.titleAutoSuggestionUsed && !this.title) {
+                await this.generateTitleIfNeeded();
+            }
+        }
+    }
+
+    handleSeedInputChange (value) {
+        const normalized = this.normalizeSeedInput(value);
+        const hasValue = normalized.length > 0;
+        const isDifferent = normalized !== this.seedSavedText;
+        this.dom.setSeedButtonEnabled(hasValue && isDifferent);
     }
 
     clearNotes () {
         this.notes = [];
         this.dom.clearNotes();
+    }
+
+    updateBoardActionButtons () {
+        const hasBoardId = !!this.boardId;
+        const canDelete = hasBoardId && this.boards.length > 1;
+        this.dom.setNewBoardEnabled(hasBoardId);
+        this.dom.setDeleteBoardEnabled(canDelete);
     }
 
     async handleGenerate (categoryKey) {
@@ -109,12 +140,48 @@ export class BrainstormBoard {
             return;
         }
         this.dom.clearStatusMessage();
-        await this.loadBoardById(parsed);
+        const loaded = await this.loadBoardById(parsed);
+        if (!loaded) {
+            this.resetBoardState();
+        }
     }
 
     handleNewBoard () {
         this.dom.setBoardOptions(this.boards, '');
         this.resetBoardState();
+    }
+
+    async handleDeleteBoard () {
+        if (!this.boardId) {
+            return;
+        }
+        const confirmed = window.confirm('Delete this board? This action cannot be undone.');
+        if (!confirmed) {
+            return;
+        }
+        const boardId = this.boardId;
+        this.dom.setDeleteBoardEnabled(false);
+        try {
+            await this.api.deleteBrainstormBoard(boardId);
+            this.boards = this.boards.filter((entry) => entry.id !== boardId);
+            if (this.boards.length) {
+                const nextBoard = this.boards[0];
+                this.dom.setBoardOptions(this.boards, nextBoard.id);
+                const loaded = await this.loadBoardById(nextBoard.id);
+                if (!loaded) {
+                    this.resetBoardState();
+                }
+            } else {
+                this.dom.setBoardOptions([], '');
+                this.resetBoardState();
+                this.dom.showStatusMessage('Board deleted. Create a new one or pick another board.');
+            }
+        } catch (error) {
+            console.error('[BrainstormBoard] Failed to delete board:', error);
+            this.dom.showStatusMessage('Unable to delete board.');
+        } finally {
+            this.updateBoardActionButtons();
+        }
     }
 
     async handleTitleChange (title) {
@@ -251,6 +318,10 @@ export class BrainstormBoard {
             .filter(Boolean);
     }
 
+    normalizeSeedInput (value) {
+        return this.formatSeeds(this.parseSeeds(value));
+    }
+
     formatSeeds (seeds) {
         if (!Array.isArray(seeds) || !seeds.length) {
             return '';
@@ -259,7 +330,7 @@ export class BrainstormBoard {
     }
 
     async generateTitleIfNeeded () {
-        if (this.userEditedTitle || this.titleRequestInFlight || !this.boardId) {
+        if (this.userEditedTitle || this.titleRequestInFlight || !this.boardId || this.titleAutoSuggestionUsed) {
             return;
         }
         this.titleRequestInFlight = true;
@@ -275,6 +346,7 @@ export class BrainstormBoard {
             console.error('[BrainstormBoard] Failed to generate title:', error);
         } finally {
             this.titleRequestInFlight = false;
+            this.titleAutoSuggestionUsed = true;
         }
     }
 
@@ -298,9 +370,10 @@ export class BrainstormBoard {
     async loadBoardById (boardId) {
         const board = await this.api.getBrainstormBoard(boardId);
         if (!board) {
-            return;
+            return false;
         }
         this.applyBoard(board);
+        return true;
     }
 
     resetBoardState () {
@@ -315,6 +388,10 @@ export class BrainstormBoard {
         this.dom.setActionsEnabled(false);
         this.dom.clearNotes();
         this.dom.clearStatusMessage();
+        this.seedSavedText = '';
+        this.dom.setSeedButtonEnabled(false);
+        this.titleAutoSuggestionUsed = false;
+        this.updateBoardActionButtons();
     }
 
     applyBoard (board) {
@@ -325,10 +402,14 @@ export class BrainstormBoard {
         this.boardId = board.id;
         this.userEditedTitle = true;
         this.dom.setSeedInputValue(this.seedText);
+        this.seedSavedText = this.seedText;
         this.dom.setBoardTitle(this.title);
+        this.titleAutoSuggestionUsed = !!this.title;
         this.dom.setActionsEnabled(this.seeds.length > 0);
         this.clearNotes();
         this.dom.clearStatusMessage();
+        this.dom.setSeedButtonEnabled(false);
+        this.updateBoardActionButtons();
 
         if (!Array.isArray(board.notes)) {
             return;
@@ -347,7 +428,7 @@ export class BrainstormBoard {
 
     async saveBoard () {
         if (this.isHydrating) {
-            return;
+            return false;
         }
         const payload = {
             title: this.title,
@@ -363,23 +444,26 @@ export class BrainstormBoard {
                 if (updated) {
                     this.boardId = updated.id;
                     this.syncBoardList(updated);
+                    return true;
                 }
             } catch (error) {
                 console.error('[BrainstormBoard] Failed to update board:', error);
                 this.dom.showStatusMessage('Unable to save board.');
             }
-            return;
+            return false;
         }
         try {
             const created = await this.api.createBrainstormBoard(payload);
             if (created) {
                 this.boardId = created.id;
                 this.syncBoardList(created);
+                return true;
             }
         } catch (error) {
             console.error('[BrainstormBoard] Failed to create board:', error);
             this.dom.showStatusMessage('Unable to save board.');
         }
+        return false;
     }
 
     syncBoardList (board) {
@@ -389,6 +473,7 @@ export class BrainstormBoard {
         const filtered = this.boards.filter((entry) => entry.id !== board.id);
         this.boards = [board, ...filtered];
         this.dom.setBoardOptions(this.boards, board.id);
+        this.updateBoardActionButtons();
     }
 
     queueSave (delay = 0) {

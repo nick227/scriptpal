@@ -416,8 +416,12 @@ export class ScriptOrchestrator {
             // Determine format based on content
             const format = this.determineContentFormat(data.content);
 
-            // Prepend the content
-            const result = await editorContent.prependContent(data.content, format);
+            const command = {
+                command: 'ADD',
+                lineNumber: 0,
+                value: `<${format}>${data.content}</${format}>`
+            };
+            const result = await editorContent.applyCommands([command], { source: 'script_prepend' });
 
             if (result.success) {
 
@@ -425,7 +429,7 @@ export class ScriptOrchestrator {
                 this.eventManager.publish(EventManager.EVENTS.SCRIPT.PREPENDED, {
                     content: data.content,
                     format: format,
-                    element: result.element
+                    element: null
                 });
 
                 return true;
@@ -462,8 +466,12 @@ export class ScriptOrchestrator {
             // Determine format based on content
             const format = this.determineContentFormat(data.content);
 
-            // Insert the content
-            const result = await editorContent.insertContentAt(data.content, data.position, format);
+            const command = {
+                command: 'ADD',
+                lineNumber: data.position,
+                value: `<${format}>${data.content}</${format}>`
+            };
+            const result = await editorContent.applyCommands([command], { source: 'script_insert' });
 
             if (result.success) {
 
@@ -472,7 +480,7 @@ export class ScriptOrchestrator {
                     content: data.content,
                     format: format,
                     position: data.position,
-                    element: result.element
+                    element: null
                 });
 
                 return true;

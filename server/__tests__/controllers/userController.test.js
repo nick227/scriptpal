@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
 // Mock the user model
-jest.mock('../../../models/user.js', () => ({
+jest.mock('../../models/user.js', () => ({
   getUser: jest.fn(),
   createUser: jest.fn(),
   updateUser: jest.fn(),
@@ -13,6 +13,10 @@ jest.mock('../../../models/user.js', () => ({
   login: jest.fn(),
   logout: jest.fn(),
   validateSession: jest.fn()
+}));
+
+jest.mock('../../models/script.js', () => ({
+  createScript: jest.fn()
 }));
 
 describe('UserController', () => {
@@ -27,8 +31,9 @@ describe('UserController', () => {
     jest.clearAllMocks();
 
     // Import the controller after mocking
-    userModel = await import('../../../models/user.js');
-    userController = await import('../../../controllers/userController.js');
+    userModel = await import('../../models/user.js');
+    userController = await import('../../controllers/userController.js');
+    await import('../../models/script.js');
 
     // Setup mock request/response
     mockRequest = global.testUtils.mockRequest();
@@ -80,30 +85,34 @@ describe('UserController', () => {
     it('should create user with valid email', async() => {
       const mockUser = global.testUtils.createTestUser();
       userModel.createUser.mockResolvedValue(mockUser);
-      mockRequest.body = { email: 'test@example.com' };
+      mockRequest.body = { email: 'test@example.com', password: 'secret' };
 
       await userController.default.createUser(mockRequest, mockResponse);
 
-      expect(userModel.createUser).toHaveBeenCalledWith({ email: 'test@example.com' });
+      expect(userModel.createUser).toHaveBeenCalledWith({ email: 'test@example.com', password: 'secret' });
       expect(mockResponse.status).toHaveBeenCalledWith(201);
-      expect(mockResponse.json).toHaveBeenCalledWith(mockUser);
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
+        id: mockUser.id,
+        username: mockUser.username,
+        email: mockUser.email
+      }));
     });
 
     it('should return 400 when email is missing', async() => {
-      mockRequest.body = {};
+      mockRequest.body = { password: 'secret' };
 
       await userController.default.createUser(mockRequest, mockResponse);
 
       expect(userModel.createUser).not.toHaveBeenCalled();
       expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Email is required' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Email and password are required' });
     });
 
     it('should return 409 when email already exists', async() => {
       const error = new Error('Duplicate entry');
       error.code = 'ER_DUP_ENTRY';
       userModel.createUser.mockRejectedValue(error);
-      mockRequest.body = { email: 'existing@example.com' };
+      mockRequest.body = { email: 'existing@example.com', password: 'secret' };
 
       await userController.default.createUser(mockRequest, mockResponse);
 
@@ -114,12 +123,14 @@ describe('UserController', () => {
     it('should return 500 on other database errors', async() => {
       const error = new Error('Database error');
       userModel.createUser.mockRejectedValue(error);
-      mockRequest.body = { email: 'test@example.com' };
+      mockRequest.body = { email: 'test@example.com', password: 'secret' };
 
       await userController.default.createUser(mockRequest, mockResponse);
 
       expect(mockResponse.status).toHaveBeenCalledWith(500);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+      expect(mockResponse.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: 'Database error'
+      }));
     });
   });
 
@@ -164,11 +175,11 @@ describe('UserController', () => {
       const mockUser = global.testUtils.createTestUser();
       mockUser.sessionToken = 'mock-session-token';
       userModel.login.mockResolvedValue(mockUser);
-      mockRequest.body = { email: 'test@example.com' };
+      mockRequest.body = { email: 'test@example.com', password: 'secret' };
 
       await userController.default.login(mockRequest, mockResponse);
 
-      expect(userModel.login).toHaveBeenCalledWith('test@example.com');
+      expect(userModel.login).toHaveBeenCalledWith('test@example.com', 'secret');
       expect(mockResponse.cookie).toHaveBeenCalledWith('sessionToken', 'mock-session-token', {
         httpOnly: true,
         secure: false,
@@ -184,18 +195,18 @@ describe('UserController', () => {
     });
 
     it('should return 400 when email is missing', async() => {
-      mockRequest.body = {};
+      mockRequest.body = { password: 'secret' };
 
       await userController.default.login(mockRequest, mockResponse);
 
       expect(userModel.login).not.toHaveBeenCalled();
       expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Email is required' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Email and password are required' });
     });
 
     it('should return 401 when credentials are invalid', async() => {
       userModel.login.mockResolvedValue(null);
-      mockRequest.body = { email: 'invalid@example.com' };
+      mockRequest.body = { email: 'invalid@example.com', password: 'secret' };
 
       await userController.default.login(mockRequest, mockResponse);
 
@@ -212,7 +223,10 @@ describe('UserController', () => {
       await userController.default.logout(mockRequest, mockResponse);
 
       expect(userModel.logout).toHaveBeenCalledWith('valid-session-token');
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('sessionToken');
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('sessionToken', expect.objectContaining({
+        httpOnly: true,
+        path: '/'
+      }));
       expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Logged out successfully' });
     });
 

@@ -3,10 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { INTENT_TYPES } from '../../../controllers/langchain/constants.js';
-import { APPEND_SCRIPT_INTENT } from '../../../controllers/scripts/AppendPageService.js';
+import { INTENT_TYPES } from '../../controllers/langchain/constants.js';
+import { APPEND_SCRIPT_INTENT } from '../../controllers/scripts/AppendPageService.js';
 
-jest.mock('../../../controllers/scripts/ScriptManager.js', () => ({
+jest.mock('../../controllers/scripts/ScriptManager.js', () => ({
   ScriptManager: class {
     constructor () {
       this.getScript = jest.fn().mockResolvedValue({
@@ -21,7 +21,7 @@ jest.mock('../../../controllers/scripts/ScriptManager.js', () => ({
   }
 }));
 
-jest.mock('../../../controllers/chat/history/HistoryManager.js', () => ({
+jest.mock('../../controllers/chat/history/HistoryManager.js', () => ({
   HistoryManager: class {
     constructor () {
       this.getHistory = jest.fn().mockResolvedValue([]);
@@ -31,7 +31,7 @@ jest.mock('../../../controllers/chat/history/HistoryManager.js', () => ({
 }));
 
 const mockClassify = jest.fn();
-jest.mock('../../../controllers/langchain/chains/system/IntentClassifier.js', () => ({
+jest.mock('../../controllers/langchain/chains/system/IntentClassifier.js', () => ({
   IntentClassifier: class {
     constructor () {
       this.classify = mockClassify;
@@ -40,7 +40,7 @@ jest.mock('../../../controllers/langchain/chains/system/IntentClassifier.js', ()
 }));
 
 const mockRoute = jest.fn();
-jest.mock('../../../controllers/langchain/router/index.js', () => ({
+jest.mock('../../controllers/langchain/router/index.js', () => ({
   router: {
     route: mockRoute
   }
@@ -51,7 +51,7 @@ describe('Chat intent response mapping', () => {
 
   beforeEach(async() => {
     jest.clearAllMocks();
-    Chat = (await import('../../../controllers/chat/orchestrator/ConversationCoordinator.js')).ConversationCoordinator;
+    Chat = (await import('../../controllers/chat/orchestrator/ConversationCoordinator.js')).ConversationCoordinator;
   });
 
   it('maps SCRIPT_CONVERSATION responses to APPEND_SCRIPT intent', async() => {

@@ -27,10 +27,16 @@
     --spacing-lg: 2rem;
     --spacing-xl: 2.5rem;
     /* Typography */
+    --font-size-xxs: 0.75rem;
+    --font-size-xs: 0.85rem;
     --font-size-sm: 0.875rem;
-    --font-size-md: 0.9375rem;
-    --font-size-lg: 1.125rem;
-    --font-size-xl: 1.25rem;
+    --font-size-md: 1rem;
+    --font-size-lg: 1.5rem;
+    --font-size-xl: 2.5rem;
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-family-heading: 'Segoe UI', system-ui, sans-serif;
+    --font-family-mono: 'Courier New', Courier, monospace;
+    --font-family-chat: var(--font-family-base);
     /* Border Radius */
     --border-radius-sm: 2px;
     --border-radius-md: 4px;
@@ -44,4 +50,6 @@
     --chat-textarea-height: 56px;
     --navbar-height: 70px;
     --top-bar-height: 6vh;
+    /* Widths */
+    --max-width: 1200px;
 }

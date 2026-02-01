@@ -164,7 +164,6 @@ const scriptRepository = {
           take: 1,
           select: {
             versionNumber: true,
-            content: true,
             createdAt: true
           }
         }

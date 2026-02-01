@@ -1,0 +1,15 @@
+input,
+select,
+textarea {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 16px;
+    font-weight: 400;
+    text-align: center;
+    background: white;
+    color: var(--color-text);
+    transition: all 0.3s ease;
+    outline: none;
+    text-align: left;
+}

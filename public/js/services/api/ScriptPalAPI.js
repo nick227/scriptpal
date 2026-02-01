@@ -537,6 +537,13 @@ export class ScriptPalAPI {
         });
     }
 
+    async deleteBrainstormBoard (boardId) {
+        if (!boardId) {
+            throw new Error('Board ID is required');
+        }
+        return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'DELETE');
+    }
+
     async requestBrainstormNotes (boardId, category) {
         if (!boardId) {
             throw new Error('Board ID is required');

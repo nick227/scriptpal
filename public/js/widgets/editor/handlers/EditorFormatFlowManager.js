@@ -1,4 +1,4 @@
-import { FORMAT_FLOW, VALID_FORMAT_VALUES } from '../../../constants/formats.js';
+import { FORMAT_FLOW, FORMAT_CYCLE } from '../../../constants/formats.js';
 
 /**
  * Editor Format Flow Manager - now uses centralized format constants
@@ -10,7 +10,7 @@ export class EditorFormatFlowManager {
     constructor () {
         // Use centralized format flow from constants
         this.FORMAT_FLOW = FORMAT_FLOW;
-        this.FORMAT_CYCLE = VALID_FORMAT_VALUES;
+        this.FORMAT_CYCLE = FORMAT_CYCLE;
     }
 
     /**

@@ -227,6 +227,12 @@ const routes = [
     middleware: [validateSession]
   },
   {
+    path: '/brainstorm/boards/:id',
+    method: 'delete',
+    handler: brainstormBoardController.delete,
+    middleware: [validateSession]
+  },
+  {
     path: '/brainstorm/boards/:id/ai/:category',
     method: 'post',
     handler: brainstormPromptController.trigger,

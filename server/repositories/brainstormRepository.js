@@ -97,6 +97,27 @@ const brainstormRepository = {
         }
       }
     });
+  },
+
+  deleteForUser: async({ id, userId }) => {
+    const board = await prisma.brainstormBoard.findFirst({
+      where: { id, userId },
+      select: { id: true }
+    });
+    if (!board) {
+      return false;
+    }
+
+    await prisma.$transaction(async(tx) => {
+      await tx.brainstormNote.deleteMany({
+        where: { boardId: id }
+      });
+      await tx.brainstormBoard.delete({
+        where: { id }
+      });
+    });
+
+    return true;
   }
 };
 

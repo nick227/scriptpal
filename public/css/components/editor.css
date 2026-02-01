@@ -35,7 +35,6 @@
             --spacing-xl: clamp(24px, 3vw, 48px);
             --spacing-xxl: clamp(32px, 5vw, 64px);
             /* Typography */
-            --font-family-mono: "Courier New", Courier, monospace;
             --font-size-base: clamp(10pt, 1.5vw, 12pt);
             --font-size-small: clamp(8pt, 1vw, 10pt);
             --font-size-large: clamp(14pt, 2vw, 16pt);
@@ -274,7 +273,7 @@
             outline: none;
             transform: translateZ(0);
             backface-visibility: hidden;
-            width: 100%;
+            width: 90%;
             margin: 0;
             display: block;
             white-space: pre-wrap;
@@ -408,18 +407,29 @@
             position: relative;
             background: var(--color-page-container);
         }
-        
-        .page-break::after {
-            content: 'Page Break';
+
+        .page-break-indicator {
+            font-weight: 600;
+            color: var(--color-text-muted, #999);
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            line-height: 1;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.35rem;
+            margin: calc(var(--spacing-sm) * 0.4) auto;
+        }
+
+        .page-break .page-break-indicator {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: var(--color-page-container);
+            margin: 0;
             padding: 0 var(--spacing-md);
-            color: var(--color-text-muted);
-            font-size: 10pt;
-            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--color-page-container);
         }
         /* Current Page Indicator */
         

@@ -34,6 +34,10 @@ const TITLE_PAGE_TEMPLATE = `
                 <span class="date-display"></span>
             </div>
         </div>
+        <div class="title-page-footer">
+            <h6 class="hidden-title-input" aria-live="polite" role="button" tabindex="0"></h6>
+            <h5 class="toggle-title-page" role="button" tabindex="0">↓</h5>
+        </div>
     </div>
 `;
 
@@ -63,6 +67,7 @@ export class TitlePageManager {
         this.persistTimer = null;
         this.persistDelay = 400;
         this.visibilitySelect = null;
+        this.isTitlePageCollapsed = false;
     }
 
     /**
@@ -93,10 +98,13 @@ export class TitlePageManager {
         this.titlePageWrapper.appendChild(this.titlePage);
 
         this.titleInput = this.titlePage.querySelector('.title-input');
+        this.hiddenTitleInput = this.titlePage.querySelector('.hidden-title-input');
         this.authorInput = this.titlePage.querySelector('.author-input');
         this.descriptionInput = this.titlePage.querySelector('.description-input');
         this.visibilitySelect = this.titlePage.querySelector('.visibility-select');
         this.dateDisplay = this.titlePage.querySelector('.date-display');
+        this.toggleTitlePage = this.titlePage.querySelector('.toggle-title-page');
+        this.updateCollapsedState();
     }
 
     /**
@@ -115,6 +123,78 @@ export class TitlePageManager {
         if (this.visibilitySelect) {
             this.visibilitySelect.addEventListener('change', () => this.handleVisibilityChange());
         }
+        if (this.toggleTitlePage) {
+            this.toggleTitlePage.addEventListener('click', () => this.toggleTitlePageVisibility());
+            this.toggleTitlePage.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.toggleTitlePageVisibility();
+                }
+            });
+        }
+        if (this.hiddenTitleInput) {
+            this.hiddenTitleInput.addEventListener('click', () => this.handleHiddenTitleActivation());
+            this.hiddenTitleInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    this.handleHiddenTitleActivation();
+                }
+            });
+        }
+    }
+
+    /**
+     *
+     */
+    toggleTitlePageVisibility () {
+        this.isTitlePageCollapsed = !this.isTitlePageCollapsed;
+        this.updateCollapsedState();
+    }
+
+    /**
+     *
+     */
+    openTitlePage () {
+        if (!this.isTitlePageCollapsed) return;
+        this.isTitlePageCollapsed = false;
+        this.updateCollapsedState();
+    }
+
+    /**
+     *
+     */
+    handleHiddenTitleActivation () {
+        if (!this.isTitlePageCollapsed) return;
+        this.openTitlePage();
+    }
+
+    /**
+     *
+     */
+    updateCollapsedState () {
+        if (!this.titlePage) return;
+        this.titlePage.classList.toggle('title-page--collapsed', this.isTitlePageCollapsed);
+        this.updateToggleLabel();
+        this.updateHiddenTitleText();
+    }
+
+    /**
+     *
+     */
+    updateToggleLabel () {
+        if (!this.toggleTitlePage) return;
+        const label = this.isTitlePageCollapsed ? '↓' : '↑';
+        this.toggleTitlePage.textContent = label;
+        this.toggleTitlePage.setAttribute('aria-expanded', String(!this.isTitlePageCollapsed));
+        this.toggleTitlePage.setAttribute('aria-label', this.isTitlePageCollapsed ? 'Show title page' : 'Hide title page');
+    }
+
+    /**
+     *
+     */
+    updateHiddenTitleText () {
+        if (!this.hiddenTitleInput) return;
+        this.hiddenTitleInput.textContent = this.titlePageData.title || '';
     }
 
     /**
@@ -207,6 +287,7 @@ export class TitlePageManager {
         if (this.dateDisplay) {
             this.dateDisplay.textContent = this.titlePageData.date;
         }
+        this.updateHiddenTitleText();
     }
 
     /**
@@ -217,6 +298,7 @@ export class TitlePageManager {
         this.titlePageData.author = this.authorInput?.value || '';
         this.titlePageData.description = this.descriptionInput?.value || '';
         this.titlePageData.visibility = this.normalizeVisibility(this.visibilitySelect?.value);
+        this.updateHiddenTitleText();
         this.schedulePersist();
     }
 

@@ -17,8 +17,7 @@ describe('Security Middleware', () => {
 
   it('should be importable', () => {
     expect(() => {
-      // eslint-disable-next-line no-unused-vars
-      const securityMiddleware = require('../../middleware/security.js');
+      require('../../middleware/security.js');
     }).not.toThrow();
   });
 

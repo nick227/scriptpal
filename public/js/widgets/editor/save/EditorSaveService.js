@@ -28,7 +28,7 @@ export class EditorSaveService {
     }
 
     setupListeners () {
-        this.content.on(EDITOR_EVENTS.CONTENT_CHANGE, this.handleContentChange);
+        this.content.on(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.on(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
         this.toolbar.onSave(this.handleManualSave);
         window.addEventListener('beforeunload', this.handlePageExit);
@@ -117,7 +117,7 @@ export class EditorSaveService {
             this.saveTimer = null;
         }
 
-        this.content.off(EDITOR_EVENTS.CONTENT_CHANGE, this.handleContentChange);
+        this.content.off(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.off(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
         window.removeEventListener('beforeunload', this.handlePageExit);
         window.removeEventListener('pagehide', this.handlePageExit);

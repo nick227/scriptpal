@@ -1,9 +1,9 @@
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
+import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
 import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
 import { ScriptPalUser } from '../services/api/ScriptPalUser.js';
-import { AuthWidget } from '../widgets/auth/AuthWidget.js';
 import { PublicScriptsWidget } from '../widgets/script/PublicScriptsWidget.js';
 
 const initPublicScriptsPage = async () => {
@@ -14,9 +14,7 @@ const initPublicScriptsPage = async () => {
     const stateManager = new StateManager();
     const eventManager = new EventManager();
     const user = new ScriptPalUser(api);
-    const authWidget = new AuthWidget(elements, stateManager, user, eventManager);
-
-    await authWidget.initialize(elements);
+    await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
 
     const widget = new PublicScriptsWidget({ api });
     await widget.initialize();

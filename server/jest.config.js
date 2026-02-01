@@ -1,4 +1,6 @@
 /** @type {import('jest').Config} */
+const isCi = process.env.CI === 'true';
+
 export default {
   // Test environment
   testEnvironment: 'node',
@@ -17,7 +19,7 @@ export default {
   ],
 
   // Coverage configuration
-  collectCoverage: true,
+  collectCoverage: isCi,
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   collectCoverageFrom: [
@@ -32,14 +34,14 @@ export default {
   ],
 
   // Coverage thresholds
-  coverageThreshold: {
+  coverageThreshold: isCi ? {
     global: {
       branches: 70,
       functions: 70,
       lines: 70,
       statements: 70
     }
-  },
+  } : undefined,
 
   // Setup files
   setupFilesAfterEnv: ['<rootDir>/__tests__/config/setup.js'],

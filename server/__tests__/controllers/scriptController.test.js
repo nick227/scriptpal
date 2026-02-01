@@ -5,17 +5,25 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
 // Mock the script model
-jest.mock('../../../models/script.js', () => ({
+jest.mock('../../models/script.js', () => ({
   getScript: jest.fn(),
+  getScriptBySlug: jest.fn(),
+  getScriptProfile: jest.fn(),
+  getScriptStats: jest.fn(),
   createScript: jest.fn(),
   updateScript: jest.fn(),
   deleteScript: jest.fn(),
   getAllScriptsByUser: jest.fn()
 }));
 
+jest.mock('../../repositories/scriptRepository.js', () => ({
+  getById: jest.fn()
+}));
+
 describe('ScriptController', () => {
   let scriptController;
   let scriptModel;
+  let scriptRepository;
   let mockRequest;
   let mockResponse;
   let _mockNext;
@@ -25,11 +33,13 @@ describe('ScriptController', () => {
     jest.clearAllMocks();
 
     // Import the controller after mocking
-    scriptModel = await import('../../../models/script.js');
-    scriptController = await import('../../../controllers/scriptController.js');
+    scriptModel = await import('../../models/script.js');
+    scriptController = await import('../../controllers/scriptController.js');
+    scriptRepository = await import('../../repositories/scriptRepository.js');
 
     // Setup mock request/response
     mockRequest = global.testUtils.mockRequest();
+    mockRequest.userId = 1;
     mockResponse = global.testUtils.mockResponse();
     _mockNext = global.testUtils.mockNext();
   });
@@ -40,7 +50,7 @@ describe('ScriptController', () => {
 
   describe('getScript', () => {
     it('should return script when found', async() => {
-      const mockScript = global.testUtils.createTestScript();
+      const mockScript = global.testUtils.createTestScript({ userId: 1 });
       scriptModel.getScript.mockResolvedValue(mockScript);
       mockRequest.params = { id: '1' };
 
@@ -79,7 +89,6 @@ describe('ScriptController', () => {
       const mockScript = global.testUtils.createTestScript();
       scriptModel.createScript.mockResolvedValue(mockScript);
       mockRequest.body = {
-        userId: 1,
         title: 'Test Script',
         status: 'draft',
         content: 'Test content'
@@ -100,7 +109,6 @@ describe('ScriptController', () => {
       const mockScript = global.testUtils.createTestScript();
       scriptModel.createScript.mockResolvedValue(mockScript);
       mockRequest.body = {
-        userId: 1,
         title: 'Test Script'
       };
 
@@ -110,39 +118,26 @@ describe('ScriptController', () => {
         userId: 1,
         title: 'Test Script',
         status: 'draft',
-        content: expect.stringContaining('"format":"plain"')
+        content: expect.stringContaining('"lines"')
       }));
-    });
-
-    it('should return 400 when userId is missing', async() => {
-      mockRequest.body = {
-        title: 'Test Script'
-      };
-
-      await scriptController.default.createScript(mockRequest, mockResponse);
-
-      expect(scriptModel.createScript).not.toHaveBeenCalled();
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'User ID and title are required' });
     });
 
     it('should return 400 when title is missing', async() => {
       mockRequest.body = {
-        userId: 1
+        status: 'draft'
       };
 
       await scriptController.default.createScript(mockRequest, mockResponse);
 
       expect(scriptModel.createScript).not.toHaveBeenCalled();
       expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'User ID and title are required' });
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Title is required' });
     });
 
     it('should return 500 on database error', async() => {
       const error = new Error('Database error');
       scriptModel.createScript.mockRejectedValue(error);
       mockRequest.body = {
-        userId: 1,
         title: 'Test Script'
       };
 
@@ -156,6 +151,7 @@ describe('ScriptController', () => {
   describe('updateScript', () => {
     it('should update script with valid data', async() => {
       const mockScript = global.testUtils.createTestScript({ title: 'Updated Script' });
+      scriptRepository.getById.mockResolvedValue({ id: 1, userId: 1 });
       scriptModel.updateScript.mockResolvedValue(mockScript);
       mockRequest.params = { id: '1' };
       mockRequest.body = {
@@ -167,15 +163,18 @@ describe('ScriptController', () => {
 
       expect(scriptModel.updateScript).toHaveBeenCalledWith('1', {
         title: 'Updated Script',
-        content: '<action>Updated content</action>'
+        author: undefined,
+        description: undefined,
+        content: '<action>Updated content</action>',
+        status: undefined
       });
       expect(mockResponse.json).toHaveBeenCalledWith(mockScript);
     });
 
     it('should return 404 when script not found', async() => {
-      scriptModel.updateScript.mockResolvedValue(null);
+      scriptRepository.getById.mockResolvedValue(null);
       mockRequest.params = { id: '999' };
-      mockRequest.body = { title: 'Updated Script' };
+      mockRequest.body = { title: 'Updated Script', content: '<action>Updated content</action>' };
 
       await scriptController.default.updateScript(mockRequest, mockResponse);
 
@@ -185,9 +184,10 @@ describe('ScriptController', () => {
 
     it('should return 500 on database error', async() => {
       const error = new Error('Database error');
+      scriptRepository.getById.mockResolvedValue({ id: 1, userId: 1 });
       scriptModel.updateScript.mockRejectedValue(error);
       mockRequest.params = { id: '1' };
-      mockRequest.body = { title: 'Updated Script' };
+      mockRequest.body = { title: 'Updated Script', content: '<action>Updated content</action>' };
 
       await scriptController.default.updateScript(mockRequest, mockResponse);
 
@@ -198,17 +198,19 @@ describe('ScriptController', () => {
 
   describe('deleteScript', () => {
     it('should delete script successfully', async() => {
+      scriptRepository.getById.mockResolvedValue({ id: 1, userId: 1 });
       scriptModel.deleteScript.mockResolvedValue(true);
       mockRequest.params = { id: '1' };
 
       await scriptController.default.deleteScript(mockRequest, mockResponse);
 
-      expect(scriptModel.deleteScript).toHaveBeenCalledWith('1');
+      expect(scriptModel.deleteScript).toHaveBeenCalledWith(1);
       expect(mockResponse.status).toHaveBeenCalledWith(204);
       expect(mockResponse.send).toHaveBeenCalled();
     });
 
     it('should return 404 when script not found', async() => {
+      scriptRepository.getById.mockResolvedValue(null);
       scriptModel.deleteScript.mockResolvedValue(false);
       mockRequest.params = { id: '999' };
 
@@ -220,6 +222,7 @@ describe('ScriptController', () => {
 
     it('should return 500 on database error', async() => {
       const error = new Error('Database error');
+      scriptRepository.getById.mockResolvedValue({ id: 1, userId: 1 });
       scriptModel.deleteScript.mockRejectedValue(error);
       mockRequest.params = { id: '1' };
 
@@ -241,7 +244,7 @@ describe('ScriptController', () => {
 
       await scriptController.default.getAllScriptsByUser(mockRequest, mockResponse);
 
-      expect(scriptModel.getAllScriptsByUser).toHaveBeenCalledWith('1');
+      expect(scriptModel.getAllScriptsByUser).toHaveBeenCalledWith(1);
       expect(mockResponse.json).toHaveBeenCalledWith(mockScripts);
     });
 

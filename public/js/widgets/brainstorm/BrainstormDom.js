@@ -1,5 +1,5 @@
 export class BrainstormDom {
-    constructor (rootSelector = '.brainstorm-page') {
+    constructor (rootSelector = '.brainstorm-widget') {
         this.root = document.querySelector(rootSelector);
         if (!this.root) {
             throw new Error('Brainstorm root element not found');
@@ -7,11 +7,13 @@ export class BrainstormDom {
 
         this.form = this.root.querySelector('.brainstorm-seed-form');
         this.input = this.root.querySelector('.brainstorm-seed-input');
+        this.seedButton = this.root.querySelector('.brainstorm-seed-button');
         this.actions = Array.from(this.root.querySelectorAll('.brainstorm-action'));
         this.board = this.root.querySelector('.brainstorm-board');
         this.status = this.root.querySelector('.brainstorm-status');
         this.boardSelect = this.root.querySelector('.brainstorm-board-select');
         this.newBoardButton = this.root.querySelector('.brainstorm-board-new');
+        this.deleteBoardButton = this.root.querySelector('.brainstorm-board-delete');
         this.titleInput = this.root.querySelector('.brainstorm-title-input');
         this.columns = new Map();
         this.columnInputs = new Map();
@@ -32,8 +34,8 @@ export class BrainstormDom {
             }
         });
 
-        if (!this.form || !this.input || !this.board || !this.status || !this.columns.size
-            || !this.boardSelect || !this.newBoardButton || !this.titleInput) {
+        if (!this.form || !this.input || !this.seedButton || !this.board || !this.status || !this.columns.size
+            || !this.boardSelect || !this.newBoardButton || !this.titleInput || !this.deleteBoardButton) {
             throw new Error('Brainstorm UI elements missing');
         }
     }
@@ -41,6 +43,12 @@ export class BrainstormDom {
     bindSeedSubmit (handler) {
         this.form.addEventListener('submit', (event) => {
             event.preventDefault();
+            handler(this.input.value.trim());
+        });
+    }
+
+    bindSeedInputChange (handler) {
+        this.input.addEventListener('input', () => {
             handler(this.input.value.trim());
         });
     }
@@ -111,12 +119,56 @@ export class BrainstormDom {
         });
     }
 
+    bindDeleteBoard (handler) {
+        if (!this.deleteBoardButton) {
+            return;
+        }
+        this.deleteBoardButton.addEventListener('click', () => {
+            handler();
+        });
+    }
+
     setSeedInputValue (seedValue) {
         this.input.value = seedValue;
     }
 
     setBoardTitle (title) {
         this.titleInput.value = title;
+    }
+
+    setSeedButtonEnabled (enabled) {
+        if (!this.seedButton) {
+            return;
+        }
+        this.seedButton.disabled = !enabled;
+    }
+
+    setDeleteBoardEnabled (enabled) {
+        if (!this.deleteBoardButton) {
+            return;
+        }
+        this.deleteBoardButton.disabled = !enabled;
+        if (enabled) {
+            this.deleteBoardButton.classList.remove('is-disabled');
+            this.deleteBoardButton.setAttribute('aria-disabled', 'false');
+        } else {
+            this.deleteBoardButton.classList.add('is-disabled');
+            this.deleteBoardButton.setAttribute('aria-disabled', 'true');
+        }
+    }
+
+    setNewBoardEnabled (enabled) {
+        if (!this.newBoardButton) {
+            return;
+        }
+        this.newBoardButton.disabled = !enabled;
+        if (enabled) {
+            this.newBoardButton.classList.remove('is-disabled');
+            this.newBoardButton.setAttribute('aria-disabled', 'false');
+        } else {
+            this.newBoardButton.classList.add('is-disabled');
+            this.newBoardButton.setAttribute('aria-disabled', 'true');
+        }
     }
 
     setBoardOptions (boards, selectedId) {

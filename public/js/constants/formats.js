@@ -63,12 +63,23 @@ export function getFormatDisplayName (format) {
  */
 export const FORMAT_FLOW = Object.freeze({
     [VALID_FORMATS.HEADER]: VALID_FORMATS.ACTION,
-    [VALID_FORMATS.ACTION]: VALID_FORMATS.ACTION,
+    [VALID_FORMATS.ACTION]: VALID_FORMATS.SPEAKER,
     [VALID_FORMATS.SPEAKER]: VALID_FORMATS.DIALOG,
     [VALID_FORMATS.DIALOG]: VALID_FORMATS.SPEAKER,
     [VALID_FORMATS.DIRECTIONS]: VALID_FORMATS.DIALOG,
     [VALID_FORMATS.CHAPTER_BREAK]: VALID_FORMATS.HEADER
 });
+
+/**
+ * Format cycle used for keyboard-based cycling (excludes chapter breaks).
+ */
+export const FORMAT_CYCLE = Object.freeze([
+    VALID_FORMATS.HEADER,
+    VALID_FORMATS.ACTION,
+    VALID_FORMATS.SPEAKER,
+    VALID_FORMATS.DIALOG,
+    VALID_FORMATS.DIRECTIONS
+]);
 
 /**
  * Get next format in the flow
@@ -95,9 +106,12 @@ export function getNextFormat (currentFormat, direction = 1) {
  * Cycle through every valid format in both directions.
  * This helper is meant for keyboard toggles (arrow keys, toolbar)
  * where we expect a symmetrical walk through the format list.
+ * @param {string} currentFormat - Current format value
+ * @param {number} direction - Direction (1 for next, -1 for previous)
+ * @returns {string} - Next format in the keyboard cycle
  */
 export function getCircularFormat (currentFormat, direction = 1) {
-    const cycle = VALID_FORMAT_VALUES;
+    const cycle = FORMAT_CYCLE;
     if (!cycle.length) {
         return DEFAULT_FORMAT;
     }

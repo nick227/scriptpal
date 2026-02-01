@@ -5,10 +5,10 @@
 import { AuthenticatedAppBootstrap } from './app/bootstrap/AuthenticatedAppBootstrap.js';
 import { ServiceRegistry } from './app/core/ServiceRegistry.js';
 import { App } from './App.js';
-import { UI_ELEMENTS } from './constants.js';
 import { EventManager } from './core/EventManager.js';
 import { StateManager } from './core/StateManager.js';
 import { renderSharedTopBar, getTopBarElements } from './layout/sharedLayout.js';
+import { initSharedTopBarWidgets } from './layout/sharedTopBarWidgets.js';
 import { ScriptPalAPI } from './services/api/ScriptPalAPI.js';
 import { ScriptPalUser } from './services/api/ScriptPalUser.js';
 import { PersistenceManager } from './services/persistence/PersistenceManager.js';
@@ -17,8 +17,6 @@ import { LocationStore } from './stores/LocationStore.js';
 import { SceneStore } from './stores/SceneStore.js';
 import { ScriptStore } from './stores/ScriptStore.js';
 import { ThemeStore } from './stores/ThemeStore.js';
-import { AuthWidget } from './widgets/auth/AuthWidget.js';
-import { TokenWatchWidget } from './widgets/ui/TokenWatchWidget.js';
 
 // Global app instance
 window.scriptPalApp = null;
@@ -43,9 +41,13 @@ async function initScriptPal () {
         const eventManager = new EventManager();
         const registry = new ServiceRegistry();
 
-        await initTokenWatchWidget(sharedElements.tokenWatchContainer, api, stateManager, eventManager);
-
-        const authWidget = await initAuthWidget(api, user, stateManager, eventManager, sharedElements);
+        const { authWidget } = await initSharedTopBarWidgets(
+            api,
+            user,
+            stateManager,
+            eventManager,
+            sharedElements
+        );
 
         const scriptStore = new ScriptStore(api, stateManager, eventManager);
         const characterStore = new CharacterStore(api, stateManager, eventManager);
@@ -123,47 +125,6 @@ async function initScriptPal () {
  * @param eventManager
  * @param topBarElements
  */
-async function initAuthWidget (api, user, stateManager, eventManager, topBarElements = null) {
-    const sharedElements = topBarElements || getTopBarElements();
-    const elements = {
-        ...sharedElements,
-        messagesContainer: document.querySelector(UI_ELEMENTS.MESSAGES_CONTAINER)
-    };
-
-    const requiredKeys = ['formsContainer', 'logoutButton', 'userInfo'];
-    const missing = requiredKeys.filter(key => !elements[key]);
-
-    if (missing.length) {
-        console.warn('[AuthWidget] Missing elements:', missing);
-        return null;
-    }
-
-    const authWidget = new AuthWidget(elements, stateManager, user, eventManager);
-
-    await authWidget.initialize(elements);
-
-    window.scriptPalAuth = authWidget;
-    return authWidget;
-}
-
-/**
- *
- * @param container
- * @param api
- * @param stateManager
- * @param eventManager
- */
-async function initTokenWatchWidget (container, api, stateManager, eventManager) {
-    if (!container) {
-        return null;
-    }
-
-    const widget = new TokenWatchWidget({ container }, api, stateManager, eventManager);
-    widget.setManagers(stateManager, eventManager);
-    await widget.initialize();
-    window.scriptPalTokenWatch = widget;
-    return widget;
-}
 
 /**
  * Show error message to user

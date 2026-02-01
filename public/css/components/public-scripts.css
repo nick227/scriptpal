@@ -1,11 +1,13 @@
-.public-script-page {
-    width: 999px;
+.public-scripts-page {
+    width: var(--max-width);
     max-width: 100%;
     margin: 20px auto;
+    min-height: calc(100vh - var(--top-bar-height));
 }
 
 .public-scripts-panel {
     width: 100%;
+    height: 100%;
     margin: 0;
     padding: 1rem 2vw 0;
     border-radius: 0;

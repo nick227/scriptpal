@@ -1,13 +1,16 @@
- .brainstorm-page {
+
+ .brainstorm-widget {
      min-height: calc(100vh - var(--top-bar-height));
-     margin-top: var(--top-bar-height);
-    background: var(--chat-bg);
+     margin: var(--top-bar-height) auto 0 auto;
+     background: var(--chat-bg);
+    width: var(--max-width);
+    max-width: 100%;
  }
  
  .brainstorm-panel {
-     width: min(1200px, 100%);
+     width: 98%;
      margin: 0 auto;
-     padding: 1.75rem 1.5rem 2.5rem;
+     padding: 1%;
      display: flex;
      flex-direction: column;
      gap: 1.5rem;
@@ -42,7 +45,7 @@
 
 .brainstorm-board-inputs {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     gap: 0.75rem;
     align-items: center;
 }
@@ -71,6 +74,29 @@
 .brainstorm-board-new:hover {
     background: var(--button-hover);
 }
+
+.brainstorm-board-delete {
+    border: 1px solid #c0392b;
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    background: transparent;
+    color: #c0392b;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-normal);
+}
+
+.brainstorm-board-delete:hover {
+    background: rgba(192, 57, 43, 0.12);
+}
+
+.brainstorm-board-delete:disabled,
+.brainstorm-board-delete.is-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: transparent;
+    color: rgba(192, 57, 43, 0.6);
+}
  
  .brainstorm-header__text h2 {
      margin: 0 0 0.35rem;
@@ -96,14 +122,16 @@
      color: var(--text-color);
  }
  
- .brainstorm-seed-inputs {
+ .brainstorm-seed-textareas {
      display: flex;
      gap: 0.75rem;
      align-items: center;
-    width: 100%;
+     width: 80%;
+     resize: vertical;
+
  }
  
- .brainstorm-seed-input {
+ .brainstorm-seed-textarea {
     min-width: 0;
     flex: 1;
      padding: 0.6rem 0.85rem;
@@ -132,7 +160,6 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    min-height: 65vh;
     border-radius: 18px;
     border: 1px solid var(--border-color);
     background: #fcfcfd;
@@ -154,8 +181,8 @@
  }
  
 .brainstorm-columns {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
 }
 
@@ -167,7 +194,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    min-height: 240px;
 }
 
 .brainstorm-column h3 {
@@ -306,65 +332,4 @@
 
 .brainstorm-status.is-visible {
     display: block;
-}
-
-@media (max-width: 1100px) {
-    .brainstorm-panel {
-        width: 100%;
-    }
-}
- 
- @media (max-width: 900px) {
-     .brainstorm-panel {
-         padding: 1.5rem 1rem 2rem;
-     }
-
-    .brainstorm-header {
-        grid-template-columns: 1fr;
-        align-items: stretch;
-    }
- 
-     .brainstorm-seed-inputs {
-         flex-direction: column;
-         align-items: stretch;
-     }
- 
-     .brainstorm-seed-input {
-         min-width: 0;
-     }
- 
-    .brainstorm-columns {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .brainstorm-board-inputs {
-        grid-template-columns: 1fr;
-        align-items: stretch;
-    }
-
-    .brainstorm-board-select,
-    .brainstorm-title-input {
-        min-width: 0;
-    }
- }
-
-@media (max-width: 720px) {
-    .brainstorm-board {
-        min-height: 70vh;
-        padding: 1.25rem;
-    }
-
-    .brainstorm-seed-row {
-        grid-template-columns: 1fr;
-        align-items: stretch;
-    }
-
-    .brainstorm-actions {
-        justify-content: flex-start;
-    }
-
-    .brainstorm-columns {
-        grid-template-columns: 1fr;
-    }
-
 }

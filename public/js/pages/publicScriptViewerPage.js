@@ -2,8 +2,8 @@ import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
 import { ScriptPalUser } from '../services/api/ScriptPalUser.js';
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
-import { AuthWidget } from '../widgets/auth/AuthWidget.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
+import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
 import { LineFormatter } from '../widgets/editor/LineFormatter.js';
 import { ScriptDocument } from '../widgets/editor/model/ScriptDocument.js';
 import { MAX_LINES_PER_PAGE } from '../widgets/editor/constants.js';
@@ -332,8 +332,7 @@ const initPublicScriptViewer = async () => {
     const stateManager = new StateManager();
     const eventManager = new EventManager();
     const user = new ScriptPalUser(api);
-    const authWidget = new AuthWidget(elements, stateManager, user, eventManager);
-    await authWidget.initialize(elements);
+    const { authWidget } = await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
 
     const slug = getSlugFromPath();
     const scriptId = getQueryParam('id');

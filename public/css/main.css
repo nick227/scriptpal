@@ -1,7 +1,6 @@
 /* Base Imports */
 
 @import 'base/variables.css';
-@import 'base/reset.css';
 
 /* Component Imports */
 
@@ -20,9 +19,11 @@
 @import 'components/site-header.css';
 @import 'components/public-scripts.css';
 @import 'components/brainstorm.css';
-@import 'components/clean-architecture.css';
+@import 'components/mini-chat-widget.css';
 
-/* Layout Imports */
+/* Imports */
 
 @import 'layout/layout.css';
+@import 'layout/input.css';
+@import 'layout/typography.css';
 @import './mobile.css';

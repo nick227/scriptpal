@@ -120,9 +120,6 @@ export class AutocompleteManager {
         if (this.contentManager && typeof this.contentManager.syncLineContentFromDOM === 'function') {
             this.contentManager.syncLineContentFromDOM(lineElement);
         }
-        if (this.contentManager && typeof this.contentManager.scheduleContentChange === 'function') {
-            this.contentManager.scheduleContentChange();
-        }
 
         this.moveCaretToEnd(lineElement);
         this.clearSuggestion();

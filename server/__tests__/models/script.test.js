@@ -15,8 +15,7 @@ describe('Script Model', () => {
 
   it('should be importable', () => {
     expect(() => {
-      // eslint-disable-next-line no-unused-vars
-      const scriptModel = require('../../models/script.js');
+      require('../../models/script.js');
     }).not.toThrow();
   });
 

@@ -42,6 +42,19 @@ export class AICommandManager {
         this.content = content;
     }
 
+    _buildCommandValue (format, content) {
+        const safeFormat = typeof format === 'string' && format.trim().length > 0 ? format : 'action';
+        const safeContent = typeof content === 'string' ? content : '';
+        return `<${safeFormat}>${safeContent}</${safeFormat}>`;
+    }
+
+    async _applyCommands (commands, source) {
+        if (!this.content || typeof this.content.applyCommands !== 'function') {
+            throw new Error('Editor content is not available for commands');
+        }
+        return this.content.applyCommands(commands, { source });
+    }
+
     /**
      *
      * @param stateManager
@@ -196,11 +209,16 @@ export class AICommandManager {
         const { text, format, afterLineId } = data;
         if (!text || !format) throw new Error('Invalid insert command data');
 
-        const line = await this.content.insertLineAfter(afterLineId, {
-            format,
-            content: text
-        });
-        return { success: true, lineId: line?.id };
+        const afterIndex = afterLineId ? this.content.getLineIndex(afterLineId) : -1;
+        const insertIndex = afterIndex === -1 ? this.content.getLineCount() : afterIndex + 1;
+        const command = {
+            command: 'ADD',
+            lineNumber: insertIndex,
+            value: this._buildCommandValue(format, text)
+        };
+        const result = await this._applyCommands([command], 'ai_insert');
+        const line = this.content.getLines()[insertIndex] || null;
+        return { success: result.success, lineId: line?.id, result };
     }
 
     /**
@@ -211,8 +229,14 @@ export class AICommandManager {
         const { lineId } = data;
         if (!lineId) throw new Error('Invalid delete command data');
 
-        const success = await this.content.deleteLinesById([lineId]);
-        return { success: Boolean(success) };
+        const index = this.content.getLineIndex(lineId);
+        if (index === -1) throw new Error('Line not found');
+        const command = {
+            command: 'DELETE',
+            lineNumber: index + 1
+        };
+        const result = await this._applyCommands([command], 'ai_delete');
+        return { success: result.success };
     }
 
     /**
@@ -226,8 +250,13 @@ export class AICommandManager {
         const line = this.content.getLineById(lineId);
         if (!line) throw new Error('Line not found');
 
-        this.content.updateLineById(lineId, { content: text });
-        return { success: true, lineId };
+        const command = {
+            command: 'EDIT',
+            lineNumber: this.content.getLineIndex(lineId) + 1,
+            value: this._buildCommandValue(line.format, text)
+        };
+        const result = await this._applyCommands([command], 'ai_replace');
+        return { success: result.success, lineId };
     }
 
     /**
@@ -480,8 +509,13 @@ export class AICommandManager {
         if (!content) throw new Error('Content is required for append command');
 
         try {
-            const result = await this.content.appendContent(content, format);
-            return { success: true, operation: 'append', result };
+            const command = {
+                command: 'ADD',
+                lineNumber: this.content.getLineCount(),
+                value: this._buildCommandValue(format, content)
+            };
+            const result = await this._applyCommands([command], 'ai_append');
+            return { success: result.success, operation: 'append', result };
         } catch (error) {
             console.error('[AICommandManager] Append command failed:', error);
             throw error;
@@ -498,8 +532,13 @@ export class AICommandManager {
         if (!content) throw new Error('Content is required for prepend command');
 
         try {
-            const result = await this.content.prependContent(content, format);
-            return { success: true, operation: 'prepend', result };
+            const command = {
+                command: 'ADD',
+                lineNumber: 0,
+                value: this._buildCommandValue(format, content)
+            };
+            const result = await this._applyCommands([command], 'ai_prepend');
+            return { success: result.success, operation: 'prepend', result };
         } catch (error) {
             console.error('[AICommandManager] Prepend command failed:', error);
             throw error;
@@ -517,8 +556,13 @@ export class AICommandManager {
         if (typeof position !== 'number') throw new Error('Position must be a number');
 
         try {
-            const result = await this.content.insertContentAt(content, position, format);
-            return { success: true, operation: 'insertAt', position, result };
+            const command = {
+                command: 'ADD',
+                lineNumber: position,
+                value: this._buildCommandValue(format, content)
+            };
+            const result = await this._applyCommands([command], 'ai_insert_at');
+            return { success: result.success, operation: 'insertAt', position, result };
         } catch (error) {
             console.error('[AICommandManager] InsertAt command failed:', error);
             throw error;
@@ -537,8 +581,29 @@ export class AICommandManager {
         if (typeof endPosition !== 'number') throw new Error('End position must be a number');
 
         try {
-            const result = await this.content.replaceContentRange(content, startPosition, endPosition, format);
-            return { success: true, operation: 'replaceRange', startPosition, endPosition, result };
+            const lineCount = this.content.getLineCount();
+            const safeStart = Math.max(0, startPosition);
+            const safeEnd = Math.min(lineCount - 1, endPosition);
+            if (safeStart > safeEnd) {
+                throw new Error('Invalid replace range');
+            }
+
+            const deleteCommands = [];
+            for (let index = safeEnd; index >= safeStart; index -= 1) {
+                deleteCommands.push({
+                    command: 'DELETE',
+                    lineNumber: index + 1
+                });
+            }
+
+            const addCommand = {
+                command: 'ADD',
+                lineNumber: safeStart,
+                value: this._buildCommandValue(format, content)
+            };
+
+            const result = await this._applyCommands([...deleteCommands, addCommand], 'ai_replace_range');
+            return { success: result.success, operation: 'replaceRange', startPosition, endPosition, result };
         } catch (error) {
             console.error('[AICommandManager] ReplaceRange command failed:', error);
             throw error;

@@ -64,7 +64,7 @@ export class PromptHelperWidget {
                 sectionEl.appendChild(desc);
             }
 
-            const buttonsBar = this.getnerateButtonBar(section);
+            const buttonsBar = this.generateButtonBar(section);
             heading.addEventListener('click', () => this.handleHeadingClick(buttonsBar));
 
             sectionEl.appendChild(buttonsBar);
@@ -90,7 +90,7 @@ export class PromptHelperWidget {
      *
      * @param section
      */
-    getnerateButtonBar (section = {}) {
+    generateButtonBar (section = {}) {
 
         const buttonsBar = document.createElement('div');
         buttonsBar.classList.add('prompt-helper-buttons');

@@ -17,6 +17,22 @@ const scriptCommentRepository = {
     return total || 0;
   },
 
+  async countByScripts (scriptIds) {
+    const normalizedIds = scriptIds.map((id) => Number(id));
+    const results = await prisma.scriptComment.groupBy({
+      by: ['scriptId'],
+      where: {
+        scriptId: { in: normalizedIds },
+        isDeleted: false
+      },
+      _count: { _all: true }
+    });
+    return results.reduce((counts, row) => {
+      counts[row.scriptId] = row._count._all;
+      return counts;
+    }, {});
+  },
+
   async listByScript (scriptId, { limit = DEFAULT_PAGE_SIZE, offset = 0 } = {}) {
     if (!Number.isFinite(Number(scriptId))) {
       return [];

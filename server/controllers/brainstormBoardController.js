@@ -130,6 +130,26 @@ const brainstormBoardController = {
       console.error('[BrainstormBoardController] update error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  },
+
+  delete: async(req, res) => {
+    const boardId = parseBoardId(req.params.id);
+    if (!boardId) {
+      return res.status(400).json({ error: 'Invalid board id' });
+    }
+    try {
+      const deleted = await brainstormRepository.deleteForUser({
+        id: boardId,
+        userId: req.userId
+      });
+      if (!deleted) {
+        return res.status(404).json({ error: 'Board not found' });
+      }
+      res.status(204).end();
+    } catch (error) {
+      console.error('[BrainstormBoardController] delete error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };
 

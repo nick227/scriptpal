@@ -2,9 +2,9 @@ import { requireAuth } from '../auth/authGate.js';
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
+import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
 import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
 import { ScriptPalUser } from '../services/api/ScriptPalUser.js';
-import { AuthWidget } from '../widgets/auth/AuthWidget.js';
 import { BrainstormBoard } from '../widgets/brainstorm/BrainstormBoard.js';
 
 const initBrainstormPage = async () => {
@@ -20,9 +20,7 @@ const initBrainstormPage = async () => {
     const stateManager = new StateManager();
     const eventManager = new EventManager();
     const user = new ScriptPalUser(api);
-    const authWidget = new AuthWidget(elements, stateManager, user, eventManager);
-
-    await authWidget.initialize(elements);
+    await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
 
     const board = new BrainstormBoard({ api });
     await board.initialize();
