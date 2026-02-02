@@ -20,6 +20,7 @@ export class EditorInputController {
             pageManager: this.pageManager,
             contentManager: this.contentManager,
             lineFormatter: this.lineFormatter,
+            domHandler: this.domHandler,
             autocomplete: this.autocomplete,
             saveService: this.saveService,
             history: this.history

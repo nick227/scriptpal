@@ -187,3 +187,62 @@ export function validateFormatObject (formatObj) {
            isValidFormat(formatObj.format) &&
            typeof formatObj.text === 'string';
 }
+
+/**
+ * Centralized format resolver - SINGLE SOURCE OF TRUTH.
+ * All format decisions flow through this function.
+ * @param {string} rawFormat - The format to resolve
+ * @param {object} [context] - Optional context for heuristics
+ * @param {string} [context.content] - Line content for heuristic detection
+ * @param {string} [context.previousFormat] - Previous line format
+ * @returns {string} - Resolved valid format
+ */
+export function resolveLineFormat (rawFormat, context = {}) {
+    // If explicitly valid, use it
+    if (isValidFormat(rawFormat)) {
+        return rawFormat;
+    }
+
+    // Normalize common variations
+    const normalized = String(rawFormat || '').toLowerCase().trim();
+
+    // Handle common aliases/variations
+    const aliases = {
+        'scene': VALID_FORMATS.HEADER,
+        'scene-header': VALID_FORMATS.HEADER,
+        'sceneheader': VALID_FORMATS.HEADER,
+        'character': VALID_FORMATS.SPEAKER,
+        'dialogue': VALID_FORMATS.DIALOG,
+        'parenthetical': VALID_FORMATS.DIRECTIONS,
+        'transition': VALID_FORMATS.ACTION,
+        'chapter': VALID_FORMATS.CHAPTER_BREAK,
+        'break': VALID_FORMATS.CHAPTER_BREAK
+    };
+
+    if (aliases[normalized]) {
+        return aliases[normalized];
+    }
+
+    // Heuristic detection from content (optional)
+    if (context.content && typeof context.content === 'string') {
+        const trimmed = context.content.trim();
+
+        // Scene headers
+        if (/^(INT\.|EXT\.|INTERIOR|EXTERIOR)/i.test(trimmed)) {
+            return VALID_FORMATS.HEADER;
+        }
+
+        // ALL CAPS short line = likely speaker
+        if (trimmed.length <= 40 && trimmed === trimmed.toUpperCase() && /^[A-Z\s]+$/.test(trimmed)) {
+            return VALID_FORMATS.SPEAKER;
+        }
+
+        // Parenthetical directions
+        if (/^\(.*\)$/.test(trimmed)) {
+            return VALID_FORMATS.DIRECTIONS;
+        }
+    }
+
+    // Default fallback
+    return DEFAULT_FORMAT;
+}

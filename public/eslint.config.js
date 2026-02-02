@@ -88,32 +88,25 @@ export default [
         }
       }],
       
-      // JSDoc rules
-      'jsdoc/require-jsdoc': ['warn', {
-        require: {
-          FunctionDeclaration: true,
-          MethodDefinition: true,
-          ClassDeclaration: true,
-          ArrowFunctionExpression: false,
-          FunctionExpression: false
-        }
-      }],
-      'jsdoc/require-description': 'warn',
-      'jsdoc/require-param': 'warn',
-      'jsdoc/require-param-description': 'warn',
-      'jsdoc/require-param-type': 'warn',
-      'jsdoc/require-returns': 'warn',
-      'jsdoc/require-returns-description': 'warn',
-      'jsdoc/require-returns-type': 'warn',
+      // JSDoc rules - keep validation, disable mandatory docs
+      'jsdoc/require-jsdoc': 'off',
+      'jsdoc/require-description': 'off',
+      'jsdoc/require-param': 'off',
+      'jsdoc/require-param-description': 'off',
+      'jsdoc/require-param-type': 'off',
+      'jsdoc/require-returns': 'off',
+      'jsdoc/require-returns-description': 'off',
+      'jsdoc/require-returns-type': 'off',
+      'jsdoc/require-property': 'off',
+      'jsdoc/require-property-description': 'off',
+      'jsdoc/require-property-name': 'off',
+      'jsdoc/require-property-type': 'off',
+      // Keep validation rules for existing JSDoc
       'jsdoc/valid-types': 'warn',
       'jsdoc/check-tag-names': 'warn',
       'jsdoc/check-types': 'warn',
       'jsdoc/check-param-names': 'warn',
       'jsdoc/check-property-names': 'warn',
-      'jsdoc/require-property': 'warn',
-      'jsdoc/require-property-description': 'warn',
-      'jsdoc/require-property-name': 'warn',
-      'jsdoc/require-property-type': 'warn',
       
       // Promise rules
       'promise/always-return': 'error',

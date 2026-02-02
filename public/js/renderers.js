@@ -578,8 +578,10 @@ export class EditorRenderer extends BaseRenderer {
                 lineElement.dataset.lineId = line.id;
             }
 
-            if (line.text) {
-                lineElement.textContent = line.text;
+            // Standardize on 'content' property, with 'text' fallback for compatibility
+            const textContent = line.content ?? line.text ?? '';
+            if (textContent) {
+                lineElement.textContent = textContent;
             }
 
             return lineElement;

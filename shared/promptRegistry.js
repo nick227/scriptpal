@@ -1,8 +1,10 @@
 import {
   INTENT_TYPES,
-  SCRIPT_CONTEXT_PREFIX,
   VALID_FORMAT_VALUES,
-  SCRIPT_MUTATION
+  SCRIPT_MUTATION,
+  VALID_TAGS_BLOCK,
+  SCREENPLAY_GRAMMAR_V1,
+  JSON_ESCAPE_RULE
 } from './langchainConstants.js';
 
 export const PROMPT_CATEGORIES = {
@@ -18,6 +20,65 @@ const createPrompt = (definition) => ({
 });
 
 const VALID_TAGS = VALID_FORMAT_VALUES.join(', ');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROMPT TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ideation tone by item type - prevents "why do scene + theme feel the same?"
+ */
+const IDEATION_TONE = {
+  scene: 'story structure, progression, and dramatic purpose',
+  character: 'motivation, conflict, personality, and arc',
+  location: 'atmosphere, constraints, visual identity, and mood',
+  theme: 'underlying meaning, emotional resonance, and thematic arc'
+};
+
+/**
+ * Template for item ideation prompts (scene, character, location, theme)
+ */
+const createIdeationPrompt = (itemType, extras = {}) => createPrompt({
+  category: PROMPT_CATEGORIES.SERVICE,
+  attachScriptContext: true,
+  userPrompt: `Generate a ${itemType} idea based on the script context.`,
+  systemInstruction: `You are a ${itemType} ideation engine.
+
+OUTPUT FORMAT
+Return valid JSON only: { "title": "...", "description": "..." }
+
+FOCUS AREA
+Consider: ${IDEATION_TONE[itemType] || 'relevance to the script'}
+
+RULES
+- Title: short, specific, evocative (3-6 words)
+- Description: 2-4 sentences, aligned with script context
+- No extra keys, no commentary outside JSON
+- ${JSON_ESCAPE_RULE}`,
+  ...extras
+});
+
+/**
+ * Template for brainstorm prompts
+ */
+const createBrainstormPrompt = (focus, targetCount, extras = {}) => createPrompt({
+  category: PROMPT_CATEGORIES.SERVICE,
+  userPrompt: `Generate ${targetCount} concise ${focus} ideas for the seed concepts.`,
+  systemInstruction: `You are a brainstorm engine.
+
+OUTPUT FORMAT
+Return valid JSON only: an array of strings
+Example: ["idea 1", "idea 2", "idea 3"]
+
+FOCUS: ${focus}
+TARGET COUNT: ${targetCount}
+
+RULES
+- Each item: concise, distinct, readable
+- No objects, no nested structures
+- No commentary outside the JSON array`,
+  ...extras
+});
 
 export const PROMPT_REGISTRY = [
   // ---------------------------------
@@ -143,7 +204,7 @@ You are a production-minded assistant.
   }),
   // ---------------------------------
   // PROMPT_REGISTRY
-  // append-page
+  // append-page (uses shared grammar contract)
   createPrompt({
     id: 'append-page',
     label: 'Next Page',
@@ -154,26 +215,44 @@ You are a production-minded assistant.
     attachScriptContext: true,
     expectsFormattedScript: true,
     scriptMutation: SCRIPT_MUTATION.APPEND,
-    userPrompt: `
-SYSTEM APPEND PAGE.
-Continue the current script by writing the next page of formatted lines only.
-`,
-    systemInstruction: `
-You are a screenplay continuation engine.
-- Respond in JSON with two keys: "formattedScript" and "assistantResponse".
-  - "formattedScript" must contain 12-16 new lines in proper XML-like tags.
-  - Each line is exactly one tag and counts toward the 12-16 total.
-  - Each line must use the valid tags (${VALID_TAGS}).
-  - "assistantResponse" should be a short, simple chat response (under 40 words).
-- Escape any double quotes inside JSON strings as \\".
-- Do not include additional text outside the JSON envelope.
-- Combine consecutive action sentences into a single <action> line when they belong together.
-- Do not rewrite or repeat existing lines.
-`,
+    userPrompt: 'Write the next page (12-16 lines) continuing this script.',
+    systemInstruction: `You are a screenplay continuation engine.
+
+OUTPUT FORMAT
+Return valid JSON only:
+{ "formattedScript": "<12-16 lines>", "assistantResponse": "<under 40 words>" }
+
+${VALID_TAGS_BLOCK}
+
+${SCREENPLAY_GRAMMAR_V1}
+
+LINE COUNTING
+Each XML tag = 1 line. Output 12-16 tags total.
+<speaker> + <dialog> = 2 lines (not 1 exchange)
+
+EXAMPLE
+<action>The door creaks open. Nick peers inside.</action>
+<speaker>NICK</speaker>
+<dialog>Hello?</dialog>
+<action>Silence. Then footsteps from above.</action>
+<speaker>SARAH</speaker>
+<directions>(whispering)</directions>
+<dialog>Over here. Quickly.</dialog>
+<action>Nick crosses to Sarah, crouching behind the counter.</action>
+<speaker>NICK</speaker>
+<dialog>What's going on?</dialog>
+<speaker>SARAH</speaker>
+<dialog>They found us.</dialog>
+
+RULES
+- Continue naturally from the last line
+- Never repeat content from context
+- Match the established tone and pacing
+- ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
   // PROMPT_REGISTRY
-  // next-five-lines
+  // next-five-lines (uses shared grammar contract)
   createPrompt({
     id: 'next-five-lines',
     label: 'Next Five Lines',
@@ -184,213 +263,102 @@ You are a screenplay continuation engine.
     attachScriptContext: true,
     expectsFormattedScript: true,
     scriptMutation: SCRIPT_MUTATION.APPEND,
-    userPrompt: `
-Write the next five lines of the user script.
-Each line must use the standard tags (${VALID_TAGS}).
-The formatted script response MUST return only xml style tags like: 
+    userPrompt: 'Write the next 5 lines continuing this script.',
+    systemInstruction: `You are a screenplay continuation engine.
+
+OUTPUT FORMAT
+Return valid JSON only:
+{ "formattedScript": "<5 lines>", "assistantResponse": "<under 40 words>" }
+
+${VALID_TAGS_BLOCK}
+
+${SCREENPLAY_GRAMMAR_V1}
+
+LINE COUNTING
+Each XML tag = 1 line. You must output EXACTLY 5 tags.
+<speaker> + <dialog> = 2 lines (not 1 exchange)
+
+EXAMPLE
+Context ends:
 <speaker>NICK</speaker>
-<dialog>Hi!</dialog>
-`,
-    systemInstruction: `
-You are the script continuation specialist.
-- Respond only in JSON with two keys: "formattedScript" and "assistantResponse".
-  - "formattedScript" must contain exactly five new lines in proper XML-like tags.
-  - Each line is exactly one tag and counts toward the five-line total.
-  - Each line must use the valid tags (${VALID_TAGS}).
-  - "assistantResponse" should briefly describe the new script (less than 50 words).
-- Escape any double quotes inside JSON strings as \\".
-- Do not include additional text outside the JSON envelope.
-- Refer to the existing context before writing so that continuity is preserved.
-- Avoid rewriting previous lines and do not exceed five new lines.
-`,
+<dialog>What happened?</dialog>
+
+Correct 5-line output:
+<action>Sarah looks away, composing herself.</action>
+<speaker>SARAH</speaker>
+<dialog>It's complicated.</dialog>
+<speaker>NICK</speaker>
+<dialog>Try me.</dialog>
+
+RULES
+- Continue from the last line naturally
+- Never repeat content from context
+- Match the tone and pacing
+- ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
-  // PROMPT_REGISTRY
-  // scene-idea
-  createPrompt({
+  // IDEATION PROMPTS (templated)
+  // ---------------------------------
+  createIdeationPrompt('scene', {
     id: 'scene-idea',
     label: 'Scene Idea',
     clientCopy: 'Generate a scene title and description.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/script/:scriptId/scenes/ai/scene-idea',
-    intent: INTENT_TYPES.SCENE_IDEA,
-    attachScriptContext: true,
-    userPrompt: `
-SCENE IDEA.
-Use the script context, the current scene, and the other scenes to propose a strong title and description.
-Return JSON with "title" and "description".
-`,
-    systemInstruction: `
-You are a scene ideation assistant.
-- Return only JSON with "title" and "description".
-- Keep the title short and specific.
-- The description should be 2-4 sentences and align with the surrounding scenes.
-- Do not include extra keys or commentary.
-`
+    intent: INTENT_TYPES.SCENE_IDEA
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // character-idea
-  createPrompt({
+  createIdeationPrompt('character', {
     id: 'character-idea',
     label: 'Character Idea',
     clientCopy: 'Generate a character title and description.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/script/:scriptId/characters/ai/character-idea',
-    intent: INTENT_TYPES.CHARACTER_IDEA,
-    attachScriptContext: true,
-    userPrompt: `
-CHARACTER IDEA.
-Use the script context, current character, and other characters to propose a strong title and description.
-Return JSON with "title" and "description".
-`,
-    systemInstruction: `
-You are a character ideation assistant.
-- Return only JSON with "title" and "description".
-- Keep the title short and specific.
-- The description should be 2-4 sentences and align with the script.
-- Do not include extra keys or commentary.
-`
+    intent: INTENT_TYPES.CHARACTER_IDEA
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // location-idea
-  createPrompt({
+  createIdeationPrompt('location', {
     id: 'location-idea',
     label: 'Location Idea',
-    clientCopy: 'Generate a location item title and description.',
-    category: PROMPT_CATEGORIES.SERVICE,
+    clientCopy: 'Generate a location title and description.',
     route: '/script/:scriptId/locations/ai/location-idea',
-    intent: INTENT_TYPES.LOCATION_IDEA,
-    attachScriptContext: true,
-    userPrompt: `
-LOCATION IDEA.
-Use the script context, current location item, and other location items to propose a strong title and description.
-Return JSON with "title" and "description".
-`,
-    systemInstruction: `
-You are a location ideation assistant.
-- Return only JSON with "title" and "description".
-- Keep the title short and specific.
-- The description should be 2-4 sentences and align with the script.
-- Do not include extra keys or commentary.
-`
+    intent: INTENT_TYPES.LOCATION_IDEA
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // theme-idea
-  createPrompt({
+  createIdeationPrompt('theme', {
     id: 'theme-idea',
     label: 'Theme Idea',
     clientCopy: 'Generate a theme title and description.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/script/:scriptId/themes/ai/theme-idea',
-    intent: INTENT_TYPES.THEME_IDEA,
-    attachScriptContext: true,
-    userPrompt: `
-THEME IDEA.
-Use the script context, current theme, and other themes to propose a strong title and description.
-Return JSON with "title" and "description".
-`,
-    systemInstruction: `
-You are a theme ideation assistant.
-- Return only JSON with "title" and "description".
-- Keep the title short and specific.
-- The description should be 2-4 sentences and align with the script.
-- Do not include extra keys or commentary.
-`
+    intent: INTENT_TYPES.THEME_IDEA
   }),
   // ---------------------------------
-  // PROMPT_REGISTRY
-  // brainstorm-general
-  createPrompt({
+  // BRAINSTORM PROMPTS (templated)
+  // ---------------------------------
+  createBrainstormPrompt('word associations', '6-10 (target 8)', {
     id: 'brainstorm-general',
     label: 'Brainstorm · General',
     clientCopy: 'Generate word associations for the seed concepts.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/brainstorm/boards/:boardId/ai/general',
-    intent: INTENT_TYPES.BRAINSTORM_GENERAL,
-    userPrompt: `
-BRAINSTORM GENERAL.
-Generate 6-10 concise word associations (target 8) for the seed concepts.
-Return only a JSON array of strings (no extra keys, no commentary).
-`,
-    systemInstruction: `
-You are a brainstorming assistant focused on word association.
-- Use controlled randomness and fresh associations.
-- Keep each note short and readable at default zoom.
-- Return only a JSON array of strings.
-`
+    intent: INTENT_TYPES.BRAINSTORM_GENERAL
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // brainstorm-story
-  createPrompt({
+  createBrainstormPrompt('story ideas', '1-3 (target 2)', {
     id: 'brainstorm-story',
     label: 'Brainstorm · Story',
     clientCopy: 'Generate story ideas for the seed concepts.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/brainstorm/boards/:boardId/ai/story',
-    intent: INTENT_TYPES.BRAINSTORM_STORY,
-    userPrompt: `
-BRAINSTORM STORY.
-Generate 1-3 concise story ideas (target 2) for the seed concepts.
-Return only a JSON array of strings (no extra keys, no commentary).
-`,
-    systemInstruction: `
-You are a brainstorming assistant focused on story ideas.
-- Prioritize clarity and distinctness.
-- Keep each note concise and readable.
-- Return only a JSON array of strings.
-`
+    intent: INTENT_TYPES.BRAINSTORM_STORY
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // brainstorm-character
-  createPrompt({
+  createBrainstormPrompt('character ideas', '2-4 (target 3)', {
     id: 'brainstorm-character',
     label: 'Brainstorm · Character',
     clientCopy: 'Generate character ideas for the seed concepts.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/brainstorm/boards/:boardId/ai/character',
-    intent: INTENT_TYPES.BRAINSTORM_CHARACTER,
-    userPrompt: `
-BRAINSTORM CHARACTER.
-Generate 2-4 concise character ideas (target 3) for the seed concepts.
-Return only a JSON array of strings (no extra keys, no commentary).
-`,
-    systemInstruction: `
-You are a brainstorming assistant focused on character ideas.
-- Prioritize clarity and distinctness.
-- Keep each note concise and readable.
-- Return only a JSON array of strings.
-`
+    intent: INTENT_TYPES.BRAINSTORM_CHARACTER
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // brainstorm-location
-  createPrompt({
+  createBrainstormPrompt('location ideas', '2-4 (target 3)', {
     id: 'brainstorm-location',
     label: 'Brainstorm · Location',
     clientCopy: 'Generate location ideas for the seed concepts.',
-    category: PROMPT_CATEGORIES.SERVICE,
     route: '/brainstorm/boards/:boardId/ai/location',
-    intent: INTENT_TYPES.BRAINSTORM_LOCATION,
-    userPrompt: `
-BRAINSTORM LOCATION.
-Generate 2-4 concise location ideas (target 3) for the seed concepts.
-Return only a JSON array of strings (no extra keys, no commentary).
-`,
-    systemInstruction: `
-You are a brainstorming assistant focused on location ideas.
-- Prioritize clarity and distinctness.
-- Keep each note concise and readable.
-- Return only a JSON array of strings.
-`
+    intent: INTENT_TYPES.BRAINSTORM_LOCATION
   }),
-  // ---------------------------------
-  // PROMPT_REGISTRY
-  // brainstorm-title
+  // brainstorm-title returns JSON object, not array (kept separate)
   createPrompt({
     id: 'brainstorm-title',
     label: 'Brainstorm · Title',
@@ -398,17 +366,16 @@ You are a brainstorming assistant focused on location ideas.
     category: PROMPT_CATEGORIES.SERVICE,
     route: '/brainstorm/boards/:boardId/ai/title',
     intent: INTENT_TYPES.BRAINSTORM_TITLE,
-    userPrompt: `
-BRAINSTORM TITLE.
-Generate one concise title for the brainstorming board based on the seed concepts.
-Return JSON with a single key: "title".
-`,
-    systemInstruction: `
-You are a brainstorming assistant focused on titles.
-- Return only JSON with "title".
-- Keep the title short and specific.
-- Avoid punctuation-heavy titles.
-`
+    userPrompt: 'Generate one concise title for the brainstorming board.',
+    systemInstruction: `You are a title generator.
+
+OUTPUT FORMAT
+Return valid JSON only: { "title": "..." }
+
+RULES
+- Title: short, specific, evocative (2-5 words)
+- No punctuation-heavy titles
+- No commentary outside JSON`
   })
 ];
 

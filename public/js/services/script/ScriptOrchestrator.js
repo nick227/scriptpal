@@ -1,11 +1,53 @@
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
-import { isValidFormat } from '../../constants/formats.js';
+import { isValidFormat, resolveLineFormat, DEFAULT_FORMAT } from '../../constants/formats.js';
 
 const AI_MAX_LINE_LENGTH = 120;
 
 /**
+ * ScriptOrchestrator - SEMANTIC AUTHORITY for AI script content.
  *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ARCHITECTURAL CONTRACT
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ScriptLine (single source of truth):
+ *   { id: string, format: ScriptFormat, content: string }
+ *
+ * Ownership Rules:
+ *   ┌────────────────────┬──────────────────────────────┐
+ *   │ Concern            │ Owner                        │
+ *   ├────────────────────┼──────────────────────────────┤
+ *   │ AI normalization   │ ScriptOrchestrator           │
+ *   │ Format resolution  │ resolveLineFormat()          │
+ *   │ Commands           │ EditorCoordinator            │
+ *   │ Document mutation  │ EditorDocumentService        │
+ *   │ Rendering decisions│ EditorRendererAdapter        │
+ *   │ DOM construction   │ LineFormatter                │
+ *   └────────────────────┴──────────────────────────────┘
+ *
+ * ScriptOrchestrator is the ONLY place allowed to:
+ *   - Parse AI text
+ *   - Normalize tags
+ *   - Split long lines
+ *   - Infer formats
+ *
+ * After ScriptOrchestrator:
+ *   Guaranteed invariant: Array<{ format: string, content: string }>
+ *   Everything downstream TRUSTS this.
+ *
+ * Forbidden:
+ *   - Regex parsing after orchestrator
+ *   - Tagged strings in commands
+ *   - Renderer generating IDs
+ *   - Undo relying on recomputation
+ *
+ * Required:
+ *   - ScriptLine snapshots everywhere
+ *   - Deterministic command inverses
+ *   - AI edits always atomic
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 export class ScriptOrchestrator {
     /**
@@ -132,14 +174,116 @@ export class ScriptOrchestrator {
     }
 
     // ==============================================
-    // AI Script Operations
+    // AI Script Operations - UNIFIED ENTRY POINT
+    // ==============================================
+
+    /**
+     * Unified AI entry point - SINGLE PUBLIC API for all AI script mutations.
+     * Routes internally to appendLines, insertLines, or replaceRange.
+     *
+     * @param {object} delta - AI script delta
+     * @param {'append'|'prepend'|'insert'|'replace'} delta.operation - Operation type
+     * @param {string} delta.content - Raw AI text content
+     * @param {number} [delta.position] - Insert position (for insert/prepend)
+     * @param {string} [delta.startId] - Start line ID (for replace)
+     * @param {string} [delta.endId] - End line ID (for replace)
+     * @returns {Promise<{success: boolean, linesAffected: number}>}
+     */
+    async handleAiDelta (delta) {
+        if (!delta || !delta.content) {
+            return { success: false, error: 'Invalid delta: content is required' };
+        }
+
+        const operation = delta.operation || 'append';
+
+        // Normalize content through canonical pipeline
+        const normalizedLines = this.normalizeScriptLines(delta.content);
+        const lineItems = normalizedLines
+            .map(line => this.buildLineItem(line))
+            .filter(Boolean);
+
+        if (lineItems.length === 0) {
+            return { success: true, linesAffected: 0 };
+        }
+
+        // Route to appropriate handler
+        switch (operation) {
+            case 'append':
+                return this._applyAiLines(lineItems, { position: 'end', source: 'ai_append' });
+
+            case 'prepend':
+                return this._applyAiLines(lineItems, { position: 0, source: 'ai_prepend' });
+
+            case 'insert':
+                return this._applyAiLines(lineItems, {
+                    position: delta.position ?? 0,
+                    source: 'ai_insert'
+                });
+
+            case 'replace':
+                return this._applyAiReplace(lineItems, {
+                    startId: delta.startId,
+                    endId: delta.endId,
+                    source: 'ai_replace'
+                });
+
+            default:
+                return { success: false, error: `Unknown operation: ${operation}` };
+        }
+    }
+
+    /**
+     * Internal: Apply AI lines at a position
+     * @private
+     */
+    async _applyAiLines (lineItems, { position, source }) {
+        const editorContent = this.editorWidgetInstance?.getComponent('content');
+        if (!editorContent) {
+            throw new Error('Editor content component not available');
+        }
+
+        // 'end' means append
+        if (position === 'end') {
+            const result = await editorContent.appendLines(lineItems);
+            return { success: result.success, linesAffected: lineItems.length };
+        }
+
+        // Build structured commands for insert
+        const commands = lineItems.map((item, i) => ({
+            command: 'ADD',
+            lineNumber: position + i,
+            data: { format: item.format, content: item.content }
+        }));
+
+        const result = await editorContent.applyCommands(commands, { source });
+        return { success: result.success, linesAffected: lineItems.length };
+    }
+
+    /**
+     * Internal: Replace range with AI lines
+     * @private
+     */
+    async _applyAiReplace (lineItems, { startId, endId, source }) {
+        const editorContent = this.editorWidgetInstance?.getComponent('content');
+        if (!editorContent) {
+            throw new Error('Editor content component not available');
+        }
+
+        // For replace, we delete the range then insert new lines
+        // This is a future extension point
+        console.warn('[ScriptOrchestrator] Replace operation not yet implemented');
+        return { success: false, error: 'Replace not implemented' };
+    }
+
+    // ==============================================
+    // Legacy AI Handlers (thin adapters)
     // ==============================================
 
     /**
      * Handle script append operations from AI
+     * @deprecated Use handleAiDelta({ operation: 'append', content }) instead
      * @param {object} data - Append data
      * @param {string} data.content - Content to append
-     * @param {boolean} data.isFromAppend - Whether this is from an append operation
      * @returns {Promise<boolean>} - Success status
      */
     async handleScriptAppend (data) {
@@ -271,19 +415,59 @@ export class ScriptOrchestrator {
         };
     }
 
-    normalizeScriptLines (content) {
+    normalizeScriptLines (content, { preserveEmpty = true } = {}) {
         if (!content && content !== 0) {
             return [];
         }
         const normalized = String(content)
             .replace(/\r\n/g, '\n')
             .replace(/\r/g, '\n');
-        return normalized
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0);
+
+        const lines = normalized.split('\n').map(line => line.trim());
+
+        if (!preserveEmpty) {
+            return lines.filter(line => line.length > 0);
+        }
+
+        // Preserve empty lines but collapse multiple consecutive empties to one
+        const result = [];
+        let lastWasEmpty = false;
+        for (const line of lines) {
+            if (line.length === 0) {
+                if (!lastWasEmpty) {
+                    result.push(''); // Keep one empty line
+                    lastWasEmpty = true;
+                }
+                // Skip consecutive empties
+            } else {
+                result.push(line);
+                lastWasEmpty = false;
+            }
+        }
+        // Trim leading/trailing empty lines
+        while (result.length > 0 && result[0] === '') {
+            result.shift();
+        }
+        while (result.length > 0 && result[result.length - 1] === '') {
+            result.pop();
+        }
+        return result;
     }
 
+    /**
+     * PRE-SEMANTIC AI HYGIENE.
+     *
+     * This is the ONLY place where tagged strings are tolerable because:
+     *   - It operates BEFORE semantic parsing
+     *   - It's an AI-specific hygiene step
+     *
+     * DO NOT use this for user edits.
+     * DO NOT let this creep into other paths.
+     *
+     * @param {string} content - Raw AI content
+     * @param {number} maxLength - Max line length
+     * @returns {string} - Content with long lines split
+     */
     splitLongAiLines (content, maxLength = AI_MAX_LINE_LENGTH) {
         if (typeof content !== 'string') {
             return content;
@@ -359,13 +543,22 @@ export class ScriptOrchestrator {
     }
 
     buildLineItem (line) {
+        // Handle empty lines explicitly
+        if (!line || (typeof line === 'string' && line.trim() === '')) {
+            return { format: DEFAULT_FORMAT, content: '' };
+        }
+
         const normalizedLine = this.normalizeTagNames(line);
         const parsed = this.parseTaggedLine(normalizedLine);
-        const candidate = parsed || {
-            content: normalizedLine,
-            format: this.determineContentFormat(normalizedLine)
-        };
-        return this.ensureValidLineItem(candidate, normalizedLine);
+
+        // Use centralized format resolver
+        const format = resolveLineFormat(
+            parsed?.format,
+            { content: parsed?.content || normalizedLine }
+        );
+        const content = parsed?.content ?? normalizedLine;
+
+        return this.ensureValidLineItem({ format, content }, normalizedLine);
     }
 
     normalizeTagNames (line) {
@@ -383,103 +576,73 @@ export class ScriptOrchestrator {
         if (!item || typeof item !== 'object') {
             return null;
         }
-        const format = isValidFormat(item.format) ? item.format : 'action';
-        const content = format === 'chapter-break' ? '' : (item.content || '').trim();
-        const result = { format, content };
-        console.log('[ScriptOrchestrator] formatting line', {
-            rawLine,
-            candidate: item,
-            canonical: result
-        });
-        return result;
+        // Use centralized format resolver - SINGLE SOURCE OF TRUTH
+        const format = resolveLineFormat(item.format, { content: item.content });
+        const content = format === 'chapter-break' ? '' : (item.content ?? '');
+        return { format, content };
     }
 
     /**
      * Handle script prepend operations from AI
+     * Thin adapter - delegates to insertLines at index 0
      * @param {object} data - Prepend data
      * @param {string} data.content - Content to prepend
      * @returns {Promise<boolean>} - Success status
      */
     async handleScriptPrepend (data) {
-        try {
-
-            if (!data || !data.content) {
-                throw new Error('Invalid prepend data: content is required');
-            }
-
-            // Get the editor content component
-            const editorContent = this.editorWidgetInstance?.getComponent('content');
-            if (!editorContent) {
-                throw new Error('Editor content component not available');
-            }
-
-            // Determine format based on content
-            const format = this.determineContentFormat(data.content);
-
-            const command = {
-                command: 'ADD',
-                lineNumber: 0,
-                value: `<${format}>${data.content}</${format}>`
-            };
-            const result = await editorContent.applyCommands([command], { source: 'script_prepend' });
-
-            if (result.success) {
-
-                // Emit success event
-                this.eventManager.publish(EventManager.EVENTS.SCRIPT.PREPENDED, {
-                    content: data.content,
-                    format: format,
-                    element: null
-                });
-
-                return true;
-            } else {
-                throw new Error('Prepend operation failed');
-            }
-        } catch (error) {
-            console.error('[ScriptOrchestrator] Script prepend failed:', error);
-            this.handleError(error, 'handleScriptPrepend');
-            return false;
-        }
+        return this.handleScriptInsert({ ...data, position: 0 });
     }
 
     /**
      * Handle script insert operations from AI
      * @param {object} data - Insert data
      * @param {string} data.content - Content to insert
-     * @param {number} data.position - Position to insert at
+     * @param {number} data.position - Position to insert at (defaults to 0 for prepend)
      * @returns {Promise<boolean>} - Success status
      */
     async handleScriptInsert (data) {
         try {
-
-            if (!data || !data.content || data.position === undefined) {
-                throw new Error('Invalid insert data: content and position are required');
+            if (!data || !data.content) {
+                throw new Error('Invalid insert data: content is required');
             }
 
-            // Get the editor content component
+            const position = data.position ?? 0;
+
             const editorContent = this.editorWidgetInstance?.getComponent('content');
             if (!editorContent) {
                 throw new Error('Editor content component not available');
             }
 
-            // Determine format based on content
-            const format = this.determineContentFormat(data.content);
+            // Use same normalization as append - NO TAGGED STRINGS
+            const normalizedLines = this.normalizeScriptLines(data.content);
+            const lineItems = normalizedLines
+                .map(line => this.buildLineItem(line))
+                .filter(Boolean);
 
-            const command = {
+            if (lineItems.length === 0) {
+                return { success: true, linesInserted: 0 };
+            }
+
+            // Build structured commands - NO string serialization
+            const commands = lineItems.map((item, i) => ({
                 command: 'ADD',
-                lineNumber: data.position,
-                value: `<${format}>${data.content}</${format}>`
-            };
-            const result = await editorContent.applyCommands([command], { source: 'script_insert' });
+                lineNumber: position + i,
+                data: { format: item.format, content: item.content }
+            }));
+
+            const result = await editorContent.applyCommands(commands, {
+                source: position === 0 ? 'script_prepend' : 'script_insert'
+            });
 
             if (result.success) {
+                const eventType = position === 0
+                    ? EventManager.EVENTS.SCRIPT.PREPENDED
+                    : EventManager.EVENTS.SCRIPT.INSERTED;
 
-                // Emit success event
-                this.eventManager.publish(EventManager.EVENTS.SCRIPT.INSERTED, {
+                this.eventManager.publish(eventType, {
                     content: data.content,
-                    format: format,
-                    position: data.position,
+                    lineCount: lineItems.length,
+                    position,
                     element: null
                 });
 

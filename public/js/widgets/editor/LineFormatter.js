@@ -114,37 +114,6 @@ export class LineFormatter {
             dblclick: dblclickHandler
         };
 
-        // Handle cursor positioning
-        line.addEventListener('click', (e) => {
-            // Don't interfere with existing selection
-            const selection = window.getSelection();
-            if (selection.toString()) {
-                return;
-            }
-
-            // Only handle clicks directly on the line element
-            if (e.target !== line) {
-                return;
-            }
-
-            const rect = line.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-
-            // Find nearest text position
-            const range = document.createRange();
-            const textNode = line.firstChild;
-            if (textNode && textNode.nodeType === Node.TEXT_NODE) {
-                let position = Math.round((clickX / rect.width) * textNode.length);
-                position = Math.max(0, Math.min(position, textNode.length));
-
-                range.setStart(textNode, position);
-                range.setEnd(textNode, position);
-
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
-        });
-
         // Attach keydown handler if available
         if (this.keydownHandler) {
             line.addEventListener('keydown', this.keydownHandler);

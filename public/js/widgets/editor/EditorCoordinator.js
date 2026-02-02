@@ -1,11 +1,11 @@
 import { EventManager } from '../../core/EventManager.js';
 import { debugLog } from '../../core/logger.js';
-import { EDITOR_EVENTS } from './constants.js';
+
 import { AutocompleteManager } from './AutocompleteManager.js';
+import { EDITOR_EVENTS } from './constants.js';
 import { EditorDocumentService } from './EditorDocumentService.js';
-import { EditorRenderController } from './EditorRenderController.js';
 import { EditorInputController } from './EditorInputController.js';
-import { ScriptDocument } from './model/ScriptDocument.js';
+import { EditorRenderController } from './EditorRenderController.js';
 
 /**
  * Orchestrates editor services and phases.
@@ -39,6 +39,9 @@ export class EditorCoordinator {
         this._contentUpdateTimeout = null;
         this._contentPersistTimeout = null;
         this._persistDelay = 300;
+        this._opQueue = Promise.resolve();
+        this._pendingFocus = null;
+        this._domHandlerEditIntentHandler = null;
 
         this.callbacks = {
             onChange: options.onChange,
@@ -54,22 +57,43 @@ export class EditorCoordinator {
         };
     }
 
+    /**
+     *
+     * @param eventType
+     * @param handler
+     */
     on (eventType, handler) {
         return this.events.subscribe(eventType, handler);
     }
 
+    /**
+     *
+     * @param eventType
+     * @param handler
+     */
     off (eventType, handler) {
         this.events.unsubscribe(eventType, handler);
     }
 
+    /**
+     *
+     * @param eventType
+     * @param data
+     */
     emit (eventType, data) {
         this.events.publish(eventType, data);
     }
 
+    /**
+     *
+     */
     removeAllListeners () {
         this.events.clear();
     }
 
+    /**
+     *
+     */
     async initialize () {
         try {
             await this.initializeCriticalPhase();
@@ -82,6 +106,9 @@ export class EditorCoordinator {
         }
     }
 
+    /**
+     *
+     */
     async initializeCriticalPhase () {
         // Phase 1: Validate dependencies + DOM
         if (!this.domHandler) {
@@ -115,6 +142,9 @@ export class EditorCoordinator {
         this.inputController.setContentManager(this);
     }
 
+    /**
+     *
+     */
     async initializeEventPhase () {
         // Phase 3: Input routing
         this.inputController.setCallbacks({
@@ -165,8 +195,18 @@ export class EditorCoordinator {
         });
 
         this.inputController.initialize(this.editorArea);
+
+        if (this.domHandler) {
+            this._domHandlerEditIntentHandler = (payload) => {
+                this._handleEditIntent(payload);
+            };
+            this.domHandler.on('editIntent', this._domHandlerEditIntentHandler);
+        }
     }
 
+    /**
+     *
+     */
     deferOptionalFeatures () {
         setTimeout(() => {
             if (this.autocomplete && typeof this.autocomplete.setEditorArea === 'function') {
@@ -180,6 +220,12 @@ export class EditorCoordinator {
      * Phase 2: Mutate document
      * Phase 3: Render
      * Phase 4: Emit + persist
+     * @param content
+     * @param root0
+     * @param root0.isEdit
+     * @param root0.preserveState
+     * @param root0.source
+     * @param root0.focus
      */
     async updateContent (content, { isEdit = false, preserveState = false, source = null, focus = false } = {}) {
         try {
@@ -219,38 +265,83 @@ export class EditorCoordinator {
         }
     }
 
+    /**
+     *
+     */
     getContent () {
         return this.documentService.getContent();
     }
 
+    /**
+     *
+     */
     getPlainText () {
         return this.documentService.getPlainText();
     }
 
+    /**
+     *
+     */
     getLines () {
         return this.documentService.getLines();
     }
 
+    /**
+     *
+     * @param lineId
+     */
     getLineById (lineId) {
         return this.documentService.getLineById(lineId);
     }
 
+    /**
+     *
+     * @param lineId
+     */
+    getLineContentById (lineId) {
+        return this.documentService.getLineContentById(lineId);
+    }
+
+    /**
+     *
+     * @param lineId
+     */
+    isLineEmptyById (lineId) {
+        return this.documentService.isLineEmptyById(lineId);
+    }
+
+    /**
+     *
+     * @param lineId
+     */
     getLineIndex (lineId) {
         return this.documentService.getLineIndex(lineId);
     }
 
+    /**
+     *
+     */
     getLineCount () {
         return this.documentService.getLineCount();
     }
 
+    /**
+     *
+     */
     getWordCount () {
         return this.documentService.getWordCount();
     }
 
+    /**
+     *
+     */
     getCharacterCount () {
         return this.documentService.getCharacterCount();
     }
 
+    /**
+     *
+     */
     getChapterCount () {
         return this.documentService.getChapterCount();
     }
@@ -258,6 +349,7 @@ export class EditorCoordinator {
     /**
      * Apply command-based edits to the editor content.
      * @param {Array} commands
+     * @param options
      * @returns {Promise<object>}
      */
     async applyCommands (commands = [], options = {}) {
@@ -301,30 +393,32 @@ export class EditorCoordinator {
      * @returns {Promise<object>}
      */
     async appendLines (lines = [], options = {}) {
-        const startIndex = this.documentService.getLineCount();
-        const commands = lines
-            .map((line, index) => this.documentService.createAddCommandAtIndex(startIndex + index, {
-                format: line.format,
-                content: line.content
-            }))
-            .filter(Boolean);
+        return this._enqueueOperation(async () => {
+            const startIndex = this.documentService.getLineCount();
+            const commands = lines
+                .map((line, index) => this.documentService.createAddCommandAtIndex(startIndex + index, {
+                    format: line.format,
+                    content: line.content
+                }))
+                .filter(Boolean);
 
-        const source = options.source || 'append';
-        const result = await this.applyCommands(commands, { source });
-        if (!result || !result.success) {
-            return { success: false, reason: 'append_failed', result };
-        }
+            const source = options.source || 'append';
+            const result = await this.applyCommands(commands, { source });
+            if (!result || !result.success) {
+                return { success: false, reason: 'append_failed', result };
+            }
 
-        const lineElements = this.editorArea.querySelectorAll('.script-line');
-        const element = lineElements.length > 0 ? lineElements[lineElements.length - 1] : null;
-        const lastLine = lines[lines.length - 1];
+            const lineElements = this.editorArea.querySelectorAll('.script-line');
+            const element = lineElements.length > 0 ? lineElements[lineElements.length - 1] : null;
+            const lastLine = lines[lines.length - 1];
 
-        return {
-            success: true,
-            element,
-            format: lastLine.format,
-            result
-        };
+            return {
+                success: true,
+                element,
+                format: lastLine.format,
+                result
+            };
+        });
     }
 
     /**
@@ -345,6 +439,10 @@ export class EditorCoordinator {
         this.applyFormat(lineId, { format });
     }
 
+    /**
+     *
+     * @param direction
+     */
     cycleFormat (direction = 1) {
         const currentLine = this.domHandler.getCurrentLine();
         if (!currentLine) return;
@@ -352,6 +450,13 @@ export class EditorCoordinator {
         this.applyFormat(lineId, { direction });
     }
 
+    /**
+     *
+     * @param lineId
+     * @param root0
+     * @param root0.format
+     * @param root0.direction
+     */
     applyFormat (lineId, { format, direction } = {}) {
         if (!lineId) {
             return null;
@@ -367,6 +472,10 @@ export class EditorCoordinator {
         return command;
     }
 
+    /**
+     *
+     * @param command
+     */
     applyFormatCommand (command) {
         if (!command || command.type !== 'setFormat') {
             return null;
@@ -388,6 +497,9 @@ export class EditorCoordinator {
         return editCommand;
     }
 
+    /**
+     *
+     */
     refreshSpeakerSuggestions () {
         if (!this.stateManager) {
             return;
@@ -412,25 +524,44 @@ export class EditorCoordinator {
         this.stateManager.setAutocompleteSuggestions('speaker', suggestions);
     }
 
+    /**
+     *
+     */
     clearSelection () {
         const selection = window.getSelection();
         selection.removeAllRanges();
     }
 
+    /**
+     *
+     * @param saveService
+     */
     setSaveService (saveService) {
         this.inputController.setSaveService(saveService);
     }
 
+    /**
+     *
+     * @param history
+     */
     setHistory (history) {
         this.inputController.setHistory(history);
     }
 
+    /**
+     *
+     * @param lineElement
+     */
     syncLineContentFromDOM (lineElement) {
         if (!lineElement || !lineElement.classList.contains('script-line')) {
             return;
         }
 
         const lineId = this.ensureLineId(lineElement);
+        if (!lineId) {
+            return;
+        }
+
         const content = lineElement.textContent || '';
         const format = lineElement.getAttribute('data-format') || 'action';
         const existing = this.documentService.getLineById(lineId);
@@ -447,147 +578,197 @@ export class EditorCoordinator {
         }
     }
 
+    /**
+     *
+     * @param lineElement
+     */
     ensureLineId (lineElement) {
         if (lineElement.dataset.lineId) {
             return lineElement.dataset.lineId;
         }
 
-        const lines = this.editorArea.querySelectorAll('.script-line');
-        let index = -1;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i] === lineElement) {
-                index = i;
-                break;
+        const domFormat = lineElement.getAttribute('data-format') || 'action';
+        const domContent = lineElement.textContent || '';
+
+        const modelLines = this.documentService.getLines();
+        for (const modelLine of modelLines) {
+            if (modelLine.format === domFormat && modelLine.content === domContent) {
+                lineElement.dataset.lineId = modelLine.id;
+                debugLog('[EditorCoordinator] Bound lineId from document by content match:', {
+                    lineId: modelLine.id,
+                    format: modelLine.format
+                });
+                return modelLine.id;
             }
         }
-        const existing = index >= 0 ? this.documentService.getLines()[index] : null;
-        if (existing) {
-            lineElement.dataset.lineId = existing.id;
-            debugLog('[EditorCoordinator] Bound lineId from document:', {
-                lineId: existing.id,
-                index,
-                format: existing.format
-            });
-            return existing.id;
-        }
 
-        const lineId = ScriptDocument.createLineId();
-        lineElement.dataset.lineId = lineId;
-        const addCommand = this.documentService.createAddCommandAtIndex(index, {
-            format: lineElement.getAttribute('data-format') || 'action',
-            content: lineElement.textContent || ''
+        console.warn('[EditorCoordinator] DOM line without lineId not found in model - rejecting:', {
+            format: domFormat,
+            contentLength: domContent.length
         });
-        if (addCommand) {
-            this.applyCommands([addCommand], { source: 'line_bind', skipRender: true });
-        }
-        console.warn('[EditorCoordinator] Created new lineId for DOM line:', {
-            lineId,
-            index,
-            format: lineElement.getAttribute('data-format') || 'action'
-        });
-        return lineId;
+        return null;
     }
 
+    /**
+     *
+     * @param lineId
+     * @param options
+     */
     async insertLineAfter (lineId, options = {}) {
-        const { format = 'action', content = '', updateCurrentContent, focus = true } = options;
-        const wasLastLine = this.documentService.getLineIndex(lineId) === this.documentService.getLineCount() - 1;
-        const insertCommand = this.documentService.createAddCommandAfterLine(lineId, { format, content });
-        const commands = [];
-        if (updateCurrentContent !== undefined) {
-            const editCommand = this.documentService.createEditCommandById(lineId, {
-                content: updateCurrentContent
-            });
-            if (editCommand) {
-                commands.push(editCommand);
+        return this._enqueueOperation(async () => {
+            const { format = 'action', content = '', updateCurrentContent, focus = true } = options;
+            const wasLastLine = this.documentService.getLineIndex(lineId) === this.documentService.getLineCount() - 1;
+            const insertCommand = this.documentService.createAddCommandAfterLine(lineId, { format, content });
+            const commands = [];
+            if (updateCurrentContent !== undefined) {
+                const editCommand = this.documentService.createEditCommandById(lineId, {
+                    content: updateCurrentContent
+                });
+                if (editCommand) {
+                    commands.push(editCommand);
+                }
             }
-        }
-        if (insertCommand) {
-            commands.push(insertCommand);
-        }
+            if (insertCommand) {
+                commands.push(insertCommand);
+            }
 
-        const result = this.documentService.applyCommands(commands);
-        if (!result.success) {
-            return null;
-        }
+            const result = this.documentService.applyCommands(commands);
+            if (!result.success) {
+                return null;
+            }
 
-        const insertIndex = insertCommand ? insertCommand.lineNumber : this.documentService.getLineCount() - 1;
-        const newLine = this.documentService.getLines()[insertIndex] || null;
+            const insertIndex = insertCommand ? insertCommand.lineNumber : this.documentService.getLineCount() - 1;
+            const newLine = this.documentService.getLines()[insertIndex] || null;
 
-        const requiredPages = this._getRequiredPageCount();
-        const currentPages = this.pageManager.getPageCount();
-        const canIncremental = wasLastLine && requiredPages === currentPages;
+            const requiredPages = this._getRequiredPageCount();
+            const currentPages = this.pageManager.getPageCount();
+            const canIncremental = wasLastLine && requiredPages === currentPages;
 
-        if (updateCurrentContent !== undefined) {
-            this.renderController.updateLineById(lineId, { content: updateCurrentContent });
-        }
+            if (updateCurrentContent !== undefined) {
+                this.renderController.updateLineById(lineId, { content: updateCurrentContent });
+            }
 
-        if (canIncremental && newLine) {
-            this.renderController.appendLine({
-                id: newLine.id,
-                format: newLine.format,
-                text: newLine.content
-            });
-        } else {
-            await this.renderController.renderDocument(this.documentService.getDocument(), {
-                source: 'line_insert',
-                allowInPlace: true,
-                skipFocus: true
-            });
-        }
+            if (canIncremental && newLine) {
+                this.renderController.appendLine({
+                    id: newLine.id,
+                    format: newLine.format,
+                    text: newLine.content
+                });
+            } else {
+                await this.renderController.renderDocument(this.documentService.getDocument(), {
+                    source: 'line_insert',
+                    allowInPlace: true,
+                    skipFocus: true
+                });
+            }
 
-        if (focus && newLine) {
-            this.renderController.focusLineById(newLine.id, { position: 'start' });
-        }
+            if (focus && newLine) {
+                this._setFocusIntent(newLine.id, { position: 'start' });
+            }
 
-        this._emitContentChange({ source: 'line_insert' });
-        return newLine;
+            this._applyFocusIntent();
+            this._emitContentChange({ source: 'line_insert' });
+            return newLine;
+        });
     }
 
+    /**
+     *
+     * @param lineIds
+     * @param options
+     */
     async deleteLinesById (lineIds = [], options = {}) {
-        if (!Array.isArray(lineIds) || lineIds.length === 0) {
-            return null;
-        }
+        return this._enqueueOperation(async () => {
+            if (!Array.isArray(lineIds) || lineIds.length === 0) {
+                return null;
+            }
 
-        const remainingFocusId = options.focusLineId || null;
-        const targetLineId = lineIds.length === 1 ? lineIds[0] : null;
-        const targetIndex = targetLineId ? this.documentService.getLineIndex(targetLineId) : -1;
-        const wasLastLine = targetIndex === this.documentService.getLineCount() - 1;
+            const remainingFocusId = options.focusLineId || null;
+            const targetLineId = lineIds.length === 1 ? lineIds[0] : null;
+            const targetIndex = targetLineId ? this.documentService.getLineIndex(targetLineId) : -1;
+            const wasLastLine = targetIndex === this.documentService.getLineCount() - 1;
 
-        const commands = lineIds
-            .map(lineId => this.documentService.createDeleteCommandById(lineId))
-            .filter(Boolean);
+            const commands = lineIds
+                .map(lineId => this.documentService.createDeleteCommandById(lineId))
+                .filter(Boolean);
 
-        const result = this.documentService.applyCommands(commands);
-        if (!result.success) {
-            return null;
-        }
+            const result = this.documentService.applyCommands(commands);
+            if (!result.success) {
+                return null;
+            }
 
-        const requiredPages = this._getRequiredPageCount();
-        const currentPages = this.pageManager.getPageCount();
-        const canIncremental = targetLineId &&
-            lineIds.length === 1 &&
-            wasLastLine &&
-            requiredPages === currentPages &&
-            this.documentService.getLineCount() > 0;
+            const requiredPages = this._getRequiredPageCount();
+            const currentPages = this.pageManager.getPageCount();
+            const canIncremental = targetLineId &&
+                lineIds.length === 1 &&
+                wasLastLine &&
+                requiredPages === currentPages &&
+                this.documentService.getLineCount() > 0;
 
-        if (canIncremental) {
-            this.renderController.removeLineById(targetLineId);
-        } else {
+            if (canIncremental) {
+                this.renderController.removeLineById(targetLineId);
+            } else {
+                await this.renderController.renderDocument(this.documentService.getDocument(), {
+                    source: 'line_delete',
+                    allowInPlace: true,
+                    skipFocus: true
+                });
+            }
+
+            if (remainingFocusId) {
+                this._setFocusIntent(remainingFocusId, { position: 'end' });
+            }
+
+            this._applyFocusIntent();
+            this._emitContentChange({ source: 'line_delete' });
+            return true;
+        });
+    }
+
+    /**
+     *
+     * @param toLineId
+     * @param fromLineId
+     * @param options
+     */
+    async mergeLinesById (toLineId, fromLineId, options = {}) {
+        return this._enqueueOperation(async () => {
+            if (!toLineId || !fromLineId) {
+                return null;
+            }
+
+            const command = {
+                command: 'MERGE_LINES',
+                toLineId,
+                fromLineId
+            };
+
+            const result = this.documentService.applyCommands([command]);
+            if (!result.success) {
+                return null;
+            }
+
             await this.renderController.renderDocument(this.documentService.getDocument(), {
-                source: 'line_delete',
+                source: 'line_merge',
                 allowInPlace: true,
                 skipFocus: true
             });
-        }
 
-        if (remainingFocusId) {
-            this.renderController.focusLineById(remainingFocusId, { position: 'end' });
-        }
+            if (options.focus !== false) {
+                this._setFocusIntent(toLineId, { position: 'end' });
+            }
 
-        this._emitContentChange({ source: 'line_delete' });
-        return true;
+            this._applyFocusIntent();
+            this._emitContentChange({ source: 'line_merge' });
+            return true;
+        });
     }
 
+    /**
+     *
+     * @param lineId
+     * @param updates
+     */
     updateLineById (lineId, updates = {}) {
         const command = this.documentService.createEditCommandById(lineId, updates);
         if (!command) {
@@ -598,6 +779,28 @@ export class EditorCoordinator {
         return command;
     }
 
+    /**
+     *
+     * @param lineId
+     * @param updates
+     * @param focusOptions
+     */
+    updateLineByIdWithFocus (lineId, updates = {}, focusOptions = {}) {
+        const command = this.updateLineById(lineId, updates);
+        if (!command) {
+            return null;
+        }
+        if (focusOptions) {
+            this._setFocusIntent(lineId, focusOptions);
+            this._applyFocusIntent();
+        }
+        return command;
+    }
+
+    /**
+     *
+     * @param lineText
+     */
     getLineFormat (lineText) {
         const match = lineText.match(/<([\w-]+)>([\s\S]*)<\/\1>/);
         if (!match) {
@@ -606,10 +809,18 @@ export class EditorCoordinator {
         return match[1].toLowerCase();
     }
 
+    /**
+     *
+     */
     _getRequiredPageCount () {
         return Math.ceil(this.documentService.getLineCount() / this.pageManager.maxLinesPerPage);
     }
 
+    /**
+     *
+     * @param root0
+     * @param root0.source
+     */
     _emitContentChange ({ source } = {}) {
         const serializeStart = performance.now();
         const content = this.getContent();
@@ -630,6 +841,77 @@ export class EditorCoordinator {
         }, this._persistDelay);
     }
 
+    /**
+     *
+     * @param payload
+     */
+    _handleEditIntent (payload) {
+        const { type } = payload;
+
+        if (type === 'SPLIT_LINE') {
+            const { lineId, selection } = payload;
+            const line = this.documentService.getLineById(lineId);
+            if (!line) {
+                return null;
+            }
+
+            const cursorPosition = selection.startOffset;
+            const beforeText = line.content.substring(0, cursorPosition);
+            const afterText = line.content.substring(cursorPosition);
+            const nextFormat = this.lineFormatter.getNextFormatInFlow(line.format, 1);
+
+            return this.insertLineAfter(lineId, {
+                format: nextFormat,
+                content: afterText,
+                updateCurrentContent: beforeText,
+                focus: true
+            });
+        }
+
+        if (type === 'MERGE_WITH_NEXT') {
+            const { lineId } = payload;
+            const lineIndex = this.documentService.getLineIndex(lineId);
+            const nextLine = lineIndex >= 0 ? this.documentService.getLines()[lineIndex + 1] : null;
+            if (!nextLine) {
+                return null;
+            }
+            return this.mergeLinesById(lineId, nextLine.id, { focus: true });
+        }
+
+        if (type === 'DELETE_SELECTED_LINES') {
+            const { lineIds } = payload;
+            if (!Array.isArray(lineIds) || lineIds.length === 0) {
+                return null;
+            }
+            const indexes = lineIds
+                .map(id => this.documentService.getLineIndex(id))
+                .filter(index => index >= 0)
+                .sort((a, b) => a - b);
+            if (indexes.length === 0) {
+                return null;
+            }
+
+            const minIndex = indexes[0];
+            const maxIndex = indexes[indexes.length - 1];
+            const lines = this.documentService.getLines();
+            let focusLineId = null;
+            if (maxIndex + 1 < lines.length) {
+                focusLineId = lines[maxIndex + 1].id;
+            } else if (minIndex - 1 >= 0) {
+                focusLineId = lines[minIndex - 1].id;
+            }
+
+            return this.deleteLinesById(lineIds, { focusLineId });
+        }
+
+        return null;
+    }
+
+    /**
+     *
+     * @param type
+     * @param duration
+     */
     _recordPerf (type, duration) {
         if (type === 'render') {
             this.perfStats.renderCount += 1;
@@ -640,7 +922,54 @@ export class EditorCoordinator {
         }
     }
 
+    /**
+     *
+     * @param operation
+     */
+    _enqueueOperation (operation) {
+        this._opQueue = this._opQueue.then(operation)
+            .catch((error) => {
+                console.error('[EditorCoordinator] Operation failed:', error);
+                return null;
+            });
+        return this._opQueue;
+    }
+
+    /**
+     *
+     * @param lineId
+     * @param options
+     */
+    _setFocusIntent (lineId, options = {}) {
+        if (!lineId) {
+            return;
+        }
+        this._pendingFocus = {
+            lineId,
+            options
+        };
+    }
+
+    /**
+     *
+     */
+    _applyFocusIntent () {
+        if (!this._pendingFocus) {
+            return null;
+        }
+        const { lineId, options } = this._pendingFocus;
+        this._pendingFocus = null;
+        return this.renderController.placeCaret(lineId, options);
+    }
+
+    /**
+     *
+     */
     destroy () {
+        if (this.domHandler && this._domHandlerEditIntentHandler) {
+            this.domHandler.off('editIntent', this._domHandlerEditIntentHandler);
+            this._domHandlerEditIntentHandler = null;
+        }
         if (this.inputController) {
             this.inputController.destroy();
         }

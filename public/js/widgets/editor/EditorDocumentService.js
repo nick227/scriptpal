@@ -1,8 +1,30 @@
 import { ScriptDocument } from './model/ScriptDocument.js';
-import { DEFAULT_FORMAT, isValidFormat } from '../../constants/formats.js';
+import { DEFAULT_FORMAT, isValidFormat, resolveLineFormat } from '../../constants/formats.js';
 
 /**
- * Owns ScriptDocument and command application.
+ * EditorDocumentService - DOCUMENT MUTATION AUTHORITY.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * COMMAND CONTRACT
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Command format (structured, lossless):
+ *   | { command: 'ADD',    lineNumber, data: ScriptLine }
+ *   | { command: 'DELETE', lineNumber, data: ScriptLine }  // snapshot for undo
+ *   | { command: 'EDIT',   lineNumber, data: ScriptLine }
+ *   | { command: 'MERGE_LINES', toLineId, fromLineId }
+ *
+ * ScriptLine:
+ *   { id: string, format: string, content: string }
+ *
+ * Inverse commands include FULL LINE SNAPSHOTS:
+ *   - No re-parsing
+ *   - No reconstruction
+ *   - No guessing
+ *
+ * Every command contains enough data to undo itself.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 export class EditorDocumentService {
     constructor () {
@@ -48,6 +70,15 @@ export class EditorDocumentService {
         return this.document ? this.document.getLineById(lineId) : null;
     }
 
+    getLineContentById (lineId) {
+        const line = this.getLineById(lineId);
+        return line ? line.content || '' : '';
+    }
+
+    isLineEmptyById (lineId) {
+        return this.getLineContentById(lineId).trim() === '';
+    }
+
     getLineIndex (lineId) {
         return this.document ? this.document.getLineIndex(lineId) : -1;
     }
@@ -91,12 +122,12 @@ export class EditorDocumentService {
         if (!line) {
             return null;
         }
-        const format = isValidFormat(updates.format) ? updates.format : line.format;
+        const format = resolveLineFormat(updates.format, { content: updates.content }) || line.format;
         const content = updates.content !== undefined ? updates.content : line.content;
         return {
             command: 'EDIT',
             lineNumber: this.getLineIndex(lineId) + 1,
-            value: this._serializeLineValue(format, content)
+            data: { format, content }
         };
     }
 
@@ -121,11 +152,11 @@ export class EditorDocumentService {
      * @param {string} options.content
      */
     createAddCommandAtIndex (insertIndex, { format = DEFAULT_FORMAT, content = '' } = {}) {
-        const safeFormat = isValidFormat(format) ? format : DEFAULT_FORMAT;
+        const safeFormat = resolveLineFormat(format, { content });
         return {
             command: 'ADD',
             lineNumber: Math.min(this.getLineCount(), Math.max(0, insertIndex)),
-            value: this._serializeLineValue(safeFormat, content)
+            data: { format: safeFormat, content }
         };
     }
 
@@ -143,8 +174,15 @@ export class EditorDocumentService {
 
     /**
      * Apply command-based edits to the document.
+     *
+     * Command format (structured, lossless):
+     *   { command: 'ADD'|'EDIT'|'DELETE'|'MERGE_LINES', lineNumber, data: ScriptLine }
+     *
+     * Inverse commands include FULL LINE SNAPSHOTS for lossless undo.
+     * No re-parsing, no reconstruction, no guessing.
+     *
      * @param {Array} commands
-     * @returns {object}
+     * @returns {{success: boolean, results: Array, inverseCommands: Array}}
      */
     applyCommands (commands = []) {
         if (!Array.isArray(commands) || commands.length === 0) {
@@ -154,76 +192,146 @@ export class EditorDocumentService {
         const results = [];
         const inverseCommands = [];
 
-        const parseValue = (value) => {
-            if (typeof value !== 'string') {
-                return { format: DEFAULT_FORMAT, content: '' };
+        // Extract structured ScriptLine from command
+        // Supports both new `data` format and legacy `value` format
+        const extractLine = (cmd) => {
+            if (cmd.data && typeof cmd.data === 'object') {
+                return {
+                    id: cmd.data.id || null,
+                    format: resolveLineFormat(cmd.data.format, { content: cmd.data.content }),
+                    content: cmd.data.content ?? ''
+                };
             }
-
-            const match = value.match(/<([\w-]+)>([\s\S]*)<\/\1>/);
-            if (!match) {
-                return { format: DEFAULT_FORMAT, content: value };
+            // Legacy fallback: parse serialized value (to be removed)
+            if (typeof cmd.value === 'string') {
+                const match = cmd.value.match(/<([\w-]+)>([\s\S]*)<\/\1>/);
+                if (match) {
+                    return {
+                        id: null,
+                        format: resolveLineFormat(match[1]),
+                        content: match[2]
+                    };
+                }
+                return { id: null, format: DEFAULT_FORMAT, content: cmd.value };
             }
-
-            return {
-                format: match[1].toLowerCase(),
-                content: match[2]
-            };
+            return { id: null, format: DEFAULT_FORMAT, content: '' };
         };
 
+        // Snapshot a line for inverse commands (FULL data, lossless)
+        const snapshotLine = (line) => ({
+            id: line.id,
+            format: line.format,
+            content: line.content
+        });
+
         const addCommands = commands.filter(cmd => cmd.command === 'ADD')
-            .sort((a, b) => a.lineNumber - b.lineNumber);
+            .sort((a, b) => (a.lineNumber || 0) - (b.lineNumber || 0));
         const otherCommands = commands.filter(cmd => cmd.command !== 'ADD')
-            .sort((a, b) => b.lineNumber - a.lineNumber);
+            .sort((a, b) => (b.lineNumber || 0) - (a.lineNumber || 0));
 
         const orderedCommands = [...otherCommands, ...addCommands];
 
         for (const cmd of orderedCommands) {
-            const { command, lineNumber, value } = cmd;
+            const { command, lineNumber } = cmd;
             try {
                 if (command === 'DELETE') {
                     const removed = this.document.removeLineByIndex(lineNumber - 1);
                     if (!removed) {
                         throw new Error(`Line ${lineNumber} not found`);
                     }
+                    // Inverse: ADD with full snapshot (preserves ID for exact restoration)
                     inverseCommands.unshift({
                         command: 'ADD',
                         lineNumber: Math.max(0, lineNumber - 1),
-                        value: this._serializeLineValue(removed.format, removed.content)
+                        data: snapshotLine(removed)
                     });
+                    results.push({ success: true, command: cmd, removed: snapshotLine(removed) });
+
                 } else if (command === 'EDIT') {
                     const line = this.document.lines[lineNumber - 1];
                     if (!line) {
                         throw new Error(`Line ${lineNumber} not found`);
                     }
+                    const before = snapshotLine(line);
+                    const { format, content } = extractLine(cmd);
+                    this.document.updateLine(line.id, { format, content });
+                    const after = snapshotLine(line);
+
+                    // Inverse: EDIT with before snapshot
                     inverseCommands.unshift({
                         command: 'EDIT',
                         lineNumber,
-                        value: this._serializeLineValue(line.format, line.content)
+                        lineId: line.id,
+                        data: before
                     });
-                    const parsed = parseValue(value);
-                    this.document.updateLine(line.id, {
-                        format: parsed.format,
-                        content: parsed.content
-                    });
+                    results.push({ success: true, command: cmd, before, after });
+
                 } else if (command === 'ADD') {
-                    const parsed = parseValue(value);
+                    const lineData = extractLine(cmd);
                     const insertIndex = Math.min(this.document.lines.length, Math.max(0, lineNumber));
                     const added = this.document.insertLineAt(insertIndex, {
-                        format: parsed.format,
-                        content: parsed.content
-                    });
-                    inverseCommands.unshift({
-                        command: 'DELETE',
-                        lineNumber: insertIndex + 1
+                        id: lineData.id, // Preserve ID if provided (for undo)
+                        format: lineData.format,
+                        content: lineData.content
                     });
                     if (!added) {
                         throw new Error(`Failed to add line at ${insertIndex}`);
                     }
+                    // Inverse: DELETE with full snapshot
+                    inverseCommands.unshift({
+                        command: 'DELETE',
+                        lineNumber: insertIndex + 1,
+                        data: snapshotLine(added)
+                    });
+                    results.push({ success: true, command: cmd, added: snapshotLine(added) });
+
+                } else if (command === 'MERGE_LINES') {
+                    const { toLineId, fromLineId } = cmd;
+                    if (!toLineId || !fromLineId) {
+                        throw new Error('Merge requires toLineId and fromLineId');
+                    }
+
+                    const toIndex = this.getLineIndex(toLineId);
+                    const fromIndex = this.getLineIndex(fromLineId);
+                    if (toIndex === -1 || fromIndex === -1) {
+                        throw new Error('Merge lines not found');
+                    }
+
+                    const toLine = this.document.lines[toIndex];
+                    const fromLine = this.document.lines[fromIndex];
+                    if (!toLine || !fromLine) {
+                        throw new Error('Merge lines not found');
+                    }
+
+                    const toBefore = snapshotLine(toLine);
+                    const fromBefore = snapshotLine(fromLine);
+
+                    // Inverse: restore toLine, then ADD fromLine back
+                    inverseCommands.unshift({
+                        command: 'EDIT',
+                        lineNumber: toIndex + 1,
+                        lineId: toLine.id,
+                        data: toBefore
+                    });
+                    inverseCommands.unshift({
+                        command: 'ADD',
+                        lineNumber: fromIndex,
+                        data: fromBefore
+                    });
+
+                    const mergedContent = `${toLine.content}${fromLine.content}`;
+                    this.document.updateLine(toLine.id, { content: mergedContent });
+                    this.document.removeLineByIndex(fromIndex);
+
+                    results.push({
+                        success: true,
+                        command: cmd,
+                        merged: { to: toBefore, from: fromBefore }
+                    });
+
                 } else {
                     throw new Error(`Unknown command type: ${command}`);
                 }
-
-                results.push({ success: true, command: cmd });
             } catch (error) {
                 console.error('[EditorDocumentService] Command apply failed:', error);
                 results.push({ success: false, command: cmd, error: error.message });
@@ -233,11 +341,5 @@ export class EditorDocumentService {
         this.ensureMinimumLine();
 
         return { success: true, results, inverseCommands };
-    }
-
-    _serializeLineValue (format, content) {
-        const safeFormat = isValidFormat(format) ? format : DEFAULT_FORMAT;
-        const safeContent = typeof content === 'string' ? content : '';
-        return `<${safeFormat}>${safeContent}</${safeFormat}>`;
     }
 }

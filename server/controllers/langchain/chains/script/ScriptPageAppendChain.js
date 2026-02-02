@@ -10,24 +10,73 @@ export const APPEND_PAGE_INTENT = 'SCRIPT_APPEND_PAGE';
 const LINE_MIN = 12;
 const LINE_MAX = 16;
 const MAX_ATTEMPTS = 3;
+const MAX_CONTEXT_LINES = 30; // Smart truncation: only send recent context
+
+// Function schema: structural only (behavioral rules live in system prompt)
 const APPEND_PAGE_FUNCTIONS = [{
   name: 'provide_append_page',
-  description: 'Return the next page of script lines plus a short chat response.',
+  description: 'Return script continuation.',
   parameters: {
     type: 'object',
     properties: {
       formattedScript: {
         type: 'string',
-        description: '12-16 new script lines wrapped in validated tags (<header>, <action>, <speaker>, <dialog>, <directions>, <chapter-break>).'
+        description: 'Script lines in XML tags.'
       },
       assistantResponse: {
         type: 'string',
-        description: 'Short, simple chat response under 40 words.'
+        description: 'Brief explanation.'
       }
     },
     required: ['formattedScript', 'assistantResponse']
   }
 }];
+
+/**
+ * Smart context truncation: keep only the last N lines.
+ * Reduces token usage and improves relevance.
+ */
+const truncateToRecentLines = (scriptContent, maxLines = MAX_CONTEXT_LINES) => {
+  if (!scriptContent || typeof scriptContent !== 'string') {
+    return '';
+  }
+  const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>[\s\S]*?<\/\1>/g;
+  const matches = scriptContent.match(tagPattern);
+  if (!matches || matches.length <= maxLines) {
+    return scriptContent;
+  }
+  return matches.slice(-maxLines).join('\n');
+};
+
+/**
+ * Grammar validation: speaker must be followed by dialog.
+ */
+const validateScreenplayGrammar = (formattedScript) => {
+  const tagSequence = [];
+  const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>/g;
+  let match;
+  while ((match = tagPattern.exec(formattedScript)) !== null) {
+    tagSequence.push(match[1]);
+  }
+
+  for (let i = 0; i < tagSequence.length; i++) {
+    if (tagSequence[i] === 'speaker') {
+      const next = tagSequence[i + 1];
+      const afterNext = tagSequence[i + 2];
+      if (next !== 'dialog' && !(next === 'directions' && afterNext === 'dialog')) {
+        return { valid: false, error: `<speaker> at position ${i + 1} not followed by <dialog>` };
+      }
+    }
+    if (tagSequence[i] === 'dialog') {
+      const prev = tagSequence[i - 1];
+      const beforePrev = tagSequence[i - 2];
+      if (prev !== 'speaker' && !(prev === 'directions' && beforePrev === 'speaker')) {
+        return { valid: false, error: `<dialog> at position ${i + 1} has no preceding <speaker>` };
+      }
+    }
+  }
+  return { valid: true };
+};
 
 const APPEND_PAGE_PROMPT = getPromptById('append-page');
 
@@ -60,13 +109,19 @@ export class ScriptPageAppendChain extends BaseChain {
       ? `${prompt}\n\nCorrection: ${retryNote}`
       : prompt;
     const shouldAttachScriptContext = context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT;
-    const scriptContent = shouldAttachScriptContext ? context.scriptContent : '';
+
+    // Smart context truncation: only send last N lines
+    const truncatedContent = shouldAttachScriptContext
+      ? truncateToRecentLines(context.scriptContent, MAX_CONTEXT_LINES)
+      : '';
+
     const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
     const collectionBlock = formatScriptCollections(context?.scriptCollections);
-    const contextBlocks = [
-      collectionBlock,
-      scriptContent ? `${SCRIPT_CONTEXT_PREFIX}\n${scriptContent}` : ''
-    ].filter(Boolean).join('\n\n');
+    const scriptContentBlock = truncatedContent
+      ? `${SCRIPT_CONTEXT_PREFIX}\n${truncatedContent}`
+      : '';
+
+    const contextBlocks = [collectionBlock, scriptContentBlock].filter(Boolean).join('\n\n');
     const content = contextBlocks
       ? `${userPrompt}\n\n${scriptHeader}\n\n${contextBlocks}`
       : userPrompt;
@@ -129,16 +184,22 @@ export class ScriptPageAppendChain extends BaseChain {
     const responseContent = assistantResponse && assistantResponse.trim()
       ? assistantResponse.trim()
       : responseText;
+
+    // Grammar validation (log but don't fail)
+    const grammarResult = validateScreenplayGrammar(responseText);
+    if (!grammarResult.valid) {
+      console.warn('[ScriptPageAppendChain] Grammar validation failed:', grammarResult);
+    }
+
     const metadata = {
       ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
       appendPage: true,
       formattedScript: responseText,
+      lineCount: lineCount || null,
+      grammarValid: grammarResult.valid,
+      grammarError: grammarResult.error || null,
       timestamp: new Date().toISOString()
     };
-
-    if (lineCount) {
-      metadata.lineCount = lineCount;
-    }
 
     if (validationError) {
       metadata.validationError = validationError;

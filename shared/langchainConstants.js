@@ -32,6 +32,28 @@ export const VALID_FORMATS = Object.freeze({
 
 export const VALID_FORMAT_VALUES = Object.freeze(Object.values(VALID_FORMATS));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SCREENPLAY GRAMMAR CONTRACT (v1)
+// This is the AI → Editor contract. Reference in all generation prompts.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const VALID_TAGS_BLOCK = `VALID TAGS
+<header>   Scene heading (INT./EXT. LOCATION - TIME)
+<action>   Description of what happens
+<speaker>  Character name in CAPS
+<dialog>   Spoken words
+<directions> Parenthetical (beat), (pause), (sotto)
+<chapter-break> Major story division (rare)`;
+
+export const SCREENPLAY_GRAMMAR_V1 = `SCREENPLAY GRAMMAR (enforced)
+1. <speaker> MUST be followed by <dialog>
+2. <directions> only appears between <speaker> and <dialog>
+3. Never output <dialog> without a preceding <speaker>
+4. <action> stands alone — describes visuals, not speech
+5. Each XML tag = 1 line`;
+
+export const JSON_ESCAPE_RULE = 'Escape quotes in JSON as \\". Output JSON only — no markdown, no extra text.';
+
 const countScriptLines = (text) => {
   if (!text || typeof text !== 'string') {
     return 0;
