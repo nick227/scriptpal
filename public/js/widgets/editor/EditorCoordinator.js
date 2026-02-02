@@ -295,6 +295,39 @@ export class EditorCoordinator {
     }
 
     /**
+     * Append multiple line items to the end of the document.
+     * @param {Array} lines
+     * @param {object} options
+     * @returns {Promise<object>}
+     */
+    async appendLines (lines = [], options = {}) {
+        const startIndex = this.documentService.getLineCount();
+        const commands = lines
+            .map((line, index) => this.documentService.createAddCommandAtIndex(startIndex + index, {
+                format: line.format,
+                content: line.content
+            }))
+            .filter(Boolean);
+
+        const source = options.source || 'append';
+        const result = await this.applyCommands(commands, { source });
+        if (!result || !result.success) {
+            return { success: false, reason: 'append_failed', result };
+        }
+
+        const lineElements = this.editorArea.querySelectorAll('.script-line');
+        const element = lineElements.length > 0 ? lineElements[lineElements.length - 1] : null;
+        const lastLine = lines[lines.length - 1];
+
+        return {
+            success: true,
+            element,
+            format: lastLine.format,
+            result
+        };
+    }
+
+    /**
      * Set format for the current line
      * @param format
      */
