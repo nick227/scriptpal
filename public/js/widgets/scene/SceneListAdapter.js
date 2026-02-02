@@ -6,6 +6,9 @@ export const createSceneListAdapter = (sceneStore) => createTaggedListAdapter({
     dataKey: 'sceneId',
     orderKey: 'sceneId',
     supportsAi: true,
+    supportsMedia: true,
+    ownerType: 'scene',
+    mediaRole: 'cover',
     labels: {
         title: ITEM_LIST_LABELS.SCENES,
         modalTitle: ITEM_LIST_LABELS.SCENES,

@@ -339,6 +339,7 @@ const initPublicScriptViewer = async () => {
     const viewerLines = document.querySelector('.public-script-viewer__lines');
     const titleEl = document.querySelector('.public-script-viewer__title');
     const authorEl = document.querySelector('[data-script-author]');
+    const thumbEl = document.querySelector('.public-script-viewer__thumb');
     const metadataEl = document.querySelector('.public-script-viewer__metadata');
     const metadataVersionEl = metadataEl?.querySelector('[data-script-version]');
     const ownerEl = document.querySelector('.public-script-owner');
@@ -372,6 +373,10 @@ const initPublicScriptViewer = async () => {
 
         if (metadataVersionEl) {
             metadataVersionEl.textContent = `Updated ${new Date(script.updatedAt).toLocaleString()}`;
+        }
+
+        if (thumbEl) {
+            thumbEl.src = script.coverUrl || '/images/screenplay-thumb.svg';
         }
 
         // if (ownerEl) {

@@ -145,7 +145,7 @@ export class ListView {
     }
 
     createItemTile (item) {
-        const { labels, classNames, dataKey } = this.adapter.view;
+        const { labels, classNames, dataKey, supportsMedia } = this.adapter.view;
         const tile = this.createElement('div', classNames.tile);
         tile.dataset[dataKey] = this.adapter.getId(item);
         tile.draggable = true;
@@ -167,7 +167,11 @@ export class ListView {
         const meta = this.createElement('div', classNames.tileMeta, this.adapter.getMetaText(item));
 
         const actions = this.createElement('div', classNames.tileActions);
+        const mediaButton = supportsMedia
+            ? `<button type="button" data-action="media" title="${labels.media}">${labels.media}</button>`
+            : '';
         actions.innerHTML = `
+            ${mediaButton}
             <button type="button" data-action="edit" title="${labels.edit}">${labels.edit}</button>
             <button class="${classNames.iconButton}" type="button" data-action="delete" title="${labels.delete}">${labels.deleteText}</button>
         `;
@@ -199,6 +203,13 @@ export class ListView {
         }
         if (action === 'rename') {
             this.emitAction('rename', { itemId });
+        }
+        if (action === 'media') {
+            this.emitAction('media', {
+                itemId,
+                ownerType: this.adapter.view.ownerType,
+                role: this.adapter.view.mediaRole
+            });
         }
     }
 

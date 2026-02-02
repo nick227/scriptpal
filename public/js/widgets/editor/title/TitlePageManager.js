@@ -6,6 +6,7 @@
 import { debugLog } from '../../../core/logger.js';
 import { StateManager } from '../../../core/StateManager.js';
 import { loadJsonFromStorage } from '../../../services/persistence/PersistenceManager.js';
+import { MediaPickerWidget } from '../../media/MediaPickerWidget.js';
 
 const TITLE_PAGE_TEMPLATE = `
     <div class="title-page">
@@ -21,6 +22,10 @@ const TITLE_PAGE_TEMPLATE = `
             <div class="description-section">
                 <label class="description-label">DESCRIPTION</label>
                 <textarea class="description-input" placeholder="Enter script description"></textarea>
+            </div>
+            <div class="title-media-section">
+                <label class="title-label">SCRIPT IMAGE</label>
+                <div class="title-media-container"></div>
             </div>
             <div class="visibility-section">
                 <label class="visibility-label" for="visibility-select">VISIBILITY</label>
@@ -68,6 +73,8 @@ export class TitlePageManager {
         this.persistDelay = 400;
         this.visibilitySelect = null;
         this.isTitlePageCollapsed = false;
+        this.mediaPicker = null;
+        this.mediaContainer = null;
     }
 
     /**
@@ -76,6 +83,7 @@ export class TitlePageManager {
     async initialize () {
         this.render();
         this.attachHandlers();
+        await this.initializeMediaPicker();
         this.subscribeToScript();
         this.hydrateFromState();
         debugLog('TitlePageManager initialized');
@@ -104,7 +112,23 @@ export class TitlePageManager {
         this.visibilitySelect = this.titlePage.querySelector('.visibility-select');
         this.dateDisplay = this.titlePage.querySelector('.date-display');
         this.toggleTitlePage = this.titlePage.querySelector('.toggle-title-page');
+        this.mediaContainer = this.titlePage.querySelector('.title-media-container');
         this.updateCollapsedState();
+    }
+
+    async initializeMediaPicker () {
+        if (!this.mediaContainer) {
+            return;
+        }
+        this.mediaPicker = new MediaPickerWidget({
+            api: this.api,
+            container: this.mediaContainer,
+            ownerType: 'script',
+            ownerId: this.scriptId,
+            role: 'cover',
+            label: 'Select Image'
+        });
+        await this.mediaPicker.initialize();
     }
 
     /**
@@ -266,6 +290,14 @@ export class TitlePageManager {
         }
         this.titlePageData.date = this.formatDate(script.createdAt);
         this.updateInputs();
+        if (this.mediaPicker) {
+            this.mediaPicker.setOwner({
+                ownerType: 'script',
+                ownerId: this.scriptId,
+                role: 'cover'
+            });
+            this.mediaPicker.refreshPreview();
+        }
     }
 
     /**

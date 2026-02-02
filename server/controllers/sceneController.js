@@ -9,6 +9,7 @@ import { buildScriptContextBundle } from './contextBuilder.js';
 import { parseNumericId, parseSortIndex } from '../utils/idUtils.js';
 import { requireNumericParam } from '../utils/requestUtils.js';
 import { listScriptItems } from '../utils/queryUtils.js';
+import { attachMediaToItems, shouldIncludeMedia } from '../services/media/MediaIncludeService.js';
 
 const SCENE_IDEA_PROMPT = getPromptById('scene-idea');
 
@@ -43,7 +44,16 @@ const sceneController = {
           { createdAt: 'asc' }
         ]
       });
-      res.json(scenes);
+      if (!shouldIncludeMedia(req)) {
+        return res.json(scenes);
+      }
+      const decorated = await attachMediaToItems({
+        items: scenes,
+        userId: req.userId,
+        ownerType: 'scene',
+        ownerIdKey: 'id'
+      });
+      res.json(decorated);
     } catch (error) {
       console.error('Error getting scenes:', error);
       res.status(500).json({ error: 'Internal server error' });

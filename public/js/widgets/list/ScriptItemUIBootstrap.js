@@ -1,5 +1,6 @@
 import { StateManager } from '../../core/StateManager.js';
 import { ScriptItemController } from '../../services/script/ScriptItemController.js';
+import { MediaPickerWidget } from '../media/MediaPickerWidget.js';
 
 export class ScriptItemUIBootstrap {
     constructor (options) {
@@ -33,6 +34,7 @@ export class ScriptItemUIBootstrap {
         this.widget = null;
         this.panelContainer = null;
         this.currentUserId = null;
+        this.mediaPicker = options.mediaPicker || null;
     }
 
     async initialize () {
@@ -54,6 +56,13 @@ export class ScriptItemUIBootstrap {
         this.widget.setManagers(this.stateManager, this.eventManager);
         if (typeof this.widget.setStore === 'function') {
             this.widget.setStore(this.store);
+        }
+        if (!this.mediaPicker) {
+            this.mediaPicker = new MediaPickerWidget({ api: this.api, label: 'Media' });
+            await this.mediaPicker.initialize();
+        }
+        if (typeof this.widget.setMediaPicker === 'function') {
+            this.widget.setMediaPicker(this.mediaPicker);
         }
         await this.widget.initialize();
 

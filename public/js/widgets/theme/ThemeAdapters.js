@@ -7,6 +7,9 @@ export const createThemeListAdapter = (store) => createTaggedListAdapter({
     dataKey: 'themeId',
     orderKey: 'themeId',
     supportsAi: true,
+    supportsMedia: true,
+    ownerType: 'theme',
+    mediaRole: 'cover',
     labels: {
         title: ITEM_LIST_LABELS.THEMES,
         modalTitle: ITEM_LIST_LABELS.THEMES,

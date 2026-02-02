@@ -12,7 +12,11 @@ export const API_ENDPOINTS = {
     SCRIPT: '/script',
     USER: '/user',
     SYSTEM_PROMPTS: '/system-prompts',
-    BRAINSTORM_BOARDS: '/brainstorm/boards'
+    BRAINSTORM_BOARDS: '/brainstorm/boards',
+    MEDIA: '/media',
+    MEDIA_UPLOAD: '/media/upload',
+    MEDIA_GENERATE: '/media/generate',
+    MEDIA_JOBS: '/media/jobs'
 };
 API_ENDPOINTS.USER_TOKEN_WATCH = '/user/token-watch';
 API_ENDPOINTS.PUBLIC_SCRIPTS = '/public/scripts';
@@ -20,6 +24,7 @@ API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG = '/public/scripts/slug';
 API_ENDPOINTS.SCRIPT_SLUG = '/script/slug';
 API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS = (scriptId) => `/public/scripts/${scriptId}/comments`;
 API_ENDPOINTS.BRAINSTORM_AI = (boardId, category) => `/brainstorm/boards/${boardId}/ai/${category}`;
+API_ENDPOINTS.OWNER_MEDIA = (ownerType, ownerId) => `/owners/${ownerType}/${ownerId}/media`;
 
 export const API_HEADERS = {
     'Content-Type': 'application/json'

@@ -7,6 +7,9 @@ export const createCharacterListAdapter = (store) => createTaggedListAdapter({
     dataKey: 'characterId',
     orderKey: 'characterId',
     supportsAi: true,
+    supportsMedia: true,
+    ownerType: 'character',
+    mediaRole: 'cover',
     labels: {
         title: ITEM_LIST_LABELS.CHARACTERS,
         modalTitle: ITEM_LIST_LABELS.CHARACTERS,

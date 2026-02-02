@@ -64,6 +64,7 @@ const configSchema = Joi.object({
   ANTHROPIC_TIMEOUT: Joi.number().min(1000).default(90000),
   ANTHROPIC_MAX_RETRIES: Joi.number().min(0).max(5).default(3),
   AI_PRICING_JSON: Joi.string().optional(),
+  OPENAI_IMAGE_MODEL: Joi.string().default('gpt-image-1'),
 
   // Logging configuration
   LOG_LEVEL: Joi.string().valid('fatal', 'error', 'warn', 'info', 'debug', 'trace').default('info'),
@@ -79,7 +80,13 @@ const configSchema = Joi.object({
   ENABLE_AI_FEATURES: Joi.boolean().default(true),
   ENABLE_CHAT_HISTORY: Joi.boolean().default(true),
   ENABLE_SCRIPT_VERSIONING: Joi.boolean().default(true),
-  ENABLE_AUDIT_LOGS: Joi.boolean().default(false)
+  ENABLE_AUDIT_LOGS: Joi.boolean().default(false),
+
+  // Media configuration
+  MEDIA_ORIGIN: Joi.string().valid('local', 'r2', 'cloudinary').default('local'),
+  MEDIA_DELIVERY: Joi.string().valid('local', 'public', 'signed', 'cloudflare_images', 'cloudinary').default('local'),
+  MEDIA_BASE_URL: Joi.string().default('/uploads'),
+  MEDIA_UPLOAD_DIR: Joi.string().default('public/uploads')
 });
 
 /**

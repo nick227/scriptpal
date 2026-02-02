@@ -217,6 +217,7 @@
 }
 
 .brainstorm-column__input {
+    width: 174px;
     flex: 1;
     padding: 0.5rem 0.65rem;
     border-radius: 8px;

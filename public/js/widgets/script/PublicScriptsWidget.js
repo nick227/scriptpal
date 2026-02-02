@@ -117,6 +117,15 @@ export class PublicScriptsWidget {
         card.className = 'public-script-card';
         card.dataset.scriptId = script.id;
 
+        const header = document.createElement('div');
+        header.className = 'public-script-card__header';
+
+        const thumb = document.createElement('img');
+        thumb.className = 'public-script-card__thumb';
+        thumb.alt = 'Script cover';
+        thumb.loading = 'lazy';
+        thumb.src = script.coverUrl || '/images/screenplay-thumb.svg';
+
         const titleLink = document.createElement('a');
         titleLink.className = 'public-script-card__title';
         titleLink.textContent = script.title || 'Untitled Script';
@@ -141,7 +150,9 @@ export class PublicScriptsWidget {
 
         meta.append(authorSpan, versionSpan, dateSpan);
 
-        card.appendChild(titleLink);
+        header.appendChild(thumb);
+        header.appendChild(titleLink);
+        card.appendChild(header);
         card.appendChild(meta);
 
         return card;

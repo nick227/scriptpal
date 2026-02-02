@@ -203,6 +203,14 @@ class ScriptPalServer {
     // Serve static images from source public folder
     this.app.use('/images', express.static(publicImagesPath));
 
+    // Serve uploaded media assets
+    const mediaUploadDir = config.get('MEDIA_UPLOAD_DIR');
+    const publicUploadsPath = path.isAbsolute(mediaUploadDir)
+      ? mediaUploadDir
+      : path.join(__dirname, '..', mediaUploadDir);
+    const mediaBasePath = config.get('MEDIA_BASE_URL');
+    this.app.use(mediaBasePath, express.static(publicUploadsPath));
+
     // Serve built frontend assets
     this.app.use(express.static(clientBuildPath));
 

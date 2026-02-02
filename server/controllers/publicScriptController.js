@@ -3,6 +3,7 @@ import {
   serializePublicScript,
   serializePublicScriptListItem
 } from '../serializers/publicScriptSerializer.js';
+import mediaAttachmentRepository from '../repositories/mediaAttachmentRepository.js';
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 48;
@@ -30,7 +31,25 @@ const publicScriptController = {
         sortOrder
       });
 
-      const serializedScripts = (result.scripts || [])
+      const scripts = result.scripts || [];
+      const scriptIds = scripts.map(script => script.id).filter(Boolean);
+      const coverAttachments = await mediaAttachmentRepository.listByOwnerIdsPublic({
+        ownerType: 'script',
+        ownerIds: scriptIds,
+        role: 'cover'
+      });
+      const coverMap = new Map();
+      coverAttachments.forEach(attachment => {
+        if (attachment && attachment.ownerId) {
+          coverMap.set(attachment.ownerId, attachment);
+        }
+      });
+
+      const serializedScripts = scripts
+        .map((script) => ({
+          ...script,
+          coverAttachment: coverMap.get(script.id) || null
+        }))
         .map(serializePublicScriptListItem)
         .filter(Boolean);
 
@@ -55,7 +74,15 @@ const publicScriptController = {
       if (!script) {
         return res.status(404).json({ error: 'Script not found' });
       }
-      const serialized = serializePublicScript(script);
+      const attachments = await mediaAttachmentRepository.listByOwnerIdsPublic({
+        ownerType: 'script',
+        ownerIds: [script.id],
+        role: 'cover'
+      });
+      const serialized = serializePublicScript({
+        ...script,
+        coverAttachment: attachments[0] || null
+      });
       res.json(serialized);
     } catch (error) {
       console.error('Error fetching public script:', error);
@@ -69,7 +96,15 @@ const publicScriptController = {
       if (!script) {
         return res.status(404).json({ error: 'Script not found' });
       }
-      const serialized = serializePublicScript(script);
+      const attachments = await mediaAttachmentRepository.listByOwnerIdsPublic({
+        ownerType: 'script',
+        ownerIds: [script.id],
+        role: 'cover'
+      });
+      const serialized = serializePublicScript({
+        ...script,
+        coverAttachment: attachments[0] || null
+      });
       res.json(serialized);
     } catch (error) {
       console.error('Error fetching public script by slug:', error);

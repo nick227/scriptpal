@@ -32,7 +32,8 @@ const DEFAULT_LABELS = {
     emptyMeta: 'No tags',
     edit: 'Edit',
     delete: 'Delete',
-    deleteText: 'x'
+    deleteText: 'x',
+    media: 'Media'
 };
 
 const DEFAULT_EMPTY_ITEM = {
@@ -51,6 +52,9 @@ export const createTaggedListAdapter = (options = {}) => {
         orderKey: providedOrderKey,
         emptyItem: customEmptyItem,
         supportsAi: supportsAiFlag,
+        supportsMedia: supportsMediaFlag,
+        ownerType,
+        mediaRole,
         store
     } = options;
     const labels = { ...DEFAULT_LABELS, ...(customLabels || {}) };
@@ -59,6 +63,7 @@ export const createTaggedListAdapter = (options = {}) => {
     const orderKey = providedOrderKey || dataKey;
     const emptyItem = customEmptyItem || DEFAULT_EMPTY_ITEM;
     const supportsAi = Boolean(supportsAiFlag);
+    const supportsMedia = Boolean(supportsMediaFlag);
 
     if (!store) {
         throw new Error('List adapter requires a store');
@@ -89,7 +94,10 @@ export const createTaggedListAdapter = (options = {}) => {
         view: {
             labels,
             classNames,
-            dataKey
+            dataKey,
+            supportsMedia,
+            ownerType,
+            mediaRole
         }
     };
 };

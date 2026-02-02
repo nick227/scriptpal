@@ -1,7 +1,7 @@
-import { API_ENDPOINTS, API_HEADERS, ERROR_MESSAGES, SERVER_PORT } from '../../constants.js';
 import { getApiBaseUrl, getApiOrigin } from '../../config.js';
-import { utils } from '../../utils.js';
+import { API_ENDPOINTS, API_HEADERS, ERROR_MESSAGES, SERVER_PORT } from '../../constants.js';
 import { debugLog } from '../../core/logger.js';
+import { utils } from '../../utils.js';
 
 /**
  *
@@ -51,18 +51,34 @@ export class ScriptPalAPI {
         return null;
     }
 
+    /**
+     *
+     * @param scriptId
+     */
     _requireScriptId (scriptId) {
         if (!scriptId) {
             throw new Error('Script ID is required');
         }
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param itemId
+     * @param label
+     */
     _requireScriptAndItemId (scriptId, itemId, label) {
         if (!scriptId || !itemId) {
             throw new Error(`Script ID and ${label} ID are required`);
         }
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param segment
+     * @param itemId
+     */
     _scriptItemPath (scriptId, segment, itemId) {
         const base = `${API_ENDPOINTS.SCRIPT}/${scriptId}/${segment}`;
         return itemId ? `${base}/${itemId}` : base;
@@ -328,6 +344,85 @@ export class ScriptPalAPI {
         throw lastError;
     }
 
+    /**
+     *
+     * @param endpoint
+     * @param method
+     * @param formData
+     * @param options
+     */
+    async _makeFormRequest (endpoint, method = 'POST', formData = null, options = {}) {
+        const correlationId = this._generateCorrelationId();
+        const timeout = options.timeout || this._getTimeout(method, endpoint);
+        const maxRetries = options.maxRetries || this.retryConfig.maxRetries;
+
+        const abortController = new AbortController();
+        this.abortControllers.set(correlationId, abortController);
+
+        const timeoutId = setTimeout(() => {
+            abortController.abort();
+        }, timeout);
+
+        let lastError = null;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const requestOptions = {
+                    method,
+                    headers: {
+                        'X-Correlation-ID': correlationId
+                    },
+                    credentials: 'include',
+                    signal: abortController.signal,
+                    ...(formData && { body: formData })
+                };
+
+                const response = await fetch(this.baseUrl + endpoint, requestOptions);
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({
+                        error: response.statusText || 'Unknown error'
+                    }));
+                    const errorMessage = errorData.error || errorData.message || ERROR_MESSAGES.REQUEST_FAILED;
+                    const error = new Error(errorMessage);
+                    error.status = response.status;
+                    error.data = errorData;
+                    error.correlationId = correlationId;
+                    error.attempt = attempt + 1;
+
+                    if (this._shouldRetry(response.status, method) && attempt < maxRetries) {
+                        const delay = this.retryConfig.retryDelay * Math.pow(this.retryConfig.retryMultiplier, attempt);
+                        await this._sleep(delay);
+                        lastError = error;
+                        continue;
+                    }
+
+                    throw error;
+                }
+
+                if (response.status === 204) {
+                    return null;
+                }
+
+                return await response.json();
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timeout');
+                }
+                if (attempt < maxRetries && this._shouldRetry(error.status || 0, method)) {
+                    const delay = this.retryConfig.retryDelay * Math.pow(this.retryConfig.retryMultiplier, attempt);
+                    await this._sleep(delay);
+                    lastError = error;
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        throw lastError || new Error(ERROR_MESSAGES.NETWORK_ERROR);
+    }
+
     // Auth endpoints
     /**
      *
@@ -420,15 +515,15 @@ export class ScriptPalAPI {
             hasContext: Object.keys(context).length > 0
         });
 
-    const result = await this._makeRequest(API_ENDPOINTS.CHAT, 'POST', {
-        prompt: content,
-        context: enhancedContext
-    });
+        const result = await this._makeRequest(API_ENDPOINTS.CHAT, 'POST', {
+            prompt: content,
+            context: enhancedContext
+        });
 
-    // Handle response formats
-    const processedResult = Array.isArray(result) ? result[0] : result;
-    return typeof processedResult === 'string' ? { html: processedResult } : processedResult;
-}
+        // Handle response formats
+        const processedResult = Array.isArray(result) ? result[0] : result;
+        return typeof processedResult === 'string' ? { html: processedResult } : processedResult;
+    }
 
     /**
      * Trigger a system prompt from the server
@@ -440,7 +535,7 @@ export class ScriptPalAPI {
         if (!promptType) {
             throw new Error('System prompt type is required');
         }
- 
+
         return this._makeRequest(API_ENDPOINTS.SYSTEM_PROMPTS, 'POST', {
             promptType,
             scriptId,
@@ -451,6 +546,11 @@ export class ScriptPalAPI {
         });
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param context
+     */
     async requestNextLines (scriptId, context = {}) {
         if (!scriptId) {
             throw new Error('Script ID is required for next lines');
@@ -507,10 +607,17 @@ export class ScriptPalAPI {
     }
 
     // Brainstorm endpoints
+    /**
+     *
+     */
     async listBrainstormBoards () {
         return this._makeRequest(API_ENDPOINTS.BRAINSTORM_BOARDS, 'GET');
     }
 
+    /**
+     *
+     * @param boardId
+     */
     async getBrainstormBoard (boardId) {
         if (!boardId) {
             throw new Error('Board ID is required');
@@ -518,6 +625,13 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'GET');
     }
 
+    /**
+     *
+     * @param root0
+     * @param root0.title
+     * @param root0.seed
+     * @param root0.notes
+     */
     async createBrainstormBoard ({ title, seed, notes }) {
         return this._makeRequest(API_ENDPOINTS.BRAINSTORM_BOARDS, 'POST', {
             title,
@@ -526,6 +640,14 @@ export class ScriptPalAPI {
         });
     }
 
+    /**
+     *
+     * @param boardId
+     * @param root0
+     * @param root0.title
+     * @param root0.seed
+     * @param root0.notes
+     */
     async updateBrainstormBoard (boardId, { title, seed, notes }) {
         if (!boardId) {
             throw new Error('Board ID is required');
@@ -537,6 +659,10 @@ export class ScriptPalAPI {
         });
     }
 
+    /**
+     *
+     * @param boardId
+     */
     async deleteBrainstormBoard (boardId) {
         if (!boardId) {
             throw new Error('Board ID is required');
@@ -544,6 +670,11 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'DELETE');
     }
 
+    /**
+     *
+     * @param boardId
+     * @param category
+     */
     async requestBrainstormNotes (boardId, category) {
         if (!boardId) {
             throw new Error('Board ID is required');
@@ -554,6 +685,10 @@ export class ScriptPalAPI {
         return this._makeRequest(API_ENDPOINTS.BRAINSTORM_AI(boardId, category), 'POST', {});
     }
 
+    /**
+     *
+     * @param boardId
+     */
     async requestBrainstormTitle (boardId) {
         if (!boardId) {
             throw new Error('Board ID is required');
@@ -570,21 +705,37 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'GET');
     }
 
+    /**
+     *
+     * @param scriptId
+     */
     async getScenes (scriptId) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'scenes'), 'GET');
     }
 
+    /**
+     *
+     * @param scriptId
+     */
     async getCharacters (scriptId) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'characters'), 'GET');
     }
 
+    /**
+     *
+     * @param scriptId
+     */
     async getLocations (scriptId) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'locations'), 'GET');
     }
 
+    /**
+     *
+     * @param scriptId
+     */
     async getThemes (scriptId) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'themes'), 'GET');
@@ -657,21 +808,124 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'DELETE');
     }
 
+    // Media endpoints
+    /**
+     *
+     * @param file
+     * @param type
+     */
+    async uploadMedia (file, type) {
+        if (!file || !type) {
+            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', type);
+        return this._makeFormRequest(API_ENDPOINTS.MEDIA_UPLOAD, 'POST', formData);
+    }
+
+    /**
+     *
+     * @param payload
+     */
+    async generateMedia (payload) {
+        return this._makeRequest(API_ENDPOINTS.MEDIA_GENERATE, 'POST', payload);
+    }
+
+    /**
+     *
+     * @param params
+     */
+    async listMedia (params = {}) {
+        const query = new URLSearchParams();
+        if (params.type) {
+            query.set('type', params.type);
+        }
+        if (params.page) {
+            query.set('page', String(params.page));
+        }
+        if (params.pageSize) {
+            query.set('pageSize', String(params.pageSize));
+        }
+        const suffix = query.toString();
+        const endpoint = suffix ? `${API_ENDPOINTS.MEDIA}?${suffix}` : API_ENDPOINTS.MEDIA;
+        return this._makeRequest(endpoint, 'GET');
+    }
+
+    /**
+     *
+     * @param assetId
+     * @param payload
+     */
+    async attachMedia (assetId, payload) {
+        if (!assetId || !payload) {
+            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
+        }
+        return this._makeRequest(`${API_ENDPOINTS.MEDIA}/${assetId}/attach`, 'POST', payload);
+    }
+
+    /**
+     *
+     * @param jobId
+     */
+    async getMediaJob (jobId) {
+        if (!jobId) {
+            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
+        }
+        return this._makeRequest(`${API_ENDPOINTS.MEDIA_JOBS}/${jobId}`, 'GET');
+    }
+
+    /**
+     *
+     * @param ownerType
+     * @param ownerId
+     * @param role
+     */
+    async getOwnerMedia (ownerType, ownerId, role) {
+        if (!ownerType || !ownerId) {
+            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
+        }
+        const query = role ? `?role=${encodeURIComponent(role)}` : '';
+        return this._makeRequest(`${API_ENDPOINTS.OWNER_MEDIA(ownerType, ownerId)}${query}`, 'GET');
+    }
+
+    /**
+     *
+     * @param scriptId
+     * @param sceneData
+     */
     async createScene (scriptId, sceneData) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'scenes'), 'POST', sceneData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param sceneId
+     * @param sceneData
+     */
     async updateScene (scriptId, sceneId, sceneData) {
         this._requireScriptAndItemId(scriptId, sceneId, 'scene');
         return this._makeRequest(this._scriptItemPath(scriptId, 'scenes', sceneId), 'PUT', sceneData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param sceneId
+     */
     async deleteScene (scriptId, sceneId) {
         this._requireScriptAndItemId(scriptId, sceneId, 'scene');
         return this._makeRequest(this._scriptItemPath(scriptId, 'scenes', sceneId), 'DELETE');
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param sceneId
+     * @param payload
+     */
     async generateSceneIdea (scriptId, sceneId, payload = {}) {
         this._requireScriptAndItemId(scriptId, sceneId, 'scene');
         return this._makeRequest(
@@ -681,6 +935,11 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param payload
+     */
     async generateSceneIdeaDraft (scriptId, payload = {}) {
         this._requireScriptId(scriptId);
         return this._makeRequest(
@@ -690,31 +949,63 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param order
+     */
     async reorderScenes (scriptId, order) {
         this._requireScriptId(scriptId);
         return this._makeRequest(`${this._scriptItemPath(scriptId, 'scenes')}/reorder`, 'PUT', { order });
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param characterData
+     */
     async createCharacter (scriptId, characterData) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'characters'), 'POST', characterData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param characterId
+     * @param characterData
+     */
     async updateCharacter (scriptId, characterId, characterData) {
         this._requireScriptAndItemId(scriptId, characterId, 'character');
         return this._makeRequest(this._scriptItemPath(scriptId, 'characters', characterId), 'PUT', characterData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param characterId
+     */
     async deleteCharacter (scriptId, characterId) {
         this._requireScriptAndItemId(scriptId, characterId, 'character');
         return this._makeRequest(this._scriptItemPath(scriptId, 'characters', characterId), 'DELETE');
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param order
+     */
     async reorderCharacters (scriptId, order) {
         this._requireScriptId(scriptId);
         return this._makeRequest(`${this._scriptItemPath(scriptId, 'characters')}/reorder`, 'PUT', { order });
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param characterId
+     * @param payload
+     */
     async generateCharacterIdea (scriptId, characterId, payload = {}) {
         this._requireScriptAndItemId(scriptId, characterId, 'character');
         return this._makeRequest(
@@ -724,6 +1015,11 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param payload
+     */
     async generateCharacterIdeaDraft (scriptId, payload = {}) {
         this._requireScriptId(scriptId);
         return this._makeRequest(
@@ -733,26 +1029,53 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param locationData
+     */
     async createLocation (scriptId, locationData) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'locations'), 'POST', locationData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param locationId
+     * @param locationData
+     */
     async updateLocation (scriptId, locationId, locationData) {
         this._requireScriptAndItemId(scriptId, locationId, 'location');
         return this._makeRequest(this._scriptItemPath(scriptId, 'locations', locationId), 'PUT', locationData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param locationId
+     */
     async deleteLocation (scriptId, locationId) {
         this._requireScriptAndItemId(scriptId, locationId, 'location');
         return this._makeRequest(this._scriptItemPath(scriptId, 'locations', locationId), 'DELETE');
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param order
+     */
     async reorderLocations (scriptId, order) {
         this._requireScriptId(scriptId);
         return this._makeRequest(`${this._scriptItemPath(scriptId, 'locations')}/reorder`, 'PUT', { order });
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param locationId
+     * @param payload
+     */
     async generateLocationIdea (scriptId, locationId, payload = {}) {
         this._requireScriptAndItemId(scriptId, locationId, 'location');
         return this._makeRequest(
@@ -762,6 +1085,11 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param payload
+     */
     async generateLocationIdeaDraft (scriptId, payload = {}) {
         this._requireScriptId(scriptId);
         return this._makeRequest(
@@ -771,26 +1099,53 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param themeData
+     */
     async createTheme (scriptId, themeData) {
         this._requireScriptId(scriptId);
         return this._makeRequest(this._scriptItemPath(scriptId, 'themes'), 'POST', themeData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param themeId
+     * @param themeData
+     */
     async updateTheme (scriptId, themeId, themeData) {
         this._requireScriptAndItemId(scriptId, themeId, 'theme');
         return this._makeRequest(this._scriptItemPath(scriptId, 'themes', themeId), 'PUT', themeData);
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param themeId
+     */
     async deleteTheme (scriptId, themeId) {
         this._requireScriptAndItemId(scriptId, themeId, 'theme');
         return this._makeRequest(this._scriptItemPath(scriptId, 'themes', themeId), 'DELETE');
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param order
+     */
     async reorderThemes (scriptId, order) {
         this._requireScriptId(scriptId);
         return this._makeRequest(`${this._scriptItemPath(scriptId, 'themes')}/reorder`, 'PUT', { order });
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param themeId
+     * @param payload
+     */
     async generateThemeIdea (scriptId, themeId, payload = {}) {
         this._requireScriptAndItemId(scriptId, themeId, 'theme');
         return this._makeRequest(
@@ -800,6 +1155,11 @@ export class ScriptPalAPI {
         );
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param payload
+     */
     async generateThemeIdeaDraft (scriptId, payload = {}) {
         this._requireScriptId(scriptId);
         return this._makeRequest(
@@ -817,6 +1177,10 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT}?userId=${userId}`, 'GET');
     }
 
+    /**
+     *
+     * @param options
+     */
     async getPublicScripts (options = {}) {
         const params = new URLSearchParams();
         if (options.page) params.set('page', options.page);
@@ -832,6 +1196,10 @@ export class ScriptPalAPI {
         return this._makeRequest(endpoint, 'GET');
     }
 
+    /**
+     *
+     * @param id
+     */
     async getPublicScript (id) {
         if (!id) {
             throw new Error('Public script ID is required');
@@ -839,6 +1207,13 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS}/${id}`, 'GET');
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param root0
+     * @param root0.page
+     * @param root0.pageSize
+     */
     async getPublicScriptComments (scriptId, { page = 1, pageSize = 20 } = {}) {
         if (!scriptId) {
             throw new Error('Public script ID is required');
@@ -852,6 +1227,11 @@ export class ScriptPalAPI {
         return this._makeRequest(endpoint, 'GET');
     }
 
+    /**
+     *
+     * @param scriptId
+     * @param content
+     */
     async addPublicScriptComment (scriptId, content) {
         if (!scriptId) {
             throw new Error('Public script ID is required');
@@ -863,6 +1243,10 @@ export class ScriptPalAPI {
         return this._makeRequest(API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS(scriptId), 'POST', { content: content.trim() });
     }
 
+    /**
+     *
+     * @param slug
+     */
     async getPublicScriptBySlug (slug) {
         if (!slug) {
             throw new Error('Public script slug is required');
@@ -870,6 +1254,10 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG}/${encodeURIComponent(slug)}`, 'GET');
     }
 
+    /**
+     *
+     * @param slug
+     */
     async getScriptBySlug (slug) {
         if (!slug) {
             throw new Error('Script slug is required');
@@ -877,6 +1265,10 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.SCRIPT_SLUG}/${encodeURIComponent(slug)}`, 'GET');
     }
 
+    /**
+     *
+     * @param slug
+     */
     async getPublicScriptBySlug (slug) {
         if (!slug) {
             throw new Error('Public script slug is required');
@@ -884,6 +1276,10 @@ export class ScriptPalAPI {
         return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG}/${encodeURIComponent(slug)}`, 'GET');
     }
 
+    /**
+     *
+     * @param slug
+     */
     async getScriptBySlug (slug) {
         if (!slug) {
             throw new Error('Script slug is required');

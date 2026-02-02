@@ -7,6 +7,9 @@ export const createLocationListAdapter = (store) => createTaggedListAdapter({
     dataKey: 'locationId',
     orderKey: 'locationId',
     supportsAi: true,
+    supportsMedia: true,
+    ownerType: 'location',
+    mediaRole: 'cover',
     labels: {
         title: ITEM_LIST_LABELS.LOCATION,
         modalTitle: ITEM_LIST_LABELS.LOCATION,

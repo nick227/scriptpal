@@ -7,7 +7,7 @@
     <title>ScriptPal · Public Script</title>
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https: http://localhost:*; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
 </head>
 
 <body>
@@ -16,15 +16,20 @@
     <main class="public-script-page">
         <section class="public-script-view-panel" aria-live="polite">
             <header class="public-script-view-header">
-                <h2 class="public-script-viewer__title">Loading script...</h2>
-                <p class="public-script-viewer__author" data-script-author></p>
-                <p class="public-script-viewer__metadata">
+                <div class="public-script-viewer__header">
+                    <img class="public-script-viewer__thumb" alt="Script cover" />
+                    <div class="public-script-viewer__header-text">
+                        <h2 class="public-script-viewer__title">Loading script...</h2>
+                        <p class="public-script-viewer__author" data-script-author></p>
+                        <p class="public-script-viewer__metadata">
                     <span class="public-script-version" data-script-version>Version 1 · Updated …</span>
                     <a class="public-script-comments-toggle" aria-controls="public-script-comments-panel" aria-expanded="false">
                         <span>Comments:</span>
                         <span class="public-script-comments-count">0</span>
                     </a>
-                </p>
+                        </p>
+                    </div>
+                </div>
             </header>
             <article class="public-script-viewer__content">
                 <div class="public-script-viewer__lines">

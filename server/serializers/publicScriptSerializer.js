@@ -14,12 +14,30 @@ const createSummary = (content) => {
   return `${sanitized.slice(0, PUBLIC_SUMMARY_LENGTH).trim()}…`;
 };
 
+import config from '../config/index.js';
+
 const serializeOwner = (script) => {
   const owner = script.user || {};
   return {
     id: owner.id || script.userId || null,
     email: owner.email || null
   };
+};
+
+const buildCoverUrl = (script) => {
+  const attachment = script.coverAttachment;
+  if (!attachment || !attachment.asset) {
+    return null;
+  }
+  const variants = attachment.asset.variants || [];
+  const preferred = variants.find(variant => variant.kind === 'preview') || variants[0];
+  const key = preferred ? preferred.storageKey : attachment.asset.storageKey;
+  if (!key) {
+    return null;
+  }
+  const base = config.get('MEDIA_BASE_URL') || '/uploads';
+  const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  return `${normalizedBase}/${key}`;
 };
 
 export const serializePublicScript = (script) => {
@@ -39,7 +57,8 @@ export const serializePublicScript = (script) => {
     commentCount: script.commentCount || 0,
     createdAt: script.createdAt,
     updatedAt: script.updatedAt,
-    owner: serializeOwner(script)
+    owner: serializeOwner(script),
+    coverUrl: buildCoverUrl(script)
   };
 };
 

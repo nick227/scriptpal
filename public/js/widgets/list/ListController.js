@@ -3,6 +3,7 @@ export class ListController {
         this.model = options.model;
         this.view = options.view;
         this.onOpenEditor = options.onOpenEditor;
+        this.onOpenMedia = options.onOpenMedia;
     }
 
     initialize () {
@@ -38,6 +39,12 @@ export class ListController {
         if (type === 'rename') {
             this.model.startRename(payload.itemId);
             this.view.render(this.model.getItems());
+            return;
+        }
+        if (type === 'media') {
+            if (this.onOpenMedia) {
+                this.onOpenMedia(payload);
+            }
             return;
         }
         if (type === 'commit-rename') {

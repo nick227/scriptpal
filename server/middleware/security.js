@@ -281,6 +281,7 @@ export class SecurityMiddleware {
       res.setHeader('X-XSS-Protection', '1; mode=block');
       res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
       res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
       next();
     };

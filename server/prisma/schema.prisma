@@ -41,6 +41,43 @@ enum BrainstormCategory {
   location
 }
 
+enum MediaType {
+  image
+  video
+}
+
+enum MediaStatus {
+  processing
+  ready
+  failed
+}
+
+enum MediaVisibility {
+  private
+  shared
+  public
+}
+
+enum MediaOwnerType {
+  script
+  scene
+  character
+  location
+  theme
+}
+
+enum MediaRole {
+  cover
+  inline
+  gallery
+  reference
+}
+
+enum MediaSource {
+  upload
+  ai
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
@@ -54,6 +91,7 @@ model User {
   chatMessages   ChatMessage[]
   scriptComments ScriptComment[]
   brainstormBoards BrainstormBoard[]
+  mediaAssets    MediaAsset[]
 
   @@map("users")
 }
@@ -308,4 +346,93 @@ model BrainstormNote {
 
   @@index([boardId])
   @@map("brainstorm_notes")
+}
+
+model MediaAsset {
+  id             Int            @id @default(autoincrement())
+  userId         Int
+  type           MediaType
+  status         MediaStatus    @default(processing)
+  visibility     MediaVisibility @default(private)
+  source         MediaSource
+  title          String?
+  description    String?        @db.LongText
+  tags           Json?
+  mimeType       String
+  sizeBytes      Int?
+  width          Int?
+  height         Int?
+  durationMs     Int?
+  storageProvider String
+  storageKey     String
+  checksum       String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  user        User             @relation(fields: [userId], references: [id])
+  variants    MediaVariant[]
+  attachments MediaAttachment[]
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@map("media_assets")
+}
+
+model MediaVariant {
+  id         Int      @id @default(autoincrement())
+  assetId    Int
+  kind       String
+  format     String
+  width      Int?
+  height     Int?
+  sizeBytes  Int?
+  provider   String
+  storageKey String
+  createdAt  DateTime @default(now())
+
+  asset MediaAsset @relation(fields: [assetId], references: [id])
+
+  @@index([assetId])
+  @@map("media_variants")
+}
+
+model MediaAttachment {
+  id        Int        @id @default(autoincrement())
+  assetId   Int
+  userId    Int
+  ownerType MediaOwnerType
+  ownerId   Int
+  role      MediaRole
+  sortOrder Int        @default(0)
+  meta      Json?
+  createdAt DateTime   @default(now())
+
+  asset MediaAsset @relation(fields: [assetId], references: [id])
+
+  @@index([ownerType, ownerId])
+  @@index([assetId])
+  @@index([userId])
+  @@unique([ownerType, ownerId, role])
+  @@map("media_attachments")
+}
+
+model MediaGenerationJob {
+  id            Int        @id @default(autoincrement())
+  userId        Int
+  type          MediaType
+  status        String     @default("queued")
+  prompt        String     @db.LongText
+  negativePrompt String?   @db.LongText
+  params        Json?
+  provider      String
+  model         String
+  error         String?    @db.LongText
+  resultAssetId Int?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("media_generation_jobs")
 }

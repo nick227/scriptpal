@@ -1,5 +1,6 @@
 import scriptModel from '../models/script.js';
 import scriptRepository from '../repositories/scriptRepository.js';
+import { attachMediaToOwner, shouldIncludeMedia } from '../services/media/MediaIncludeService.js';
 
 const VALID_FORMATS = new Set([
   'header',
@@ -45,7 +46,16 @@ const scriptController = {
       if (script.userId !== req.userId) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      res.json(script);
+      if (!shouldIncludeMedia(req)) {
+        return res.json(script);
+      }
+      const decorated = await attachMediaToOwner({
+        ownerId: script.id,
+        ownerType: 'script',
+        userId: req.userId,
+        owner: script
+      });
+      res.json(decorated);
     } catch (error) {
       console.error('Error getting script:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -58,7 +68,16 @@ const scriptController = {
       if (!script) {
         return res.status(404).json({ error: 'Script not found' });
       }
-      res.json(script);
+      if (!shouldIncludeMedia(req)) {
+        return res.json(script);
+      }
+      const decorated = await attachMediaToOwner({
+        ownerId: script.id,
+        ownerType: 'script',
+        userId: req.userId,
+        owner: script
+      });
+      res.json(decorated);
     } catch (error) {
       console.error('Error getting script by slug:', error);
       res.status(500).json({ error: 'Internal server error' });

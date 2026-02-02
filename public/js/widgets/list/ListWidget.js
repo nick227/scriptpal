@@ -17,6 +17,7 @@ export class ListWidget extends BaseWidget {
         this.editorAdapter = null;
         this.editorView = null;
         this.editorController = null;
+        this.mediaPicker = null;
         this.listModel = new ListModel({
             adapter: null,
             getContextId: this.getContextId
@@ -31,6 +32,10 @@ export class ListWidget extends BaseWidget {
         if (listAdapter) {
             this.listModel.setAdapter(listAdapter);
         }
+    }
+
+    setMediaPicker (mediaPicker) {
+        this.mediaPicker = mediaPicker;
     }
 
     async initialize () {
@@ -59,7 +64,8 @@ export class ListWidget extends BaseWidget {
         this.listController = new ListController({
             model: this.listModel,
             view: this.listView,
-            onOpenEditor: this.openEditor.bind(this)
+            onOpenEditor: this.openEditor.bind(this),
+            onOpenMedia: this.openMedia.bind(this)
         });
         this.listController.initialize();
         this.setupStateSubscriptions();
@@ -103,6 +109,21 @@ export class ListWidget extends BaseWidget {
                     }
                 }
                 : null
+        });
+    }
+
+    openMedia (payload) {
+        if (!this.mediaPicker || !payload) {
+            return;
+        }
+        const item = this.listModel.getItemById(payload.itemId);
+        if (!item || !item.id) {
+            return;
+        }
+        this.mediaPicker.open({
+            ownerType: payload.ownerType,
+            ownerId: item.id,
+            role: payload.role
         });
     }
 

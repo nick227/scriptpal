@@ -1,9 +1,10 @@
 import prisma from '../db/prismaClient.js';
 import { parseNumericId, parseSortIndex } from '../utils/idUtils.js';
 import { listScriptItems } from '../utils/queryUtils.js';
+import { attachMediaToItems, shouldIncludeMedia } from '../services/media/MediaIncludeService.js';
 
 export const createScriptItemController = (options) => {
-  const { modelName, itemLabel, idParam, orderKey } = options;
+  const { modelName, itemLabel, idParam, orderKey, ownerType } = options;
 
   if (!modelName || !itemLabel || !idParam || !orderKey) {
     throw new Error('Script item controller factory requires modelName, itemLabel, idParam, and orderKey');
@@ -22,7 +23,16 @@ export const createScriptItemController = (options) => {
           return res.status(404).json({ error: 'Script not found' });
         }
         const items = await listScriptItems(model, script.id);
-        res.json(items);
+        if (!shouldIncludeMedia(req)) {
+          return res.json(items);
+        }
+        const decorated = await attachMediaToItems({
+          items,
+          userId: req.userId,
+          ownerType: ownerType || modelName,
+          ownerIdKey: 'id'
+        });
+        res.json(decorated);
       } catch (error) {
         console.error(`Error getting ${itemLabel.toLowerCase()}s:`, error);
         res.status(500).json({ error: 'Internal server error' });

@@ -25,7 +25,7 @@ export class AuthFormsView {
             <img src="/images/dezgo2c70.webp" alt="ScriptPal" class="logo-image" style="">
             <div>
             <form id="login-form" class="login-form auth-form auth-form--login">
-            <h2>ScriptPal Login</h2>
+            <h2>Login</h2>
                 <div class="auth-field">
                     <label class="auth-label" for="email">Email</label>
                     <input type="email" id="email" class="auth-input" placeholder="you@domain.com" autocomplete="username">
@@ -38,7 +38,7 @@ export class AuthFormsView {
                 <button type="submit" class="auth-submit">Sign in</button>
             </form>
             <form id="register-form" class="register-form auth-form auth-form--register" style="display: none;">
-            <h1>ScriptPal Register</h1>
+            <h2>Register</h2>
                 <div class="auth-field">
                     <label class="auth-label" for="register-email">Email</label>
                     <input type="email" id="register-email" class="auth-input" placeholder="you@domain.com" autocomplete="email">

@@ -14,6 +14,13 @@ import themeController from './controllers/themeController.js';
 import themeIdeaController from './controllers/themeIdeaController.js';
 import brainstormBoardController from './controllers/brainstormBoardController.js';
 import brainstormPromptController from './controllers/brainstormPromptController.js';
+import mediaUploadController, { mediaUploadMiddleware } from './controllers/mediaUploadController.js';
+import mediaLibraryController from './controllers/mediaLibraryController.js';
+import mediaAttachmentController from './controllers/mediaAttachmentController.js';
+import mediaDeleteController from './controllers/mediaDeleteController.js';
+import mediaGenerationController from './controllers/mediaGenerationController.js';
+import mediaJobController from './controllers/mediaJobController.js';
+import mediaOwnerMediaController from './controllers/mediaOwnerMediaController.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import { requireScriptOwnership } from './middleware/scriptOwnership.js';
 import chatController from './controllers/chatController.js';
@@ -128,6 +135,48 @@ const routes = [
     path: '/user/token-watch',
     method: 'get',
     handler: userController.getTokenWatch,
+    middleware: [validateSession]
+  },
+  {
+    path: '/media/upload',
+    method: 'post',
+    handler: mediaUploadController,
+    middleware: [validateSession, mediaUploadMiddleware]
+  },
+  {
+    path: '/media/generate',
+    method: 'post',
+    handler: mediaGenerationController,
+    middleware: [validateSession]
+  },
+  {
+    path: '/media',
+    method: 'get',
+    handler: mediaLibraryController,
+    middleware: [validateSession]
+  },
+  {
+    path: '/media/:id/attach',
+    method: 'post',
+    handler: mediaAttachmentController,
+    middleware: [validateSession]
+  },
+  {
+    path: '/media/:id',
+    method: 'delete',
+    handler: mediaDeleteController,
+    middleware: [validateSession]
+  },
+  {
+    path: '/media/jobs/:id',
+    method: 'get',
+    handler: mediaJobController,
+    middleware: [validateSession]
+  },
+  {
+    path: '/owners/:ownerType/:ownerId/media',
+    method: 'get',
+    handler: mediaOwnerMediaController,
     middleware: [validateSession]
   },
   {
