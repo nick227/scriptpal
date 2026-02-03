@@ -32,7 +32,7 @@ describe('UserController', () => {
 
     // Import the controller after mocking
     userModel = await import('../../models/user.js');
-    userController = await import('../../controllers/userController.js');
+    userController = await import('../../controllers/user/user.controller.js');
     await import('../../models/script.js');
 
     // Setup mock request/response

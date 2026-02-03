@@ -1,1339 +1,581 @@
-import { getApiBaseUrl, getApiOrigin } from '../../config.js';
-import { API_ENDPOINTS, API_HEADERS, ERROR_MESSAGES, SERVER_PORT } from '../../constants.js';
+/**
+ * ScriptPalAPI - Facade providing backwards-compatible access to API services
+ *
+ * This class delegates to focused service classes for clean separation of concerns.
+ *
+ * @example
+ * // Legacy usage (deprecated - will be removed in v2.0)
+ * const api = new ScriptPalAPI();
+ * await api.login(email, password);
+ * await api.getScript(id);
+ *
+ * @example
+ * // Recommended usage - access services directly
+ * const api = new ScriptPalAPI();
+ * await api.auth.login(email, password);
+ * await api.scripts.getScript(id);
+ * await api.chat.getChatResponse(content, { scriptId, scriptTitle });
+ *
+ * @property {HttpClient} http - Shared HTTP client
+ * @property {AuthService} auth - Authentication and session management
+ * @property {UserService} users - User CRUD operations
+ * @property {ScriptService} scripts - Script CRUD operations
+ * @property {ChatService} chat - AI chat and message history
+ * @property {MediaService} media - Media upload and generation
+ * @property {BrainstormService} brainstorm - Brainstorming boards
+ * @property {ScriptEntitiesService} entities - Scenes, characters, locations, themes
+ * @property {PublicScriptService} publicScripts - Public script access
+ */
+
 import { debugLog } from '../../core/logger.js';
-import { utils } from '../../utils.js';
+
+import { AuthService } from './AuthService.js';
+import { BrainstormService } from './BrainstormService.js';
+import { ChatService } from './ChatService.js';
+import { HttpClient } from './HttpClient.js';
+import { MediaService } from './MediaService.js';
+import { PublicScriptService } from './PublicScriptService.js';
+import { ScriptEntitiesService } from './ScriptEntitiesService.js';
+import { ScriptService } from './ScriptService.js';
+import { UserService } from './UserService.js';
+
+// Re-export error types for consumers
+export {
+    APIError,
+    ValidationError,
+    NetworkError,
+    TimeoutError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError
+} from './APIError.js';
 
 /**
- *
+ * Unified API client facade
  */
 export class ScriptPalAPI {
-    /**
-     *
-     */
+    /** @type {HttpClient} */
+    http;
+    /** @type {AuthService} */
+    auth;
+    /** @type {UserService} */
+    users;
+    /** @type {ScriptService} */
+    scripts;
+    /** @type {ChatService} */
+    chat;
+    /** @type {MediaService} */
+    media;
+    /** @type {BrainstormService} */
+    brainstorm;
+    /** @type {ScriptEntitiesService} */
+    entities;
+    /** @type {PublicScriptService} */
+    publicScripts;
+
     constructor () {
-        this.baseUrl = getApiBaseUrl();
-        this.isLoading = false;
-        this.requestQueue = new Set();
-        this.abortControllers = new Map();
-        this.retryConfig = {
-            maxRetries: 3,
-            retryDelay: 1000,
-            retryMultiplier: 2
-        };
-        this.timeoutConfig = {
-            default: 90000,
-            upload: 60000,
-            download: 45000
-        };
+        // Shared HTTP client
+        this.http = new HttpClient();
 
-        debugLog('[API] Initialized with cookie-based auth');
+        // Initialize services
+        this.auth = new AuthService(this.http);
+        this.users = new UserService(this.http);
+        this.scripts = new ScriptService(this.http);
+        this.chat = new ChatService(this.http);
+        this.media = new MediaService(this.http);
+        this.brainstorm = new BrainstormService(this.http);
+        this.entities = new ScriptEntitiesService(this.http);
+        this.publicScripts = new PublicScriptService(this.http);
 
-        // Set up auth message handler (store bound function for cleanup)
-        this._boundMessageHandler = this._handlePostMessage.bind(this);
-        window.addEventListener('message', this._boundMessageHandler);
+        debugLog('[API] Initialized with service-based architecture');
     }
 
-    // Token management
     /**
-     *
-     * @param token
+     * Check if any requests are pending
+     * @returns {boolean}
      */
-    setToken () {
-        // Token handling removed - using cookies instead
-        debugLog('[API] Token method called but using cookies');
+    get isLoading () {
+        return this.http.getPendingCount() > 0;
     }
 
-    /**
-     *
-     */
-    getToken () {
-        // Token handling removed - using cookies instead
-        return null;
-    }
+    // ==================== AUTH METHODS ====================
 
     /**
-     *
-     * @param scriptId
-     */
-    _requireScriptId (scriptId) {
-        if (!scriptId) {
-            throw new Error('Script ID is required');
-        }
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param itemId
-     * @param label
-     */
-    _requireScriptAndItemId (scriptId, itemId, label) {
-        if (!scriptId || !itemId) {
-            throw new Error(`Script ID and ${label} ID are required`);
-        }
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param segment
-     * @param itemId
-     */
-    _scriptItemPath (scriptId, segment, itemId) {
-        const base = `${API_ENDPOINTS.SCRIPT}/${scriptId}/${segment}`;
-        return itemId ? `${base}/${itemId}` : base;
-    }
-
-    // Auth message handling
-    /**
-     *
-     * @param event
-     */
-    _handlePostMessage (event) {
-        const apiOrigin = getApiOrigin();
-        const allowedOrigins = [
-            window.location.origin,
-            apiOrigin,
-            `http://localhost:${SERVER_PORT}`,
-            `http://127.0.0.1:${SERVER_PORT}`
-        ];
-
-        if (!allowedOrigins.includes(event.origin)) {
-            console.warn('[AUTH] Ignoring message from unrecognized origin:', event.origin);
-            return;
-        }
-
-        if (event.data && event.data.type === 'auth') {
-            this._handleAuthMessage(event.data);
-        }
-    }
-
-    /**
-     *
-     * @param data
-     */
-    _handleAuthMessage (data) {
-        debugLog('[AUTH] Received message:', {
-            type: data.type,
-            action: data.action,
-            hasToken: !!data.token
-        });
-
-        switch (data.action) {
-            case 'login':
-                if (data.token) {
-                    this.setToken(data.token);
-                    debugLog('[AUTH] Token updated from login');
-                }
-                break;
-            case 'logout':
-                this.setToken(null);
-                debugLog('[AUTH] Token cleared from logout');
-                break;
-            default:
-                console.warn('[AUTH] Unknown message type:', data.action);
-        }
-    }
-
-    /**
-     * Generate a unique correlation ID for request tracking
-     * @returns {string} - Unique correlation ID
-     */
-    _generateCorrelationId () {
-        return `req_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    }
-
-    /**
-     * Get timeout for request type
-     * @param {string} method - HTTP method
-     * @param {string} endpoint - Request endpoint
-     * @returns {number} - Timeout in milliseconds
-     */
-    _getTimeout (method, endpoint) {
-        if (endpoint.includes('/upload') || method === 'POST' && endpoint.includes('/script')) {
-            return this.timeoutConfig.upload;
-        }
-        if (method === 'GET' && endpoint.includes('/download')) {
-            return this.timeoutConfig.download;
-        }
-        return this.timeoutConfig.default;
-    }
-
-    /**
-     * Check if request should be retried
-     * @param {number} status - HTTP status code
-     * @param {string} method - HTTP method
-     * @returns {boolean} - Whether to retry
-     */
-    _shouldRetry (status, method) {
-        // Only retry idempotent methods
-        const idempotentMethods = ['GET', 'HEAD', 'PUT', 'DELETE'];
-        if (!idempotentMethods.includes(method)) {
-            return false;
-        }
-
-        // Retry on network errors and 5xx status codes
-        return status >= 500 || status === 0;
-    }
-
-    /**
-     * Sleep for specified milliseconds
-     * @param {number} ms - Milliseconds to sleep
-     * @returns {Promise} - Promise that resolves after delay
-     */
-    _sleep (ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    // Request handling
-    /**
-     *
-     * @param endpoint
-     * @param method
-     * @param data
-     * @param options
-     */
-    async _makeRequest (endpoint, method = 'GET', data = null, options = {}) {
-        const correlationId = this._generateCorrelationId();
-        const isSessionCheck = endpoint.includes('/user/current');
-        const isLoginEndpoint = endpoint.includes('/login');
-        const timeout = options.timeout || this._getTimeout(method, endpoint);
-        const maxRetries = options.maxRetries || this.retryConfig.maxRetries;
-
-        // Create abort controller for timeout
-        const abortController = new AbortController();
-        this.abortControllers.set(correlationId, abortController);
-
-        // Set timeout
-        const timeoutId = setTimeout(() => {
-            abortController.abort();
-        }, timeout);
-
-        let lastError = null;
-
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                debugLog(`[API] ${isSessionCheck ? 'Auth ' : ''}Request ${correlationId} (attempt ${attempt + 1}):`, {
-                    endpoint,
-                    method,
-                    hasData: !!data,
-                    hasCredentials: true,
-                    timeout
-                });
-
-                const requestOptions = {
-                    method,
-                    headers: {
-                        ...API_HEADERS,
-                        'X-Correlation-ID': correlationId
-                    },
-                    credentials: 'include',
-                    signal: abortController.signal,
-                    ...(data && { body: JSON.stringify(data) })
-                };
-
-                const response = await fetch(this.baseUrl + endpoint, requestOptions);
-
-                // Clear timeout on successful response
-                clearTimeout(timeoutId);
-
-                // Handle 401 for auth endpoints differently
-                if (isSessionCheck && response.status === 401) {
-                    debugLog(`[API] No active session for ${correlationId}`);
-                    return null;
-                }
-
-                // Handle other errors
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        error: response.statusText || 'Unknown error'
-                    }));
-
-                    const errorMessage = errorData.error || errorData.message || ERROR_MESSAGES.REQUEST_FAILED;
-                    const error = new Error(errorMessage);
-                    error.status = response.status;
-                    error.data = errorData;
-                    error.correlationId = correlationId;
-                    error.attempt = attempt + 1;
-
-                    // Handle specific status codes
-                    if (response.status === 401) {
-                        if (!isLoginEndpoint) {
-                            error.message = ERROR_MESSAGES.NOT_AUTHENTICATED;
-                        }
-                        // Don't throw for session check endpoint
-                        if (isSessionCheck) {
-                            debugLog('[AUTH] Session expired');
-                            return null;
-                        }
-                    } else if (response.status === 403) {
-                        error.message = ERROR_MESSAGES.NOT_AUTHORIZED;
-                    } else if (response.status === 404) {
-                        error.message = ERROR_MESSAGES.NOT_FOUND || error.message;
-                    }
-
-                    // Check if we should retry
-                    if (this._shouldRetry(response.status, method) && attempt < maxRetries) {
-                        const delay = this.retryConfig.retryDelay * Math.pow(this.retryConfig.retryMultiplier, attempt);
-                        console.warn(`[API] Request ${correlationId} failed (${response.status}), retrying in ${delay}ms...`);
-                        await this._sleep(delay);
-                        lastError = error;
-                        continue;
-                    }
-
-                    throw error;
-                }
-
-                if (response.status === 204) {
-                    this.abortControllers.delete(correlationId);
-                    return null;
-                }
-
-                const responseData = await response.json();
-
-                // Handle auth responses
-                if (isSessionCheck && responseData) {
-                    debugLog(`[API] Auth response received ${correlationId}`);
-                }
-
-                // Clean up
-                this.abortControllers.delete(correlationId);
-                return responseData;
-
-            } catch (error) {
-                lastError = error;
-
-                // Handle abort/timeout
-                if (error.name === 'AbortError') {
-                    const timeoutError = new Error(`Request timeout after ${timeout}ms`);
-                    timeoutError.correlationId = correlationId;
-                    timeoutError.status = 408;
-                    throw timeoutError;
-                }
-
-                // Handle network errors
-                if (!error.status && attempt < maxRetries) {
-                    const delay = this.retryConfig.retryDelay * Math.pow(this.retryConfig.retryMultiplier, attempt);
-                    console.warn(`[API] Network error for ${correlationId}, retrying in ${delay}ms...`);
-                    await this._sleep(delay);
-                    continue;
-                }
-
-                // Don't retry for client errors (4xx) or if we've exhausted retries
-                const isExpectedAuthError = isSessionCheck && error.status === 401;
-                if (!isExpectedAuthError) {
-                    console.error(`[API] Request ${correlationId} failed:`, {
-                        status: error.status || 500,
-                        message: error.message,
-                        attempt: attempt + 1,
-                        stack: error.stack
-                    });
-                }
-
-                // Clean up
-                this.abortControllers.delete(correlationId);
-                throw error;
-            }
-        }
-
-        // Clean up timeout
-        clearTimeout(timeoutId);
-        this.abortControllers.delete(correlationId);
-
-        // If we get here, all retries failed
-        throw lastError;
-    }
-
-    /**
-     *
-     * @param endpoint
-     * @param method
-     * @param formData
-     * @param options
-     */
-    async _makeFormRequest (endpoint, method = 'POST', formData = null, options = {}) {
-        const correlationId = this._generateCorrelationId();
-        const timeout = options.timeout || this._getTimeout(method, endpoint);
-        const maxRetries = options.maxRetries || this.retryConfig.maxRetries;
-
-        const abortController = new AbortController();
-        this.abortControllers.set(correlationId, abortController);
-
-        const timeoutId = setTimeout(() => {
-            abortController.abort();
-        }, timeout);
-
-        let lastError = null;
-
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                const requestOptions = {
-                    method,
-                    headers: {
-                        'X-Correlation-ID': correlationId
-                    },
-                    credentials: 'include',
-                    signal: abortController.signal,
-                    ...(formData && { body: formData })
-                };
-
-                const response = await fetch(this.baseUrl + endpoint, requestOptions);
-                clearTimeout(timeoutId);
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        error: response.statusText || 'Unknown error'
-                    }));
-                    const errorMessage = errorData.error || errorData.message || ERROR_MESSAGES.REQUEST_FAILED;
-                    const error = new Error(errorMessage);
-                    error.status = response.status;
-                    error.data = errorData;
-                    error.correlationId = correlationId;
-                    error.attempt = attempt + 1;
-
-                    if (this._shouldRetry(response.status, method) && attempt < maxRetries) {
-                        const delay = this.retryConfig.retryDelay * Math.pow(this.retryConfig.retryMultiplier, attempt);
-                        await this._sleep(delay);
-                        lastError = error;
-                        continue;
-                    }
-
-                    throw error;
-                }
-
-                if (response.status === 204) {
-                    return null;
-                }
-
-                return await response.json();
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    throw new Error('Request timeout');
-                }
-                if (attempt < maxRetries && this._shouldRetry(error.status || 0, method)) {
-                    const delay = this.retryConfig.retryDelay * Math.pow(this.retryConfig.retryMultiplier, attempt);
-                    await this._sleep(delay);
-                    lastError = error;
-                    continue;
-                }
-                throw error;
-            }
-        }
-
-        throw lastError || new Error(ERROR_MESSAGES.NETWORK_ERROR);
-    }
-
-    // Auth endpoints
-    /**
-     *
-     * @param email
-     * @param password
+     * @deprecated Removed in v2.0. Use api.auth.login() instead.
+     * @example await api.auth.login(email, password)
      */
     async login (email, password) {
-        const response = await this._makeRequest('/login', 'POST', { email, password });
-        if (!response || !response.user) {
-            throw new Error(ERROR_MESSAGES.LOGIN_FAILED);
-        }
-        return response.user;
+        return this.auth.login(email, password);
     }
 
     /**
-     *
+     * @deprecated Removed in v2.0. Use api.auth.logout() instead.
+     * @example await api.auth.logout()
      */
     async logout () {
-        return this._makeRequest('/logout', 'POST');
+        return this.auth.logout();
     }
 
     /**
-     *
+     * @deprecated Removed in v2.0. Use api.auth.getCurrentUser() instead.
+     * @example await api.auth.getCurrentUser()
      */
     async getCurrentUser () {
-        try {
-            debugLog('[AUTH] Checking session');
-            const result = await this._makeRequest(API_ENDPOINTS.USER + '/current', 'GET');
-            debugLog('[AUTH] Session check:', { hasUser: !!result });
-            return result;
-        } catch (error) {
-            if (error.status === 401) {
-                debugLog('[AUTH] No active session');
-                return null;
-            }
-            throw error;
-        }
+        return this.auth.getCurrentUser();
     }
 
     /**
-     *
+     * @deprecated Removed in v2.0. Use api.auth.getTokenWatch() instead.
+     * @example await api.auth.getTokenWatch()
      */
     async getTokenWatch () {
-        return this._makeRequest(API_ENDPOINTS.USER_TOKEN_WATCH, 'GET');
+        return this.auth.getTokenWatch();
     }
 
+    // ==================== USER METHODS ====================
+
     /**
-     *
-     * @param id
+     * @deprecated Removed in v2.0. Use api.users.getUser() instead.
+     * @example await api.users.getUser(id)
      */
     async getUser (id) {
-        return this._makeRequest(`${API_ENDPOINTS.USER}/${id}`, 'GET');
+        return this.users.getUser(id);
     }
 
     /**
-     *
-     * @param userData
+     * @deprecated Removed in v2.0. Use api.users.createUser() instead.
+     * @example await api.users.createUser(userData)
      */
     async createUser (userData) {
-        return this._makeRequest(API_ENDPOINTS.USER, 'POST', userData);
+        return this.users.createUser(userData);
     }
 
-    // Chat endpoints
-    /**
-     * Get chat response with enhanced script context
-     * @param {string} content - The chat message content
-     * @param {object} context - Additional context information
-     * @returns {Promise<object>} - The chat response
-     */
-    async getChatResponse (content, context = {}) {
-        const scriptId = localStorage.getItem('currentScriptId');
-        const scriptTitle = localStorage.getItem('currentScriptTitle');
-        const scriptVersion = localStorage.getItem('currentScriptVersion');
-
-        // Prepare enhanced context
-        const enhancedContext = {
-            scriptId: scriptId || null,
-            scriptTitle: scriptTitle || null,
-            scriptVersion: scriptVersion || null,
-            timestamp: new Date().toISOString(),
-            ...context
-        };
-
-        // Log the request for debugging
-        debugLog('[API] Chat request with context:', {
-            prompt: content,
-            scriptId: enhancedContext.scriptId,
-            scriptTitle: enhancedContext.scriptTitle,
-            scriptVersion: enhancedContext.scriptVersion,
-            hasContext: Object.keys(context).length > 0
-        });
-
-        const result = await this._makeRequest(API_ENDPOINTS.CHAT, 'POST', {
-            prompt: content,
-            context: enhancedContext
-        });
-
-        // Handle response formats
-        const processedResult = Array.isArray(result) ? result[0] : result;
-        return typeof processedResult === 'string' ? { html: processedResult } : processedResult;
-    }
+    // ==================== SCRIPT METHODS ====================
 
     /**
-     * Trigger a system prompt from the server
-     * @param {string} promptType
-     * @param {string|null} scriptId
-     * @param {object} context
-     */
-    async triggerSystemPrompt (promptType, scriptId = null, context = {}) {
-        if (!promptType) {
-            throw new Error('System prompt type is required');
-        }
-
-        return this._makeRequest(API_ENDPOINTS.SYSTEM_PROMPTS, 'POST', {
-            promptType,
-            scriptId,
-            context: {
-                timestamp: new Date().toISOString(),
-                ...context
-            }
-        });
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param context
-     */
-    async requestNextLines (scriptId, context = {}) {
-        if (!scriptId) {
-            throw new Error('Script ID is required for next lines');
-        }
-
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${scriptId}/next-lines`, 'POST', {
-            scriptId,
-            context: {
-                timestamp: new Date().toISOString(),
-                ...context
-            }
-        });
-    }
-
-    /**
-     * Get chat history for a specific script
-     * @param {string} scriptId - The script ID
-     * @param limit
-     * @param offset
-     * @returns {Promise<Array>} - Chat history
-     */
-    async getChatMessages (scriptId = null, limit = 30, offset = 0) {
-        const params = new URLSearchParams();
-        if (scriptId) params.set('scriptId', scriptId);
-        if (limit) params.set('limit', limit);
-        if (offset) params.set('offset', offset);
-        const queryString = params.toString();
-        const endpoint = queryString ?
-            `${API_ENDPOINTS.CHAT}/messages?${queryString}` :
-            `${API_ENDPOINTS.CHAT}/messages`;
-        return this._makeRequest(endpoint, 'GET');
-    }
-
-    /**
-     * Add a chat message
-     * @param {string} scriptId - The script ID
-     * @param {object} message - The message object
-     * @returns {Promise<object>} - The saved message
-     */
-    async addChatMessage (scriptId, message) {
-        return this._makeRequest(`${API_ENDPOINTS.CHAT}/messages`, 'POST', {
-            scriptId,
-            message
-        });
-    }
-
-    /**
-     * Clear chat messages for a specific script
-     * @param {string} scriptId - The script ID
-     * @returns {Promise<boolean>} - Success status
-     */
-    async clearChatMessages (scriptId) {
-        return this._makeRequest(`${API_ENDPOINTS.CHAT}/messages/${scriptId}`, 'DELETE');
-    }
-
-    // Brainstorm endpoints
-    /**
-     *
-     */
-    async listBrainstormBoards () {
-        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_BOARDS, 'GET');
-    }
-
-    /**
-     *
-     * @param boardId
-     */
-    async getBrainstormBoard (boardId) {
-        if (!boardId) {
-            throw new Error('Board ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'GET');
-    }
-
-    /**
-     *
-     * @param root0
-     * @param root0.title
-     * @param root0.seed
-     * @param root0.notes
-     */
-    async createBrainstormBoard ({ title, seed, notes }) {
-        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_BOARDS, 'POST', {
-            title,
-            seed,
-            notes
-        });
-    }
-
-    /**
-     *
-     * @param boardId
-     * @param root0
-     * @param root0.title
-     * @param root0.seed
-     * @param root0.notes
-     */
-    async updateBrainstormBoard (boardId, { title, seed, notes }) {
-        if (!boardId) {
-            throw new Error('Board ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'PUT', {
-            title,
-            seed,
-            notes
-        });
-    }
-
-    /**
-     *
-     * @param boardId
-     */
-    async deleteBrainstormBoard (boardId) {
-        if (!boardId) {
-            throw new Error('Board ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.BRAINSTORM_BOARDS}/${boardId}`, 'DELETE');
-    }
-
-    /**
-     *
-     * @param boardId
-     * @param category
-     */
-    async requestBrainstormNotes (boardId, category) {
-        if (!boardId) {
-            throw new Error('Board ID is required');
-        }
-        if (!category) {
-            throw new Error('Category is required');
-        }
-        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_AI(boardId, category), 'POST', {});
-    }
-
-    /**
-     *
-     * @param boardId
-     */
-    async requestBrainstormTitle (boardId) {
-        if (!boardId) {
-            throw new Error('Board ID is required');
-        }
-        return this._makeRequest(API_ENDPOINTS.BRAINSTORM_AI(boardId, 'title'), 'POST', {});
-    }
-
-    // Script endpoints
-    /**
-     *
-     * @param id
+     * @deprecated Removed in v2.0. Use api.scripts.getScript() instead.
+     * @example await api.scripts.getScript(id)
      */
     async getScript (id) {
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'GET');
+        return this.scripts.getScript(id);
     }
 
     /**
-     *
-     * @param scriptId
-     */
-    async getScenes (scriptId) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes'), 'GET');
-    }
-
-    /**
-     *
-     * @param scriptId
-     */
-    async getCharacters (scriptId) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'characters'), 'GET');
-    }
-
-    /**
-     *
-     * @param scriptId
-     */
-    async getLocations (scriptId) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'locations'), 'GET');
-    }
-
-    /**
-     *
-     * @param scriptId
-     */
-    async getThemes (scriptId) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'themes'), 'GET');
-    }
-
-    /**
-     *
-     * @param scriptData
+     * @deprecated Removed in v2.0. Use api.scripts.createScript() instead.
+     * @example await api.scripts.createScript(scriptData)
      */
     async createScript (scriptData) {
-        return this._makeRequest(API_ENDPOINTS.SCRIPT, 'POST', scriptData);
+        return this.scripts.createScript(scriptData);
     }
 
     /**
-     *
-     * @param id
-     * @param scriptData
+     * @deprecated Removed in v2.0. Use api.scripts.updateScript() and pass title explicitly.
+     * localStorage auto-fallback will be removed in v2.0.
+     * @example await api.scripts.updateScript(id, { title, content })
      */
     async updateScript (id, scriptData) {
-        if (!id || !scriptData) {
-            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
-        }
-
-        const title = scriptData.title || localStorage.getItem('currentScriptTitle') || 'Not Set';
-        // Prepare update data - let server handle versioning
-        const updateData = {
-            title: title,
-            content: scriptData.content
-        };
-        if (scriptData.author !== undefined) {
-            updateData.author = scriptData.author;
-        }
-        if (scriptData.description !== undefined) {
-            updateData.description = scriptData.description;
-        }
-        if (scriptData.visibility !== undefined) {
-            const normalizedVisibility = String(scriptData.visibility || '').toLowerCase();
-            const allowedVisibilities = new Set(['private', 'public']);
-            if (allowedVisibilities.has(normalizedVisibility)) {
-                updateData.visibility = normalizedVisibility;
+        // Backwards compatibility: localStorage fallback (removed in v2.0)
+        if (!scriptData.title && typeof localStorage !== 'undefined') {
+            const fallbackTitle = localStorage.getItem('currentScriptTitle');
+            if (fallbackTitle) {
+                console.warn('[API] updateScript: localStorage title fallback is deprecated. Pass title explicitly.');
+                scriptData = { ...scriptData, title: fallbackTitle };
             }
         }
-
-        debugLog('[API] Updating script:', {
-            id,
-            title: updateData.title,
-            contentLength: updateData.content ? updateData.content.length : 0,
-            hasCredentials: true,
-            hasAuthor: scriptData.author !== undefined,
-            hasDescription: scriptData.description !== undefined
-        });
-
-        const result = await this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'PUT', updateData);
-
-        debugLog('[API] Script update result:', {
-            success: !!result,
-            id,
-            versionNumber: result && result.versionNumber,
-            timestamp: new Date().toISOString()
-        });
-
-        return result;
+        return this.scripts.updateScript(id, scriptData);
     }
 
     /**
-     *
-     * @param id
+     * @deprecated Removed in v2.0. Use api.scripts.deleteScript() instead.
+     * @example await api.scripts.deleteScript(id)
      */
     async deleteScript (id) {
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}/${id}`, 'DELETE');
-    }
-
-    // Media endpoints
-    /**
-     *
-     * @param file
-     * @param type
-     */
-    async uploadMedia (file, type) {
-        if (!file || !type) {
-            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
-        }
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', type);
-        return this._makeFormRequest(API_ENDPOINTS.MEDIA_UPLOAD, 'POST', formData);
+        return this.scripts.deleteScript(id);
     }
 
     /**
-     *
-     * @param payload
-     */
-    async generateMedia (payload) {
-        return this._makeRequest(API_ENDPOINTS.MEDIA_GENERATE, 'POST', payload);
-    }
-
-    /**
-     *
-     * @param params
-     */
-    async listMedia (params = {}) {
-        const query = new URLSearchParams();
-        if (params.type) {
-            query.set('type', params.type);
-        }
-        if (params.page) {
-            query.set('page', String(params.page));
-        }
-        if (params.pageSize) {
-            query.set('pageSize', String(params.pageSize));
-        }
-        const suffix = query.toString();
-        const endpoint = suffix ? `${API_ENDPOINTS.MEDIA}?${suffix}` : API_ENDPOINTS.MEDIA;
-        return this._makeRequest(endpoint, 'GET');
-    }
-
-    /**
-     *
-     * @param assetId
-     * @param payload
-     */
-    async attachMedia (assetId, payload) {
-        if (!assetId || !payload) {
-            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
-        }
-        return this._makeRequest(`${API_ENDPOINTS.MEDIA}/${assetId}/attach`, 'POST', payload);
-    }
-
-    /**
-     *
-     * @param jobId
-     */
-    async getMediaJob (jobId) {
-        if (!jobId) {
-            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
-        }
-        return this._makeRequest(`${API_ENDPOINTS.MEDIA_JOBS}/${jobId}`, 'GET');
-    }
-
-    /**
-     *
-     * @param ownerType
-     * @param ownerId
-     * @param role
-     */
-    async getOwnerMedia (ownerType, ownerId, role) {
-        if (!ownerType || !ownerId) {
-            throw new Error(ERROR_MESSAGES.VALIDATION_ERROR);
-        }
-        const query = role ? `?role=${encodeURIComponent(role)}` : '';
-        return this._makeRequest(`${API_ENDPOINTS.OWNER_MEDIA(ownerType, ownerId)}${query}`, 'GET');
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param sceneData
-     */
-    async createScene (scriptId, sceneData) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes'), 'POST', sceneData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param sceneId
-     * @param sceneData
-     */
-    async updateScene (scriptId, sceneId, sceneData) {
-        this._requireScriptAndItemId(scriptId, sceneId, 'scene');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes', sceneId), 'PUT', sceneData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param sceneId
-     */
-    async deleteScene (scriptId, sceneId) {
-        this._requireScriptAndItemId(scriptId, sceneId, 'scene');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'scenes', sceneId), 'DELETE');
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param sceneId
-     * @param payload
-     */
-    async generateSceneIdea (scriptId, sceneId, payload = {}) {
-        this._requireScriptAndItemId(scriptId, sceneId, 'scene');
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'scenes', sceneId)}/ai/scene-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param payload
-     */
-    async generateSceneIdeaDraft (scriptId, payload = {}) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'scenes')}/ai/scene-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param order
-     */
-    async reorderScenes (scriptId, order) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(`${this._scriptItemPath(scriptId, 'scenes')}/reorder`, 'PUT', { order });
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param characterData
-     */
-    async createCharacter (scriptId, characterData) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'characters'), 'POST', characterData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param characterId
-     * @param characterData
-     */
-    async updateCharacter (scriptId, characterId, characterData) {
-        this._requireScriptAndItemId(scriptId, characterId, 'character');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'characters', characterId), 'PUT', characterData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param characterId
-     */
-    async deleteCharacter (scriptId, characterId) {
-        this._requireScriptAndItemId(scriptId, characterId, 'character');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'characters', characterId), 'DELETE');
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param order
-     */
-    async reorderCharacters (scriptId, order) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(`${this._scriptItemPath(scriptId, 'characters')}/reorder`, 'PUT', { order });
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param characterId
-     * @param payload
-     */
-    async generateCharacterIdea (scriptId, characterId, payload = {}) {
-        this._requireScriptAndItemId(scriptId, characterId, 'character');
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'characters', characterId)}/ai/character-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param payload
-     */
-    async generateCharacterIdeaDraft (scriptId, payload = {}) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'characters')}/ai/character-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param locationData
-     */
-    async createLocation (scriptId, locationData) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'locations'), 'POST', locationData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param locationId
-     * @param locationData
-     */
-    async updateLocation (scriptId, locationId, locationData) {
-        this._requireScriptAndItemId(scriptId, locationId, 'location');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'locations', locationId), 'PUT', locationData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param locationId
-     */
-    async deleteLocation (scriptId, locationId) {
-        this._requireScriptAndItemId(scriptId, locationId, 'location');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'locations', locationId), 'DELETE');
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param order
-     */
-    async reorderLocations (scriptId, order) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(`${this._scriptItemPath(scriptId, 'locations')}/reorder`, 'PUT', { order });
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param locationId
-     * @param payload
-     */
-    async generateLocationIdea (scriptId, locationId, payload = {}) {
-        this._requireScriptAndItemId(scriptId, locationId, 'location');
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'locations', locationId)}/ai/location-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param payload
-     */
-    async generateLocationIdeaDraft (scriptId, payload = {}) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'locations')}/ai/location-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param themeData
-     */
-    async createTheme (scriptId, themeData) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(this._scriptItemPath(scriptId, 'themes'), 'POST', themeData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param themeId
-     * @param themeData
-     */
-    async updateTheme (scriptId, themeId, themeData) {
-        this._requireScriptAndItemId(scriptId, themeId, 'theme');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'themes', themeId), 'PUT', themeData);
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param themeId
-     */
-    async deleteTheme (scriptId, themeId) {
-        this._requireScriptAndItemId(scriptId, themeId, 'theme');
-        return this._makeRequest(this._scriptItemPath(scriptId, 'themes', themeId), 'DELETE');
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param order
-     */
-    async reorderThemes (scriptId, order) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(`${this._scriptItemPath(scriptId, 'themes')}/reorder`, 'PUT', { order });
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param themeId
-     * @param payload
-     */
-    async generateThemeIdea (scriptId, themeId, payload = {}) {
-        this._requireScriptAndItemId(scriptId, themeId, 'theme');
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'themes', themeId)}/ai/theme-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param scriptId
-     * @param payload
-     */
-    async generateThemeIdeaDraft (scriptId, payload = {}) {
-        this._requireScriptId(scriptId);
-        return this._makeRequest(
-            `${this._scriptItemPath(scriptId, 'themes')}/ai/theme-idea`,
-            'POST',
-            payload
-        );
-    }
-
-    /**
-     *
-     * @param userId
+     * @deprecated Removed in v2.0. Use api.scripts.getAllScriptsByUser() instead.
+     * @example await api.scripts.getAllScriptsByUser(userId)
      */
     async getAllScriptsByUser (userId) {
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT}?userId=${userId}`, 'GET');
+        return this.scripts.getAllScriptsByUser(userId);
     }
 
     /**
-     *
-     * @param options
+     * @deprecated Removed in v2.0. Use api.scripts.getScriptBySlug() instead.
+     * @example await api.scripts.getScriptBySlug(slug)
      */
+    async getScriptBySlug (slug) {
+        return this.scripts.getScriptBySlug(slug);
+    }
+
+    /**
+     * @deprecated Removed in v2.0. Use api.scripts.requestNextLines() instead.
+     * @example await api.scripts.requestNextLines(scriptId, context)
+     */
+    async requestNextLines (scriptId, context = {}) {
+        return this.scripts.requestNextLines(scriptId, context);
+    }
+
+    // ==================== CHAT METHODS ====================
+
+    /**
+     * @deprecated Removed in v2.0. Use api.chat.getChatResponse() and pass context explicitly.
+     * localStorage auto-context will be removed in v2.0.
+     * @example await api.chat.getChatResponse(content, { scriptId, scriptTitle, scriptVersion })
+     */
+    async getChatResponse (content, context = {}) {
+        // Backwards compatibility: localStorage context (removed in v2.0)
+        const needsLocalStorage = !context.scriptId && typeof localStorage !== 'undefined';
+        if (needsLocalStorage) {
+            const scriptId = localStorage.getItem('currentScriptId');
+            if (scriptId) {
+                console.warn('[API] getChatResponse: localStorage context is deprecated. Pass context explicitly.');
+                context = {
+                    scriptId,
+                    scriptTitle: context.scriptTitle || localStorage.getItem('currentScriptTitle'),
+                    scriptVersion: context.scriptVersion || localStorage.getItem('currentScriptVersion'),
+                    ...context
+                };
+            }
+        }
+        return this.chat.getChatResponse(content, context);
+    }
+
+    /**
+     * @deprecated Removed in v2.0. Use api.chat.triggerSystemPrompt() instead.
+     * @example await api.chat.triggerSystemPrompt(promptType, scriptId, context)
+     */
+    async triggerSystemPrompt (promptType, scriptId = null, context = {}) {
+        return this.chat.triggerSystemPrompt(promptType, scriptId, context);
+    }
+
+    /**
+     * @deprecated Removed in v2.0. Use api.chat.getChatMessages() instead.
+     * @example await api.chat.getChatMessages(scriptId, limit, offset)
+     */
+    async getChatMessages (scriptId = null, limit = 30, offset = 0) {
+        return this.chat.getChatMessages(scriptId, limit, offset);
+    }
+
+    /**
+     * @deprecated Removed in v2.0. Use api.chat.addChatMessage() instead.
+     * @example await api.chat.addChatMessage(scriptId, message)
+     */
+    async addChatMessage (scriptId, message) {
+        return this.chat.addChatMessage(scriptId, message);
+    }
+
+    /**
+     * @deprecated Removed in v2.0. Use api.chat.clearChatMessages() instead.
+     * @example await api.chat.clearChatMessages(scriptId)
+     */
+    async clearChatMessages (scriptId) {
+        return this.chat.clearChatMessages(scriptId);
+    }
+
+    // ==================== MEDIA METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.media.uploadMedia() instead. */
+    async uploadMedia (file, type) {
+        return this.media.uploadMedia(file, type);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.media.generateMedia() instead. */
+    async generateMedia (payload) {
+        return this.media.generateMedia(payload);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.media.listMedia() instead. */
+    async listMedia (params = {}) {
+        return this.media.listMedia(params);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.media.attachMedia() instead. */
+    async attachMedia (assetId, payload) {
+        return this.media.attachMedia(assetId, payload);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.media.getMediaJob() instead. */
+    async getMediaJob (jobId) {
+        return this.media.getMediaJob(jobId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.media.getOwnerMedia() instead. */
+    async getOwnerMedia (ownerType, ownerId, role) {
+        return this.media.getOwnerMedia(ownerType, ownerId, role);
+    }
+
+    // ==================== BRAINSTORM METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.listBoards() instead. */
+    async listBrainstormBoards () {
+        return this.brainstorm.listBoards();
+    }
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.getBoard() instead. */
+    async getBrainstormBoard (boardId) {
+        return this.brainstorm.getBoard(boardId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.createBoard() instead. */
+    async createBrainstormBoard ({ title, seed, notes }) {
+        return this.brainstorm.createBoard({ title, seed, notes });
+    }
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.updateBoard() instead. */
+    async updateBrainstormBoard (boardId, { title, seed, notes }) {
+        return this.brainstorm.updateBoard(boardId, { title, seed, notes });
+    }
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.deleteBoard() instead. */
+    async deleteBrainstormBoard (boardId) {
+        return this.brainstorm.deleteBoard(boardId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.requestNotes() instead. */
+    async requestBrainstormNotes (boardId, category) {
+        return this.brainstorm.requestNotes(boardId, category);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.brainstorm.requestTitle() instead. */
+    async requestBrainstormTitle (boardId) {
+        return this.brainstorm.requestTitle(boardId);
+    }
+
+    // ==================== SCENE METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.entities.getScenes() instead. */
+    async getScenes (scriptId) {
+        return this.entities.getScenes(scriptId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.createScene() instead. */
+    async createScene (scriptId, sceneData) {
+        return this.entities.createScene(scriptId, sceneData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.updateScene() instead. */
+    async updateScene (scriptId, sceneId, sceneData) {
+        return this.entities.updateScene(scriptId, sceneId, sceneData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.deleteScene() instead. */
+    async deleteScene (scriptId, sceneId) {
+        return this.entities.deleteScene(scriptId, sceneId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.reorderScenes() instead. */
+    async reorderScenes (scriptId, order) {
+        return this.entities.reorderScenes(scriptId, order);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateSceneIdea() instead. */
+    async generateSceneIdea (scriptId, sceneId, payload = {}) {
+        return this.entities.generateSceneIdea(scriptId, sceneId, payload);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateSceneIdeaDraft() instead. */
+    async generateSceneIdeaDraft (scriptId, payload = {}) {
+        return this.entities.generateSceneIdeaDraft(scriptId, payload);
+    }
+
+    // ==================== CHARACTER METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.entities.getCharacters() instead. */
+    async getCharacters (scriptId) {
+        return this.entities.getCharacters(scriptId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.createCharacter() instead. */
+    async createCharacter (scriptId, characterData) {
+        return this.entities.createCharacter(scriptId, characterData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.updateCharacter() instead. */
+    async updateCharacter (scriptId, characterId, characterData) {
+        return this.entities.updateCharacter(scriptId, characterId, characterData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.deleteCharacter() instead. */
+    async deleteCharacter (scriptId, characterId) {
+        return this.entities.deleteCharacter(scriptId, characterId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.reorderCharacters() instead. */
+    async reorderCharacters (scriptId, order) {
+        return this.entities.reorderCharacters(scriptId, order);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateCharacterIdea() instead. */
+    async generateCharacterIdea (scriptId, characterId, payload = {}) {
+        return this.entities.generateCharacterIdea(scriptId, characterId, payload);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateCharacterIdeaDraft() instead. */
+    async generateCharacterIdeaDraft (scriptId, payload = {}) {
+        return this.entities.generateCharacterIdeaDraft(scriptId, payload);
+    }
+
+    // ==================== LOCATION METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.entities.getLocations() instead. */
+    async getLocations (scriptId) {
+        return this.entities.getLocations(scriptId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.createLocation() instead. */
+    async createLocation (scriptId, locationData) {
+        return this.entities.createLocation(scriptId, locationData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.updateLocation() instead. */
+    async updateLocation (scriptId, locationId, locationData) {
+        return this.entities.updateLocation(scriptId, locationId, locationData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.deleteLocation() instead. */
+    async deleteLocation (scriptId, locationId) {
+        return this.entities.deleteLocation(scriptId, locationId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.reorderLocations() instead. */
+    async reorderLocations (scriptId, order) {
+        return this.entities.reorderLocations(scriptId, order);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateLocationIdea() instead. */
+    async generateLocationIdea (scriptId, locationId, payload = {}) {
+        return this.entities.generateLocationIdea(scriptId, locationId, payload);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateLocationIdeaDraft() instead. */
+    async generateLocationIdeaDraft (scriptId, payload = {}) {
+        return this.entities.generateLocationIdeaDraft(scriptId, payload);
+    }
+
+    // ==================== THEME METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.entities.getThemes() instead. */
+    async getThemes (scriptId) {
+        return this.entities.getThemes(scriptId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.createTheme() instead. */
+    async createTheme (scriptId, themeData) {
+        return this.entities.createTheme(scriptId, themeData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.updateTheme() instead. */
+    async updateTheme (scriptId, themeId, themeData) {
+        return this.entities.updateTheme(scriptId, themeId, themeData);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.deleteTheme() instead. */
+    async deleteTheme (scriptId, themeId) {
+        return this.entities.deleteTheme(scriptId, themeId);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.reorderThemes() instead. */
+    async reorderThemes (scriptId, order) {
+        return this.entities.reorderThemes(scriptId, order);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateThemeIdea() instead. */
+    async generateThemeIdea (scriptId, themeId, payload = {}) {
+        return this.entities.generateThemeIdea(scriptId, themeId, payload);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.entities.generateThemeIdeaDraft() instead. */
+    async generateThemeIdeaDraft (scriptId, payload = {}) {
+        return this.entities.generateThemeIdeaDraft(scriptId, payload);
+    }
+
+    // ==================== PUBLIC SCRIPT METHODS ====================
+
+    /** @deprecated Removed in v2.0. Use api.publicScripts.getPublicScripts() instead. */
     async getPublicScripts (options = {}) {
-        const params = new URLSearchParams();
-        if (options.page) params.set('page', options.page);
-        if (options.pageSize) params.set('pageSize', options.pageSize);
-        if (options.sortBy) params.set('sortBy', options.sortBy);
-        if (options.order) params.set('order', options.order);
-
-        const query = params.toString();
-        const endpoint = query
-            ? `${API_ENDPOINTS.PUBLIC_SCRIPTS}?${query}`
-            : API_ENDPOINTS.PUBLIC_SCRIPTS;
-
-        return this._makeRequest(endpoint, 'GET');
+        return this.publicScripts.getPublicScripts(options);
     }
 
-    /**
-     *
-     * @param id
-     */
+    /** @deprecated Removed in v2.0. Use api.publicScripts.getPublicScript() instead. */
     async getPublicScript (id) {
-        if (!id) {
-            throw new Error('Public script ID is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS}/${id}`, 'GET');
+        return this.publicScripts.getPublicScript(id);
     }
 
-    /**
-     *
-     * @param scriptId
-     * @param root0
-     * @param root0.page
-     * @param root0.pageSize
-     */
-    async getPublicScriptComments (scriptId, { page = 1, pageSize = 20 } = {}) {
-        if (!scriptId) {
-            throw new Error('Public script ID is required');
-        }
-
-        const params = new URLSearchParams();
-        params.set('page', page);
-        params.set('pageSize', pageSize);
-
-        const endpoint = `${API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS(scriptId)}?${params.toString()}`;
-        return this._makeRequest(endpoint, 'GET');
+    /** @deprecated Removed in v2.0. Use api.publicScripts.getPublicScriptBySlug() instead. */
+    async getPublicScriptBySlug (slug) {
+        return this.publicScripts.getPublicScriptBySlug(slug);
     }
 
-    /**
-     *
-     * @param scriptId
-     * @param content
-     */
+    /** @deprecated Removed in v2.0. Use api.publicScripts.getComments() instead. */
+    async getPublicScriptComments (scriptId, options = {}) {
+        return this.publicScripts.getComments(scriptId, options);
+    }
+
+    /** @deprecated Removed in v2.0. Use api.publicScripts.addComment() instead. */
     async addPublicScriptComment (scriptId, content) {
-        if (!scriptId) {
-            throw new Error('Public script ID is required');
-        }
-        if (!content || !content.trim()) {
-            throw new Error('Comment content is required');
-        }
-
-        return this._makeRequest(API_ENDPOINTS.PUBLIC_SCRIPT_COMMENTS(scriptId), 'POST', { content: content.trim() });
+        return this.publicScripts.addComment(scriptId, content);
     }
 
-    /**
-     *
-     * @param slug
-     */
-    async getPublicScriptBySlug (slug) {
-        if (!slug) {
-            throw new Error('Public script slug is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG}/${encodeURIComponent(slug)}`, 'GET');
-    }
-
-    /**
-     *
-     * @param slug
-     */
-    async getScriptBySlug (slug) {
-        if (!slug) {
-            throw new Error('Script slug is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT_SLUG}/${encodeURIComponent(slug)}`, 'GET');
-    }
-
-    /**
-     *
-     * @param slug
-     */
-    async getPublicScriptBySlug (slug) {
-        if (!slug) {
-            throw new Error('Public script slug is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG}/${encodeURIComponent(slug)}`, 'GET');
-    }
-
-    /**
-     *
-     * @param slug
-     */
-    async getScriptBySlug (slug) {
-        if (!slug) {
-            throw new Error('Script slug is required');
-        }
-        return this._makeRequest(`${API_ENDPOINTS.SCRIPT_SLUG}/${encodeURIComponent(slug)}`, 'GET');
-    }
+    // ==================== REQUEST MANAGEMENT ====================
 
     /**
      * Cancel a specific request by correlation ID
      * @param {string} correlationId - Correlation ID of request to cancel
      */
     cancelRequest (correlationId) {
-        const controller = this.abortControllers.get(correlationId);
-        if (controller) {
-            controller.abort();
-            this.abortControllers.delete(correlationId);
-            debugLog(`[API] Cancelled request ${correlationId}`);
-        }
+        this.http.cancelRequest(correlationId);
     }
 
     /**
      * Cancel all pending requests
      */
     cancelAllRequests () {
-        for (const [correlationId, controller] of this.abortControllers) {
-            controller.abort();
-            debugLog(`[API] Cancelled request ${correlationId}`);
-        }
-        this.abortControllers.clear();
+        this.http.cancelAllRequests();
     }
 
     /**
      * Get request statistics
-     * @returns {object} - Request statistics
+     * @returns {{ pendingRequests: number, isLoading: boolean }}
      */
     getStats () {
         return {
-            pendingRequests: this.abortControllers.size,
-            isLoading: this.isLoading,
-            queuedRequests: this.requestQueue.size
+            pendingRequests: this.http.getPendingCount(),
+            isLoading: this.isLoading
         };
     }
 
-    // Cleanup
     /**
-     *
+     * Clean up all resources and cancel pending requests
      */
     destroy () {
-        this.cancelAllRequests();
-        this.requestQueue.clear();
-        this.isLoading = false;
-        if (this._boundMessageHandler) {
-            window.removeEventListener('message', this._boundMessageHandler);
-            this._boundMessageHandler = null;
+        // Cancel all pending HTTP requests
+        this.http.cancelAllRequests();
+
+        // Destroy services that have cleanup
+        const services = [this.auth];
+        for (const service of services) {
+            if (typeof service?.destroy === 'function') {
+                service.destroy();
+            }
         }
+    }
+
+    // ==================== LEGACY COMPATIBILITY ====================
+
+    /**
+     * @deprecated Token handling removed - using cookies instead. No-op.
+     */
+    setToken () {
+        debugLog('[API] Token method called but using cookies');
+    }
+
+    /**
+     * @deprecated Token handling removed - using cookies instead. Always returns null.
+     * @returns {null}
+     */
+    getToken () {
+        return null;
     }
 }

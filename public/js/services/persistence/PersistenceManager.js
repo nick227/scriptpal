@@ -4,8 +4,8 @@
  */
 
 import { EventManager } from '../../core/EventManager.js';
-import { StateManager } from '../../core/StateManager.js';
 import { debugLog } from '../../core/logger.js';
+import { StateManager } from '../../core/StateManager.js';
 
 export function saveRawToStorage (key, value) {
     localStorage.setItem(key, value);

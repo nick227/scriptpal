@@ -2,6 +2,7 @@ import { UI_ELEMENTS } from '../../constants.js';
 import { OrchestratorLifecycleController } from '../orchestrator/OrchestratorLifecycleController.js';
 import { CharactersUIBootstrap } from '../../widgets/character/CharactersUIBootstrap.js';
 import { ChatIntegration } from '../../widgets/chat/integration/ChatIntegration.js';
+import { MediaUIBootstrap } from '../../widgets/media/MediaUIBootstrap.js';
 import { LocationUIBootstrap } from '../../widgets/location/LocationUIBootstrap.js';
 import { ScenesUIBootstrap } from '../../widgets/scene/ScenesUIBootstrap.js';
 import { ScriptsUIBootstrap } from '../../widgets/script/ScriptsUIBootstrap.js';
@@ -37,6 +38,7 @@ export class AuthenticatedAppBootstrap {
         await this.initCharactersUI();
         await this.initLocationUI();
         await this.initThemesUI();
+        await this.initMediaUI();
     }
 
     async initChat () {
@@ -70,7 +72,8 @@ export class AuthenticatedAppBootstrap {
                 'user-scenes': UI_ELEMENTS.USER_SCENES_PANEL,
                 'user-characters': UI_ELEMENTS.USER_CHARACTERS_PANEL,
                 'user-location': UI_ELEMENTS.USER_LOCATION_PANEL,
-                'user-themes': UI_ELEMENTS.USER_THEMES_PANEL
+                'user-themes': UI_ELEMENTS.USER_THEMES_PANEL,
+                'user-media': UI_ELEMENTS.USER_MEDIA_PANEL
             },
             defaultTarget: 'user-scripts'
         });
@@ -127,5 +130,15 @@ export class AuthenticatedAppBootstrap {
             themeStore: this.stores.theme
         });
         await themesUI.initialize();
+    }
+
+    async initMediaUI () {
+        const mediaUI = new MediaUIBootstrap({
+            api: this.api,
+            stateManager: this.stateManager,
+            eventManager: this.eventManager,
+            mediaStore: this.stores.media
+        });
+        await mediaUI.initialize();
     }
 }

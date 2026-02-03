@@ -38,11 +38,11 @@
 
 ## 3. Persistence services
 - `chatMessageRepository.listByUser` (`server/repositories/chatMessageRepository.js:4-18`): runs `prisma.chatMessage.findMany` filtered by user/script and sorted by `createdAt desc`.
-- `chatMessageRepository.create` (`server/repositories/chatMessageRepository.js:18-73`): executes a raw `INSERT INTO chat_messages`, normalizes token/cost counts, and reads `LAST_INSERT_ID()` so callers immediately get the inserted row’s ID.
+- `chatMessageRepository.create` (`server/repositories/chatMessageRepository.js:18-73`): executes a raw `INSERT INTO chat_messages`, normalizes token/cost counts, and reads `LAST_INSERT_ID()` so callers immediately get the inserted rows ID.
 - `chatMessageRepository.clearByUserAndScript` (`server/repositories/chatMessageRepository.js:86-95`): scopes `prisma.chatMessage.deleteMany` to the `(userId, scriptId)` combination.
 
 ## 4. LangChain chain registration
-- `ChainFactory` (`server/controllers/langchain/chains/ChainFactory.js:1-24`) registers every active intent—including script conversation, reflection, general conversation, and the idea chains—on the shared `chainRegistry` and logs its status at startup.
+- `ChainFactory` (`server/controllers/langchain/chains/ChainFactory.js:1-24`) registers every active intentincluding script conversation, reflection, general conversation, and the idea chainson the shared `chainRegistry` and logs its status at startup.
 - `IntentRouter` (`server/controllers/langchain/router/index.js:1-44`) imports the factory to guarantee initialization, looks up the chain class by intent, and falls back to `DefaultChain` when nothing matches.
 - `Chat.processMessage` (`server/controllers/chat/Chat.js:39-176`) resolves an intent, builds context, and passes the prompt through `router.route`, so every `/chat` request goes through one of the registered chains.
 
@@ -65,9 +65,9 @@
 ## 7. Non-chain helpers & services
 - `Chat` (`server/controllers/chat/Chat.js:1-176`) orchestrates the conversation: it loads the script via `ScriptManager`, calls `IntentClassifier`, builds a context bundle (history, metadata, overrides), routes through `IntentRouter`, and wraps the AI response with `buildAiResponse` while delegating history persistence to `ChatHistoryManager`.
 - `ChatHistoryManager` (`server/controllers/chat/ChatHistoryManager.js:1-136`) wraps `chatMessageRepository` to read, save, and clear history within the `(userId, scriptId)` scope while skipping writes when `aiUsage.loggedByBaseChain` is already true.
-- Script services (`server/controllers/scripts/AppendPageService.js:1-68` and `server/controllers/scripts/FullScriptService.js:1-66`) drive the structured append/full-script flows consumed by `startChat` when the prompt explicitly requests them.
+- Script services (`server/controllers/script-services/AppendPageService.js:1-68` and `server/controllers/script-services/FullScriptService.js:1-66`) drive the structured append/full-script flows consumed by `startChat` when the prompt explicitly requests them.
 - `chatMessageRepository` (`server/repositories/chatMessageRepository.js:4-95`) remains the single Prisma DB adapter for histories and usage logging.
-- Context & intent helpers (`chat/chainConfigUtils.js`, `contextBuilder.js`, `intentUtils.js`, `aiResponse.js`) feed consistent flags, overrides, and metadata into `Chat` and `startChat`.
+- Context & intent helpers (`chat/chainConfigUtils.js`, `script/context-builder.service.js`, `intentUtils.js`, `aiResponse.js`) feed consistent flags, overrides, and metadata into `Chat` and `startChat`.
 
 ## 8. Prompt registry
 - `createPrompt` (`shared/promptRegistry.js:14`) applies defaults (`attachScriptContext`, `expectsFormattedScript`, `scriptMutation`) so each definition only needs to declare the fields that change.
@@ -104,7 +104,7 @@
 - Token/cost caps are enforced via the shared `AIClient` config, and `BaseChain.execute` records `aiUsage` per persisted row so every chain reports its usage (`server/services/AIClient.js:1-160`, `server/controllers/langchain/chains/base/BaseChain.js:243-284`).
 
 ### 7. Context construction
-- `buildPromptContext` composes `buildScriptContextBundle`, filters overrides, and exposes flags such as `attachScriptContext`, `expectsFormattedScript`, and `chainConfig` (`server/controllers/contextBuilder.js:1-44`, `server/controllers/chat/contextUtils.js:1`).
+- `buildPromptContext` composes `buildScriptContextBundle`, filters overrides, and exposes flags such as `attachScriptContext`, `expectsFormattedScript`, and `chainConfig` (`server/controllers/script/context-builder.service.js:1-44`, `server/controllers/chat/contextUtils.js:1`).
 - `Chat.buildContext` adds history, script metadata/collections, and protected overrides while disabling history for general chat (`server/controllers/chat/Chat.js:127-176`).
 - Script mutation flows toggle `forceAppend`, `forceFullScript`, or `expectsFormattedScript` before sending the prompt to the appropriate chain so they see the right context.
 
@@ -119,5 +119,5 @@
 
 ### 10. Client assumptions
 - `GET /chat/messages` and `ChatHistoryManager.getHistory` reorder assistant/user rows so the client can render alternating messages even though records only store roles (`server/controllers/chatController.js:76-123`, `server/controllers/chat/ChatHistoryManager.js:81-119`).
-- Script outputs carry metadata such as `generationMode`, `formattedScript`, and `appendWithScript` when they originate from `ScriptAppendChain`, `ScriptNextLinesChain`, or the script services, allowing the UI to treat them as script pages instead of chat text (`server/controllers/langchain/chains/script/ScriptAppendChain.js:33-82`, `server/controllers/langchain/chains/script/ScriptNextLinesChain.js:1-201`, `server/controllers/scripts/AppendPageService.js:1-68`, `server/controllers/scripts/FullScriptService.js:1-66`).
+- Script outputs carry metadata such as `generationMode`, `formattedScript`, and `appendWithScript` when they originate from `ScriptAppendChain`, `ScriptNextLinesChain`, or the script services, allowing the UI to treat them as script pages instead of chat text (`server/controllers/langchain/chains/script/ScriptAppendChain.js:33-82`, `server/controllers/langchain/chains/script/ScriptNextLinesChain.js:1-201`, `server/controllers/script-services/AppendPageService.js:1-68`, `server/controllers/script-services/FullScriptService.js:1-66`).
 - All LangChain work is proxied through the controller routes (`/chat`, `/chat/messages`, `/script/:id/.../ai/...`); the client never calls chain classes directly.

@@ -4,9 +4,9 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { INTENT_TYPES } from '../../controllers/langchain/constants.js';
-import { APPEND_SCRIPT_INTENT } from '../../controllers/scripts/AppendPageService.js';
+import { APPEND_SCRIPT_INTENT } from '../../controllers/script-services/AppendPageService.js';
 
-jest.mock('../../controllers/scripts/ScriptManager.js', () => ({
+jest.mock('../../controllers/script-services/ScriptManager.js', () => ({
   ScriptManager: class {
     constructor () {
       this.getScript = jest.fn().mockResolvedValue({

@@ -1,0 +1,13 @@
+{
+  "watch": [
+    "."
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "__tests__/**",
+    "node_modules/**",
+    "*.test.js"
+  ],
+  "signal": "SIGTERM",
+  "delay": "500"
+}

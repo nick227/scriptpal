@@ -122,13 +122,16 @@ export class ScriptFullChain extends BaseChain {
   }
 
   formatResponse(responseText, context, validation, assistantResponse = '') {
-    const responseContent = assistantResponse && assistantResponse.trim()
+    // Default chat message if AI didn't provide one - never use script content as chat message
+    const lineCount = validation?.lineCount || 'several';
+    const defaultMessage = `Generated ${lineCount} lines for your script.`;
+    const chatMessage = assistantResponse && assistantResponse.trim()
       ? assistantResponse.trim()
-      : responseText;
+      : defaultMessage;
+    
     const metadata = {
       ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
       fullScript: true,
-      formattedScript: responseText,
       timestamp: new Date().toISOString()
     };
     if (validation?.lineCount) {
@@ -138,9 +141,10 @@ export class ScriptFullChain extends BaseChain {
       metadata.pageCount = validation.pageCount;
     }
 
+    // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
     const response = {
-      response: responseContent,
-      assistantResponse: responseContent,
+      message: chatMessage,
+      script: responseText,
       type: FULL_SCRIPT_INTENT,
       metadata
     };

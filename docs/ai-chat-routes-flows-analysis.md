@@ -10,7 +10,7 @@ AI flows currently branch through chat, next-lines, append-page, full-script, an
 - **Next Five Lines**: `POST /script/:scriptId/next-lines`
   - Controller: `server/controllers/nextLinesController.js`
 - **Append Page**: `POST /script/:scriptId/append-page`
-  - Service: `server/controllers/scripts/AppendPageService.js`
+  - Service: `server/controllers/script-services/AppendPageService.js`
 - **Full Script**: `POST /script/:scriptId/full-script` (internally uses `FullScriptService`)
 - **Idea Routes**:
   - `POST /script/:scriptId/scenes(/:sceneId)/ai/scene-idea`
@@ -19,7 +19,7 @@ AI flows currently branch through chat, next-lines, append-page, full-script, an
   - `POST /script/:scriptId/themes(/:themeId)/ai/theme-idea`
 
 ## Context Assembly (Centralized)
-- **Builder**: `server/controllers/contextBuilder.js`
+- **Builder**: `server/controllers/script/context-builder.service.js`
   - `buildPromptContext()` and `buildScriptContextBundle()`
   - Handles script title/description/content/metadata + scriptCollections
   - Policy: `collectionsPolicy` (`when-include` default)

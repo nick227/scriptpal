@@ -30,7 +30,7 @@ Re-enable AI output with custom script tags (e.g., `<speaker>Nick</speaker>`) ac
 
 ### 2) Server: Append-page service response expectations (if any)
 **Files**
-- `server/controllers/scripts/AppendPageService.js`
+- `server/controllers/script-services/AppendPageService.js`
 
 **Changes**
 - Ensure it does not post-process or strip tags.

@@ -229,7 +229,8 @@ export class EventManager {
             SAVE_DIRTY: 'SCRIPT:SAVE_DIRTY',
             SAVE_SAVING: 'SCRIPT:SAVE_SAVING',
             SAVE_SAVED: 'SCRIPT:SAVE_SAVED',
-            SAVE_ERROR: 'SCRIPT:SAVE_ERROR'
+            SAVE_ERROR: 'SCRIPT:SAVE_ERROR',
+            FORMAT_INVALID: 'SCRIPT:FORMAT_INVALID'
         },
         EDITOR: {
             READY: 'EDITOR:READY',

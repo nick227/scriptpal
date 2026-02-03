@@ -1,11 +1,21 @@
+import { ERROR_MESSAGES } from '../constants.js';
 import { BaseManager } from '../core/BaseManager.js';
 import { EventManager } from '../core/EventManager.js';
-import { StateManager } from '../core/StateManager.js';
 import { debugLog } from '../core/logger.js';
-import { removeFromStorage } from '../services/persistence/PersistenceManager.js';
+import { StateManager } from '../core/StateManager.js';
 import { ScriptFormatter } from '../services/format/ScriptFormatter.js';
+import { loadRawFromStorage, removeFromStorage } from '../services/persistence/PersistenceManager.js';
+
 import { resolveCacheState } from './storeLoadUtils.js';
-import { ERROR_MESSAGES } from '../constants.js';
+
+/** @type {Set<string>} Valid visibility values */
+const ALLOWED_VISIBILITIES = new Set(['private', 'public']);
+
+/** @type {Set<string>} Valid visibility filter values */
+const ALLOWED_FILTERS = new Set(['all', 'private', 'public']);
+
+/** @type {string[]} Fields to check for dirty state in patches */
+const PATCHABLE_FIELDS = ['content', 'title', 'author', 'description', 'visibility', 'versionNumber'];
 
 /**
  * ScriptStore - single source of truth for script state
@@ -41,13 +51,11 @@ export class ScriptStore extends BaseManager {
     }
 
     normalizeVisibility (value) {
-        const defaultValue = 'private';
         if (!value || typeof value !== 'string') {
-            return defaultValue;
+            return 'private';
         }
         const normalized = value.toLowerCase();
-        const allowedVisibilities = new Set(['private', 'public']);
-        return allowedVisibilities.has(normalized) ? normalized : defaultValue;
+        return ALLOWED_VISIBILITIES.has(normalized) ? normalized : 'private';
     }
 
     handleAuthError (error) {
@@ -137,8 +145,7 @@ export class ScriptStore extends BaseManager {
     }
 
     setVisibilityFilter (filter) {
-        const allowedFilters = new Set(['all', 'private', 'public']);
-        const normalized = allowedFilters.has(filter) ? filter : 'all';
+        const normalized = ALLOWED_FILTERS.has(filter) ? filter : 'all';
         if (this.visibilityFilter === normalized) return;
         this.visibilityFilter = normalized;
         this.updateScriptsState();
@@ -222,15 +229,15 @@ export class ScriptStore extends BaseManager {
         try {
             this.setLoading(true);
 
-        const scriptId = String(id);
-        const cached = this.scripts.find(script => String(script.id) === scriptId);
-        const hasCachedContent = cached && cached.content !== undefined && cached.content !== null;
-        const ownerMatches = cached && this.currentUserId && String(cached.userId) === String(this.currentUserId);
-        const shouldUseCache = hasCachedContent && ownerMatches && !options.forceFresh;
+            const scriptId = String(id);
+            const cached = this.scripts.find(script => String(script.id) === scriptId);
+            const hasCachedContent = cached && cached.content !== undefined && cached.content !== null;
+            const ownerMatches = cached && this.currentUserId && String(cached.userId) === String(this.currentUserId);
+            const shouldUseCache = hasCachedContent && ownerMatches && !options.forceFresh;
 
-        const script = shouldUseCache
-            ? cached
-            : await this.api.getScript(scriptId);
+            const script = shouldUseCache
+                ? cached
+                : await this.api.getScript(scriptId);
             console.log('[ScriptStore] loadScript raw api response', { scriptId, script });
 
             return this.applyLoadedScript(script, options);
@@ -325,6 +332,43 @@ export class ScriptStore extends BaseManager {
     }
 
     /**
+     * Build effective patch by removing unchanged fields
+     * @param {object} patch - Proposed patch
+     * @param {object} currentScript - Current script state
+     * @returns {object} Patch with only changed fields
+     */
+    buildEffectivePatch (patch, currentScript) {
+        const effectivePatch = {};
+
+        for (const field of PATCHABLE_FIELDS) {
+            if (!Object.prototype.hasOwnProperty.call(patch, field)) {
+                continue;
+            }
+
+            const patchValue = patch[field];
+            const currentValue = currentScript?.[field];
+
+            if (field === 'content') {
+                const normalizedPatch = this.normalizeContent(patchValue);
+                const normalizedCurrent = this.normalizeContent(currentValue);
+                if (normalizedPatch !== normalizedCurrent) {
+                    effectivePatch.content = patchValue;
+                }
+            } else if (field === 'visibility') {
+                const normalizedPatch = this.normalizeVisibility(patchValue);
+                const normalizedCurrent = this.normalizeVisibility(currentValue);
+                if (normalizedPatch !== normalizedCurrent) {
+                    effectivePatch.visibility = normalizedPatch;
+                }
+            } else if (patchValue !== currentValue) {
+                effectivePatch[field] = patchValue;
+            }
+        }
+
+        return effectivePatch;
+    }
+
+    /**
      * Queue a patch for eventual persistence
      * @param {number|string} scriptId
      * @param {object} patch
@@ -337,51 +381,22 @@ export class ScriptStore extends BaseManager {
         }
 
         const currentScript = this.getCurrentScript();
-        const effectivePatch = { ...patch };
-        if (currentScript) {
-            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'content')) {
-                const currentContent = this.normalizeContent(currentScript.content);
-                const nextContent = this.normalizeContent(effectivePatch.content);
-                if (currentContent === nextContent) {
-                    delete effectivePatch.content;
-                }
-            }
-            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'title')
-                && effectivePatch.title === currentScript.title) {
-                delete effectivePatch.title;
-            }
-            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'author')
-                && effectivePatch.author === currentScript.author) {
-                delete effectivePatch.author;
-            }
-            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'description')
-                && effectivePatch.description === currentScript.description) {
-                delete effectivePatch.description;
-            }
-            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'visibility')) {
-                effectivePatch.visibility = this.normalizeVisibility(effectivePatch.visibility);
-                const currentVisibility = this.normalizeVisibility(currentScript.visibility);
-                if (effectivePatch.visibility === currentVisibility) {
-                    delete effectivePatch.visibility;
-                }
-            }
-            if (Object.prototype.hasOwnProperty.call(effectivePatch, 'versionNumber')
-                && effectivePatch.versionNumber === currentScript.versionNumber) {
-                delete effectivePatch.versionNumber;
-            }
-        }
+        const effectivePatch = this.buildEffectivePatch(patch, currentScript);
+
         if (Object.keys(effectivePatch).length === 0) {
             return;
         }
 
-        const existing = this.patchQueue.get(scriptId) || { patch: {} };
+        const now = Date.now();
+        const existing = this.patchQueue.get(scriptId) || { patch: {}, queuedAt: now };
         existing.patch = {
             ...existing.patch,
             ...effectivePatch
         };
         existing.reason = reason;
+        existing.queuedAt = now;
 
-        debugLog('[PATCH_QUEUE] queued', { scriptId, patch: existing.patch, reason, timestamp: Date.now() });
+        debugLog('[PATCH_QUEUE] queued', { scriptId, patch: existing.patch, reason, timestamp: now });
         this.patchQueue.set(scriptId, existing);
         this.applyPatchLocally(scriptId, existing.patch);
         this.emitSaveState(scriptId, 'SAVE_DIRTY', { reason });
@@ -438,8 +453,31 @@ export class ScriptStore extends BaseManager {
 
         this.clearPatchTimer(scriptId);
         const currentScript = this.getCurrentScript();
+
+        // Race condition protection: skip if script switched away
         if (!currentScript || String(currentScript.id) !== String(scriptId)) {
+            debugLog('[PATCH_QUEUE] skipping flush - script switched', { scriptId });
             return;
+        }
+
+        // Race condition protection: if script was updated more recently than patch was queued,
+        // re-validate the patch against current state to avoid overwriting newer changes
+        const scriptTimestamp = currentScript.timestamp || 0;
+        const patchQueuedAt = entry.queuedAt || 0;
+
+        if (scriptTimestamp > patchQueuedAt) {
+            debugLog('[PATCH_QUEUE] patch is stale, re-validating', { scriptId, scriptTimestamp, patchQueuedAt });
+            const revalidatedPatch = this.buildEffectivePatch(entry.patch, currentScript);
+
+            if (Object.keys(revalidatedPatch).length === 0) {
+                debugLog('[PATCH_QUEUE] patch no longer needed after revalidation', { scriptId });
+                this.patchQueue.delete(scriptId);
+                this.emitSaveState(scriptId, 'SAVE_SAVED', { reason: 'revalidated' });
+                return;
+            }
+
+            entry.patch = revalidatedPatch;
+            entry.queuedAt = Date.now();
         }
 
         const payload = {
@@ -497,8 +535,8 @@ export class ScriptStore extends BaseManager {
                 ...this.scripts[index],
                 ...patch
             };
-        this.scripts[index] = updatedScript;
-        this.updateScriptsState();
+            this.scripts[index] = updatedScript;
+            this.updateScriptsState();
         }
 
         const currentScript = this.getCurrentScript();
@@ -533,12 +571,19 @@ export class ScriptStore extends BaseManager {
                 ? rawContent.trim()
                 : '';
             let formattedContent = rawContent;
+            let formatInvalid = false;
 
             if (trimmedContent.length > 0) {
                 if (!this.isStructuredContent(trimmedContent)) {
                     formattedContent = this.formatter.format(rawContent);
                     if (!this.formatter.validateFormat(formattedContent)) {
-                        throw new Error('Invalid script format');
+                        // Flag as invalid instead of throwing - allows sync to continue
+                        formatInvalid = true;
+                        console.warn('[ScriptStore] Script format validation failed, flagging for review', { id });
+                        this.eventManager.publish(EventManager.EVENTS.SCRIPT.FORMAT_INVALID, {
+                            scriptId: id,
+                            reason: 'Format validation failed'
+                        });
                     }
                 }
             } else {
@@ -566,6 +611,9 @@ export class ScriptStore extends BaseManager {
             }
 
             const standardized = this.standardizeScript(updatedScript);
+            if (formatInvalid) {
+                standardized.formatInvalid = true;
+            }
             this.updateScriptInCache(standardized);
 
             if (String(this.currentScriptId) === String(id)) {
@@ -573,7 +621,8 @@ export class ScriptStore extends BaseManager {
             }
 
             this.eventManager.publish(EventManager.EVENTS.SCRIPT.UPDATED, {
-                script: standardized
+                script: standardized,
+                formatInvalid
             });
 
             return standardized;
@@ -807,7 +856,7 @@ export class ScriptStore extends BaseManager {
      * @returns {number|null}
      */
     getStoredCurrentScriptId () {
-        const storedId = localStorage.getItem('currentScriptId');
+        const storedId = loadRawFromStorage('currentScriptId');
         if (!storedId) {
             return null;
         }

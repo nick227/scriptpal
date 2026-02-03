@@ -150,8 +150,7 @@ export class EditorRendererAdapter {
             }
 
             // Ensure page capacity
-            const linesPerPage = 20;
-            const requiredPages = Math.ceil(lines.length / linesPerPage);
+            const requiredPages = Math.ceil(lines.length / this.pageManager.maxLinesPerPage);
             const capacityOk = await this.pageManager.ensurePageCapacity(requiredPages, { forceReset: false });
             if (!capacityOk) {
                 console.warn('[EditorRendererAdapter] Page capacity check failed, retrying');

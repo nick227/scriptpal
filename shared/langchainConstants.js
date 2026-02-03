@@ -54,6 +54,74 @@ export const SCREENPLAY_GRAMMAR_V1 = `SCREENPLAY GRAMMAR (enforced)
 
 export const JSON_ESCAPE_RULE = 'Escape quotes in JSON as \\". Output JSON only — no markdown, no extra text.';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CANONICAL RESPONSE SHAPE (v2)
+// Single source of truth for all AI response structures.
+// NO legacy aliases - clean, strict contract.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Canonical response shape for all script-mutating intents.
+ * 
+ * API Response Structure:
+ *   {
+ *     success: boolean,
+ *     intent: string,
+ *     scriptId: number | null,
+ *     scriptTitle: string,
+ *     timestamp: string,
+ *     response: {
+ *       message: string,           // Chat message to display
+ *       script: string | null,     // Formatted script content (XML-tagged)
+ *       metadata: object           // Additional info
+ *     }
+ *   }
+ * 
+ * @typedef {Object} CanonicalResponse
+ */
+
+/**
+ * Build a canonical response object (v2).
+ * Use this instead of ad-hoc object construction.
+ */
+export const buildCanonicalResponse = ({
+  intent,
+  scriptId = null,
+  scriptTitle = 'Untitled Script',
+  message,
+  script = null,
+  metadata = {}
+}) => ({
+  success: true,
+  intent,
+  scriptId,
+  scriptTitle,
+  timestamp: new Date().toISOString(),
+  response: {
+    message,
+    script,
+    metadata
+  }
+});
+
+/**
+ * Extract message from canonical response (v2).
+ * @param {Object} data - API response data
+ * @returns {string|null}
+ */
+export const extractResponseMessage = (data) => {
+  return data?.response?.message || null;
+};
+
+/**
+ * Extract script content from canonical response (v2).
+ * @param {Object} data - API response data
+ * @returns {string|null}
+ */
+export const extractResponseScript = (data) => {
+  return data?.response?.script || null;
+};
+
 const countScriptLines = (text) => {
   if (!text || typeof text !== 'string') {
     return 0;
@@ -65,69 +133,69 @@ const countScriptLines = (text) => {
     .length;
 };
 
+/**
+ * Normalize AI response to canonical shape (v2).
+ */
 const normalizeAiResponse = (response) => {
+  if (!response) return { message: null, script: null, metadata: {} };
+  
   if (typeof response === 'string') {
-    return { response };
+    return { message: response, script: null, metadata: {} };
   }
 
-  if (!response || typeof response !== 'object') {
-    return {};
+  if (typeof response === 'object') {
+    return {
+      message: response.message || null,
+      script: response.script || null,
+      metadata: response.metadata || {}
+    };
   }
 
-  if (Object.prototype.hasOwnProperty.call(response, 'response')) {
-    return response;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(response, 'content')) {
-    const { content, ...rest } = response;
-    return { ...rest, response: content };
-  }
-
-  return response;
+  return { message: null, script: null, metadata: {} };
 };
 
+/**
+ * Extract script from canonical response (v2).
+ */
 const extractFormattedScript = (payload) => {
   if (!payload || typeof payload !== 'object') {
     return '';
   }
-  return (
-    payload.metadata?.formattedScript ||
-    payload.formattedScript ||
-    ''
-  );
+  // CANONICAL: use script field
+  return payload.script || '';
 };
 
+// OUTPUT CONTRACTS (v2) - uses canonical fields
 export const OUTPUT_CONTRACTS = {
   NEXT_FIVE_LINES: {
-    responseFields: ['assistantResponse'],
-    metadataFields: ['formattedScript'],
-    nonEmptyMetadata: ['formattedScript'],
+    responseFields: ['message'],
+    scriptRequired: true,
     minLines: 2,
     maxLines: 16
   },
   APPEND_SCRIPT: {
     responseFields: [],
-    metadataFields: ['formattedScript'],
-    nonEmptyMetadata: ['formattedScript'],
+    scriptRequired: true,
     minLines: 12,
     maxLines: 16
   },
   SCRIPT_APPEND_PAGE: {
     responseFields: [],
-    metadataFields: ['formattedScript'],
-    nonEmptyMetadata: ['formattedScript'],
+    scriptRequired: true,
     minLines: 12,
     maxLines: 26
   },
   FULL_SCRIPT: {
     responseFields: [],
-    metadataFields: ['formattedScript'],
-    nonEmptyMetadata: ['formattedScript'],
+    scriptRequired: true,
     minLines: 40,
     maxLines: 132
   }
 };
 
+/**
+ * Validate AI response against contract (v2 - canonical fields).
+ */
 export const validateAiResponse = (intent, response) => {
   const normalized = normalizeAiResponse(response);
   const contract = OUTPUT_CONTRACTS[intent];
@@ -136,39 +204,33 @@ export const validateAiResponse = (intent, response) => {
   }
 
   const errors = [];
+
+  // Validate required response fields (e.g., message)
   (contract.responseFields || []).forEach(field => {
-    if (typeof normalized[field] === 'undefined') {
+    if (!normalized[field]) {
       errors.push(`Missing response field: ${field}`);
     }
   });
 
-  const metadata = normalized.metadata || {};
-  (contract.metadataFields || []).forEach(field => {
-    if (typeof metadata[field] === 'undefined') {
-      errors.push(`Missing metadata field: ${field}`);
-    }
-  });
+  // Validate script is present if required
+  if (contract.scriptRequired && !normalized.script) {
+    errors.push('Missing required script field');
+  }
 
-  (contract.nonEmptyMetadata || []).forEach(field => {
-    const value = metadata[field] || normalized[field];
-    if (typeof value === 'undefined' || !String(value).trim()) {
-      errors.push(`Metadata field "${field}" must be non-empty`);
-    }
-  });
-
-  const formattedScript = extractFormattedScript(normalized);
-  const lineCount = countScriptLines(formattedScript);
+  // Validate line count
+  const script = extractFormattedScript(normalized);
+  const lineCount = countScriptLines(script);
   if (typeof contract.minLines === 'number' && lineCount < contract.minLines) {
-    errors.push(`Formatted script line count ${lineCount} below minimum ${contract.minLines}`);
+    errors.push(`Script line count ${lineCount} below minimum ${contract.minLines}`);
   }
   if (typeof contract.maxLines === 'number' && lineCount > contract.maxLines) {
-    errors.push(`Formatted script line count ${lineCount} above maximum ${contract.maxLines}`);
+    errors.push(`Script line count ${lineCount} above maximum ${contract.maxLines}`);
   }
 
   return {
     valid: errors.length === 0,
     errors,
-    formattedScript,
+    script,
     lineCount
   };
 };

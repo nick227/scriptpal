@@ -1,5 +1,7 @@
+import { DEFAULT_FORMAT, resolveLineFormat, VALID_FORMATS } from '../../constants/formats.js';
+
 import { ScriptDocument } from './model/ScriptDocument.js';
-import { DEFAULT_FORMAT, isValidFormat, resolveLineFormat } from '../../constants/formats.js';
+
 
 /**
  * EditorDocumentService - DOCUMENT MUTATION AUTHORITY.
@@ -26,6 +28,8 @@ import { DEFAULT_FORMAT, isValidFormat, resolveLineFormat } from '../../constant
  *
  * ═══════════════════════════════════════════════════════════════════════════
  */
+const INITIAL_LINE_FORMAT = VALID_FORMATS.HEADER;
+
 export class EditorDocumentService {
     constructor () {
         this.document = new ScriptDocument();
@@ -109,7 +113,7 @@ export class EditorDocumentService {
             this.document = new ScriptDocument();
         }
         if (this.document.lines.length === 0) {
-            this.document.insertLineAt(0, { format: DEFAULT_FORMAT, content: '' });
+            this.document.insertLineAt(0, { format: INITIAL_LINE_FORMAT, content: '' });
         }
     }
 
@@ -153,9 +157,11 @@ export class EditorDocumentService {
      */
     createAddCommandAtIndex (insertIndex, { format = DEFAULT_FORMAT, content = '' } = {}) {
         const safeFormat = resolveLineFormat(format, { content });
+        // NOTE: Do NOT cap lineNumber here - it will be capped during command execution.
+        // Capping here breaks batch operations because getLineCount() hasn't changed yet.
         return {
             command: 'ADD',
-            lineNumber: Math.min(this.getLineCount(), Math.max(0, insertIndex)),
+            lineNumber: Math.max(0, insertIndex),
             data: { format: safeFormat, content }
         };
     }

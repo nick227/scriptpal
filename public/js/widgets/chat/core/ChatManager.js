@@ -172,7 +172,7 @@ export class ChatManager extends BaseManager {
             try {
                 await this.scriptOperationsHandler.handleIntent('APPEND_SCRIPT', payload);
                 remaining.shift();
-            } catch (error) {
+            } catch (_error) {
                 this.processAndRenderMessage(
                     'Append replay failed. Please try again.',
                     MESSAGE_TYPES.ASSISTANT
@@ -225,9 +225,9 @@ export class ChatManager extends BaseManager {
      * ==============================================
      * Message Processing and Rendering
      * ==============================================
-     * Core message handling functionality
-     * Processes messages, extracts content, and renders to UI
-     * @param {string|object} messageData - The message data to process
+     * Renders message content to UI.
+     * Expects a string (API responses are already extracted upstream via extractResponseContent).
+     * @param {string} messageData - The message content to render
      * @param {string} type - The message type (user, assistant, error)
      * @returns {Promise<string|null>} - The processed content or null if failed
      */
@@ -238,25 +238,23 @@ export class ChatManager extends BaseManager {
         }
 
         try {
-            const parsedData = this.parseMessageData(messageData);
-            const content = this.extractMessageContent(parsedData);
+            // Strict: only accept strings. API responses are extracted upstream.
+            const content = typeof messageData === 'string'
+                ? messageData
+                : (messageData?.message || messageData?.content || '');
+
             if (!content) {
-                console.warn('[ChatManager] No content extracted from message data:', messageData);
+                console.warn('[ChatManager] No content in message data:', messageData);
                 return null;
             }
 
-            const normalizedMessage = this.normalizeMessage({
-                ...((typeof parsedData === 'object' && parsedData) ? parsedData : {}),
-                content
-            }, type);
+            const normalizedMessage = this.normalizeMessage({ content }, type);
 
             await this.safeRenderMessage(normalizedMessage.content, normalizedMessage.type);
-            this.processQuestionButtons(parsedData);
 
             debugLog('[ChatManager] Message processed successfully:', {
                 type,
-                contentLength: normalizedMessage.content.length,
-                hasButtons: this.hasQuestionButtons(parsedData)
+                contentLength: normalizedMessage.content.length
             });
 
             return normalizedMessage.content;
@@ -406,7 +404,7 @@ export class ChatManager extends BaseManager {
      */
     async getApiResponseWithTimeout (message) {
         const timeout = 90000; // 90 seconds timeout
-        const timeoutPromise = new Promise((_, reject) => {
+        const timeoutPromise = new Promise((_resolve, reject) => {
             setTimeout(() => reject(new Error('Request timeout')), timeout);
         });
 
@@ -524,7 +522,11 @@ export class ChatManager extends BaseManager {
 
             for (const message of messages) {
                 const type = this.determineMessageType(message);
-                await this.processAndRenderMessage(message, type);
+                // Extract content from DB message shape (uses deprecated helpers for legacy data)
+                const content = this.extractMessageContent(message);
+                if (content) {
+                    await this.processAndRenderMessage(content, type);
+                }
             }
         } catch (error) {
             this.handleError(error, 'loadChatHistory');
@@ -597,20 +599,34 @@ export class ChatManager extends BaseManager {
         return MESSAGE_TYPES.USER;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DEPRECATED LEGACY HELPERS
+    // Used only for hydrating old chat history records from database.
+    // DO NOT use for new API response handling - use extractResponseContent().
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * @deprecated Legacy chat history compatibility only.
+     * Use extractResponseContent() for API responses.
+     */
     parseMessageData (data) {
         if (typeof data === 'string') {
             try {
                 return JSON.parse(data);
-            } catch (error) {
+            } catch (_error) {
                 return data;
             }
         }
         return data;
     }
 
+    /**
+     * @deprecated Legacy chat history compatibility only.
+     * Use extractResponseContent() for API responses.
+     */
     extractMessageContent (data) {
         if (typeof data === 'string') {
-            const parsed = this.tryParseJsonString(data);
+            const parsed = this._tryParseJsonString(data);
             if (parsed) {
                 return this.extractMessageContent(parsed);
             }
@@ -622,39 +638,29 @@ export class ChatManager extends BaseManager {
         }
 
         if (typeof data === 'object') {
-            if (data.response && typeof data.response === 'string') {
-                return data.response.trim();
+            // Canonical v2 fields first
+            if (data.message && typeof data.message === 'string') {
+                return data.message.trim();
             }
-
-            const messageFields = ['message', 'text', 'content', 'details', 'answer', 'reply', 'assistantResponse'];
-            for (const field of messageFields) {
-                if (data[field] && typeof data[field] === 'string') {
-                    const parsed = this.tryParseJsonString(data[field]);
-                    if (parsed) {
-                        return this.extractMessageContent(parsed);
-                    }
-                    return data[field].trim();
-                }
-            }
-
-            if (data.response && typeof data.response === 'object') {
-                return this.extractMessageContent(data.response);
-            }
-
             if (data.content && typeof data.content === 'string') {
                 return data.content.trim();
             }
-
-            if (typeof data.toString === 'function' && data.toString() !== '[object Object]') {
-                return data.toString().trim();
+            // Legacy fallbacks for old DB records
+            if (data.response && typeof data.response === 'string') {
+                return data.response.trim();
+            }
+            if (data.assistantResponse && typeof data.assistantResponse === 'string') {
+                return data.assistantResponse.trim();
             }
         }
 
-        console.warn('[ChatManager] Could not extract content from response:', data);
         return '';
     }
 
-    tryParseJsonString (value) {
+    /**
+     * @deprecated Internal helper for legacy extraction.
+     */
+    _tryParseJsonString (value) {
         if (!value || typeof value !== 'string') {
             return null;
         }
@@ -665,7 +671,7 @@ export class ChatManager extends BaseManager {
         try {
             const parsed = JSON.parse(trimmed);
             return parsed && typeof parsed === 'object' ? parsed : null;
-        } catch (error) {
+        } catch (_error) {
             return null;
         }
     }
@@ -686,8 +692,12 @@ export class ChatManager extends BaseManager {
         };
     }
 
+    /**
+     * Extract chat message from API response.
+     * CANONICAL SHAPE (v2): data.response.message
+     */
     extractResponseContent (data) {
-        if (!data || !data.response) {
+        if (!data?.response) {
             return null;
         }
 
@@ -695,46 +705,19 @@ export class ChatManager extends BaseManager {
             return data.response;
         }
 
-        if (typeof data.response === 'object') {
-            const extracted = data.response.response ||
-                   data.response.message ||
-                   data.response.content ||
-                   data.response.assistantResponse ||
-                   this.extractMessageContent(data.response);
-            return extracted || null;
-        }
-
-        return null;
+        // CANONICAL field only (v2)
+        return data.response.message || null;
     }
 
+    /**
+     * Extract script content from API response.
+     * CANONICAL SHAPE (v2): response.script
+     */
     extractFormattedScriptFromResponse (response) {
-        if (!response) {
+        if (!response || typeof response !== 'object') {
             return '';
         }
-
-        if (typeof response === 'string') {
-            const parsed = this.tryParseJsonString(response);
-            return parsed ? this.extractFormattedScriptFromResponse(parsed) : '';
-        }
-
-        if (typeof response === 'object') {
-            const candidateValues = [
-                response.metadata?.formattedScript,
-                response.formattedScript,
-                response.response?.metadata?.formattedScript,
-                response.response?.formattedScript,
-                response.data?.formattedScript,
-                response.content
-            ];
-
-            for (const candidate of candidateValues) {
-                if (typeof candidate === 'string' && candidate.trim().length > 0) {
-                    return candidate;
-                }
-            }
-        }
-
-        return '';
+        return response.script || '';
     }
 
     emitScriptBlockedEmpty (details = {}) {

@@ -65,7 +65,7 @@ The "Next 5 Lines" feature requests the AI to continue the user's script with ex
 | `server/controllers/langchain/chains/script/ScriptNextLinesChain.js` | Chain logic, message building, response formatting |
 | `server/controllers/langchain/chains/base/BaseChain.js` | Common execution, history, API call |
 | `shared/promptRegistry.js` | Prompt definitions (system + user prompts) |
-| `server/controllers/contextBuilder.js` | Script context assembly |
+| `server/controllers/script/context-builder.service.js` | Script context assembly |
 | `server/controllers/langchain/chains/helpers/ChainInputUtils.js` | Script normalization |
 | `server/controllers/langchain/chains/helpers/ScriptCollectionsFormatter.js` | Collections formatting |
 

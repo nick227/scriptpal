@@ -6,7 +6,7 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
-        "dev": "nodemon server.js",
+        "dev": "nodemon --signal SIGTERM server.js",
         "prisma:migrate": "prisma migrate deploy",
         "prisma:generate": "prisma generate",
         "build": "npm run prisma:generate",

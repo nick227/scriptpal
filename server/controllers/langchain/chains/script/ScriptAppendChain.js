@@ -49,13 +49,13 @@ export class ScriptAppendChain extends BaseChain {
 
     formatResponse (response) {
         const responseText = typeof response === 'string' ? response : response.response || response;
+        // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
         return {
-            response: responseText,
-            assistantResponse: responseText,
-      type: INTENT_TYPES.SCRIPT_CONVERSATION,
+            message: responseText,
+            script: responseText,
+            type: INTENT_TYPES.SCRIPT_CONVERSATION,
             metadata: {
                 ...this.extractMetadata(response, ['scriptId', 'scriptTitle']),
-                formattedScript: responseText,
                 appendWithScript: true,
                 timestamp: new Date().toISOString()
             }

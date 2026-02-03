@@ -31,6 +31,8 @@ export const STATE_KEYS = Object.freeze({
     CURRENT_LOCATION_ID: 'currentLocationId',
     THEMES: 'themes',
     CURRENT_THEME_ID: 'currentThemeId',
+    MEDIA: 'media',
+    CURRENT_MEDIA_ID: 'currentMediaId',
 
     // Chat state
     CHAT_HISTORY: 'chatHistory',
@@ -78,6 +80,8 @@ export const STATE_SCHEMAS = Object.freeze({
     [STATE_KEYS.CURRENT_LOCATION_ID]: { type: 'number', default: null, nullable: true },
     [STATE_KEYS.THEMES]: { type: 'array', default: [] },
     [STATE_KEYS.CURRENT_THEME_ID]: { type: 'number', default: null, nullable: true },
+    [STATE_KEYS.MEDIA]: { type: 'array', default: [] },
+    [STATE_KEYS.CURRENT_MEDIA_ID]: { type: 'number', default: null, nullable: true },
     [STATE_KEYS.CHAT_HISTORY]: { type: 'array', default: [] },
     [STATE_KEYS.TOKEN_USAGE]: { type: 'object', default: null, nullable: true },
     [STATE_KEYS.UI_STATE]: { type: 'object', default: null, nullable: true },

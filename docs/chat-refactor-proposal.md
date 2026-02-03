@@ -10,7 +10,7 @@
 - `Chat.js` bundles guard logic, intent classification, context construction, chain execution, fallback detection, and history persistence in a single ~6?K file, making it hard to trace what happens before/after a chain runs.
 - Intent heuristics (`intentUtils.js`) are treated as utility functions even though the intent determines whether we mutate a script, reflect, or just chat�there is no single truth for �what kind of action does this prompt request?�
 - The existing handler (`chat/handlers/SaveElementHandler.js`) is the only thing under `chat/handlers`, so neither the structural nor semantic purpose of that folder is clear.
-- �Context� helpers are split across `chat/scriptContextUtils.js`, `chat/contextUtils.js`, and `contextBuilder.js`, but there is no mandated pipeline for how context is assembled, guarded, or overridden.
+- �Context� helpers are split across `chat/scriptContextUtils.js`, `chat/contextUtils.js`, and `script/context-builder.service.js`, but there is no mandated pipeline for how context is assembled, guarded, or overridden.
 
 ## Light yet semantic adjustments
 ### 1. Make orchestration explicit
@@ -41,7 +41,7 @@ NEXT_FIVE_LINES
 - Consolidate the context helpers under `chat/context/` with a documented pipeline:
   1. `scriptContext.js` (previously `scriptContextUtils.js`) builds title/description/metadata.
   2. `overrides.js` (previously `contextUtils.js`) filters protected keys.
-  3. `builder.js` (current `contextBuilder.js`) orchestrates script bundle, collections, flags like `expectsFormattedScript`, and the override injection.
+  3. `builder.js` (current `script/context-builder.service.js`) orchestrates script bundle, collections, flags like `expectsFormattedScript`, and the override injection.
 - Ensure the orchestrator calls the context builder once per request and passes the resulting object into both chain execution and response validation.
 
 ### 4. Formalize handlers
@@ -65,7 +65,7 @@ server/controllers/chat/
 �   +-- heuristics.js                # regex/intent helpers
 �   +-- resolution.js                # the new entrypoint that decides the action category
 +-- context/
-�   +-- builder.js                   # previously contextBuilder.js
+�   +-- builder.js                   # previously script/context-builder.service.js
 �   +-- overrides.js                 # previously contextUtils.js
 �   +-- script.js                    # previously scriptContextUtils.js
 +-- chain/

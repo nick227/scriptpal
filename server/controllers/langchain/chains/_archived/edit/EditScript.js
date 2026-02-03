@@ -2,7 +2,7 @@ import { BaseChain } from '../base/BaseChain.js';
 
 import { EditScriptLoader } from './EditScriptLoader.js';
 import { EditScriptMessages } from './EditScriptMessages.js';
-import { ScriptVersionService } from '../../../scripts/ScriptVersionService.js';
+import { ScriptVersionService } from '../../../script-services/ScriptVersionService.js';
 import { ai } from '../../../../lib/ai.js';
 
 export class EditScriptChain extends BaseChain {

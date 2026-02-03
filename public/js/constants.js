@@ -43,6 +43,7 @@ export const UI_ELEMENTS = {
     USER_CHARACTERS_PANEL: '.user-characters',
     USER_LOCATION_PANEL: '.user-location',
     USER_THEMES_PANEL: '.user-themes',
+    USER_MEDIA_PANEL: '.user-media',
     SIDE_PANEL_PANEL: '.side-panel-panel',
     TOGGLE_VIEW: '#toggle-view',
     EDITOR_VIEW: '#editor-view',

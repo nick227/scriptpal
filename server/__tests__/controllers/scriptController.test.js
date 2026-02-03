@@ -34,7 +34,7 @@ describe('ScriptController', () => {
 
     // Import the controller after mocking
     scriptModel = await import('../../models/script.js');
-    scriptController = await import('../../controllers/scriptController.js');
+    scriptController = await import('../../controllers/script/script.controller.js');
     scriptRepository = await import('../../repositories/scriptRepository.js');
 
     // Setup mock request/response

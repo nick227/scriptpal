@@ -1,8 +1,15 @@
+import { isValidFormat, resolveLineFormat, DEFAULT_FORMAT } from '../../constants/formats.js';
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
-import { isValidFormat, resolveLineFormat, DEFAULT_FORMAT } from '../../constants/formats.js';
 
 const AI_MAX_LINE_LENGTH = 120;
+
+/**
+ * Chunk size for AI append operations.
+ * Matches MAX_LINES_PER_PAGE to ensure page math runs between chunks.
+ * This prevents content overflow when bulk-appending AI-generated lines.
+ */
+const AI_APPEND_CHUNK_SIZE = 22;
 
 /**
  * ScriptOrchestrator - SEMANTIC AUTHORITY for AI script content.
@@ -107,10 +114,19 @@ export class ScriptOrchestrator {
                 throw new Error('Missing required script data (content or version)');
             }
 
+            // Determine the canonical content snapshot after commands run (prefer editor state)
+            const editorContentComponent = this.editorWidgetInstance?.getComponent?.('content');
+            const editorContent = editorContentComponent?.getContent
+                ? editorContentComponent.getContent()
+                : null;
+            const canonicalContent = typeof editorContent === 'string'
+                ? editorContent
+                : (typeof scriptData.content === 'string' ? scriptData.content : currentScript.content);
+
             // Create updated script object
             const updatedScript = {
                 ...currentScript,
-                content: scriptData.content,
+                content: canonicalContent,
                 versionNumber: scriptData.versionNumber,
                 timestamp: Date.now()
             };
@@ -234,6 +250,7 @@ export class ScriptOrchestrator {
 
     /**
      * Internal: Apply AI lines at a position
+     * Uses chunked appending for 'end' position to allow page math between chunks.
      * @private
      */
     async _applyAiLines (lineItems, { position, source }) {
@@ -242,10 +259,9 @@ export class ScriptOrchestrator {
             throw new Error('Editor content component not available');
         }
 
-        // 'end' means append
+        // 'end' means append - use chunked approach for proper page distribution
         if (position === 'end') {
-            const result = await editorContent.appendLines(lineItems);
-            return { success: result.success, linesAffected: lineItems.length };
+            return this._chunkedAppend(editorContent, lineItems, source);
         }
 
         // Build structured commands for insert
@@ -257,6 +273,31 @@ export class ScriptOrchestrator {
 
         const result = await editorContent.applyCommands(commands, { source });
         return { success: result.success, linesAffected: lineItems.length };
+    }
+
+    /**
+     * Append lines in chunks to allow page math between batches.
+     * Prevents content overflow when bulk-appending AI-generated lines.
+     * @private
+     */
+    async _chunkedAppend (editorContent, lineItems, source) {
+        let totalAppended = 0;
+        let lastResult = { success: true };
+
+        for (let i = 0; i < lineItems.length; i += AI_APPEND_CHUNK_SIZE) {
+            const chunk = lineItems.slice(i, i + AI_APPEND_CHUNK_SIZE);
+            const result = await editorContent.appendLines(chunk, { source });
+
+            if (!result.success) {
+                console.error('[ScriptOrchestrator] Chunk append failed at index', i);
+                return { success: false, linesAffected: totalAppended, error: 'chunk_failed' };
+            }
+
+            totalAppended += chunk.length;
+            lastResult = result;
+        }
+
+        return { success: true, linesAffected: totalAppended, result: lastResult };
     }
 
     /**
@@ -318,18 +359,18 @@ export class ScriptOrchestrator {
             });
 
             console.log('[ScriptOrchestrator] append lines', {
-                totalLines: lineItems.length
+                totalLines: lineItems.length,
+                chunks: Math.ceil(lineItems.length / AI_APPEND_CHUNK_SIZE)
             });
 
-            const result = await editorContent.appendLines(lineItems);
+            // Use chunked append for proper page distribution
+            const result = await this._chunkedAppend(editorContent, lineItems, 'script_append');
 
             if (result.success) {
-
                 // Emit success event
                 this.eventManager.publish(EventManager.EVENTS.SCRIPT.APPENDED, {
                     content: data.content,
-                    format: result.format,
-                    element: result.element
+                    linesAffected: result.linesAffected
                 });
 
                 return true;

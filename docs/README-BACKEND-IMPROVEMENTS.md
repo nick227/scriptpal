@@ -43,7 +43,7 @@ This document outlines the comprehensive backend improvements made to the Script
   - Zod-based input validation
 
 ### 5. **Health & Monitoring**
-- **File**: `controllers/healthController.js`
+- **File**: `controllers/common/health.controller.js`
 - **Features**:
   - Health check endpoints (`/health`, `/healthz`)
   - Readiness check endpoints (`/ready`, `/readyz`)

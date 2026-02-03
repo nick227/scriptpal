@@ -98,7 +98,7 @@ export class ScriptOperationsHandler {
             return;
         }
 
-        const rawContent = this._extractAppendContent(data) || aiValidation.formattedScript || '';
+        const rawContent = this._extractAppendContent(data) || aiValidation.script || '';
         const content = this._sanitizeAppendContent(rawContent);
         if (!content || !content.trim()) {
             this._emitScriptBlockedEmpty({
@@ -152,8 +152,12 @@ export class ScriptOperationsHandler {
         }
     }
 
+    /**
+     * Extract script content from API response.
+     * CANONICAL SHAPE (v2): data.response.script
+     */
     _extractAppendContent (data) {
-        if (!data || !data.response) {
+        if (!data?.response) {
             return '';
         }
 
@@ -161,21 +165,8 @@ export class ScriptOperationsHandler {
             return data.response;
         }
 
-        if (typeof data.response === 'object') {
-            const candidates = [
-                data.response.metadata?.formattedScript,
-                data.response.formattedScript,
-                data.response.content
-            ];
-
-            for (const candidate of candidates) {
-                if (typeof candidate === 'string' && candidate.trim().length > 0) {
-                    return candidate;
-                }
-            }
-        }
-
-        return '';
+        // CANONICAL field only (v2)
+        return data.response.script || '';
     }
 
     _sanitizeAppendContent (content) {

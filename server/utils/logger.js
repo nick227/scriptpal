@@ -291,7 +291,8 @@ export class LoggerFactory {
      * @returns {Logger} - Request logger
      */
   static createRequestLogger(req) {
-    const correlationId = req.headers['x-correlation-id'] || generateCorrelationId();
+    // Generate correlation ID server-side only to prevent log injection
+    const correlationId = generateCorrelationId();
     return new Logger('Request', correlationId);
   }
 

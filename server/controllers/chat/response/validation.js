@@ -1,5 +1,5 @@
 import { validateAiResponse } from '../../langchain/constants.js';
-import { buildAiResponse } from '../../aiResponse.js';
+import { buildAiResponse } from '../../common/ai-response.service.js';
 
 export const buildValidatedChatResponse = ({
   intentResult,

@@ -28,7 +28,7 @@ When you need to replicate the server-side analysis flow outside of the UI, you 
 
 ```javascript
 import { Chat } from '../server/controllers/chat/Chat.js';
-import { ScriptManager } from '../server/controllers/scripts/ScriptManager.js';
+import { ScriptManager } from '../server/controllers/script-services/ScriptManager.js';
 
 async function runPromptAnalysis (userId, scriptId, prompt = 'Please analyze this script.') {
   const script = scriptId ? await new ScriptManager().getScript(scriptId) : null;

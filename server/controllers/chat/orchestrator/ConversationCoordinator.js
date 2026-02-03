@@ -1,13 +1,13 @@
-import { ScriptManager } from '../../scripts/ScriptManager.js';
+import { ScriptManager } from '../../script-services/ScriptManager.js';
 import { HistoryManager } from '../history/HistoryManager.js';
 import { INTENT_TYPES } from '../../langchain/constants.js';
-import { APPEND_SCRIPT_INTENT } from '../../scripts/AppendPageService.js';
+import { APPEND_SCRIPT_INTENT } from '../../script-services/AppendPageService.js';
 import { router } from '../../langchain/router/index.js';
 import { IntentClassifier } from '../../langchain/chains/system/IntentClassifier.js';
-import { buildAiResponse, createIntentResult } from '../../aiResponse.js';
+import { buildAiResponse, createIntentResult } from '../../common/ai-response.service.js';
 import { filterContextOverrides } from '../context/overrides.js';
 import { buildScriptInfo } from '../context/script.js';
-import { buildScriptContextBundle } from '../../contextBuilder.js';
+import { buildScriptContextBundle } from '../../script/context-builder.service.js';
 import { isGeneralConversation, isReflectionRequest } from '../intent/heuristics.js';
 import { buildChatChainConfig } from '../chain/config.js';
 

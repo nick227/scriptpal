@@ -14,7 +14,7 @@ We need an AI routine that can take a prompt such as "write the next page for me
 
 ### 1. Dedicated endpoint (API surface)
 - Add a dedicated `POST /api/scripts/:scriptId/ai/continue` (or similar) endpoint that bypasses intent classification and only handles the "continue script" scenario. This keeps a tight contract and avoids the classifier dismissing well-formed prompts because they don't match the existing two intents.
-- The handler should reuse `ScriptManager.getScript` (`server/controllers/scripts/ScriptManager.js:3`) to validate that the `scriptId` exists, fetch `content`/`title`, and return a 404 if it does not.
+- The handler should reuse `ScriptManager.getScript` (`server/controllers/script-services/ScriptManager.js:3`) to validate that the `scriptId` exists, fetch `content`/`title`, and return a 404 if it does not.
 - Mirror `Chat.buildContext`'s normalization by running the script content through `ChainHelper.extractTextFromStructuredContent` before sending it to the chain (`server/controllers/langchain/chains/helpers/ChainHelper.js:4`). Include metadata (`status`, `versionNumber`, `updatedAt`) so the model understands what version of the story it is extending.
 - The endpoint should accept a short user prompt and optional tuning hints (tone, pacing, scene notes) inside `context` so future client iterations can steer the output without touching the classifier.
 

@@ -83,13 +83,13 @@ describe('Media Controllers', () => {
   beforeEach(async() => {
     jest.clearAllMocks();
 
-    mediaUploadController = (await import('../../controllers/mediaUploadController.js')).default;
-    mediaLibraryController = (await import('../../controllers/mediaLibraryController.js')).default;
-    mediaAttachmentController = (await import('../../controllers/mediaAttachmentController.js')).default;
-    mediaDeleteController = (await import('../../controllers/mediaDeleteController.js')).default;
-    mediaGenerationController = (await import('../../controllers/mediaGenerationController.js')).default;
-    mediaJobController = (await import('../../controllers/mediaJobController.js')).default;
-    mediaOwnerMediaController = (await import('../../controllers/mediaOwnerMediaController.js')).default;
+    mediaUploadController = (await import('../../controllers/media/upload.controller.js')).default;
+    mediaLibraryController = (await import('../../controllers/media/library.controller.js')).default;
+    mediaAttachmentController = (await import('../../controllers/media/attachment.controller.js')).default;
+    mediaDeleteController = (await import('../../controllers/media/delete.controller.js')).default;
+    mediaGenerationController = (await import('../../controllers/media/generation.controller.js')).default;
+    mediaJobController = (await import('../../controllers/media/job.controller.js')).default;
+    mediaOwnerMediaController = (await import('../../controllers/media/owner-media.controller.js')).default;
 
     mediaAssetRepository = await import('../../repositories/mediaAssetRepository.js');
     mediaVariantRepository = await import('../../repositories/mediaVariantRepository.js');

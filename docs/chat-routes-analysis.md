@@ -75,7 +75,7 @@ These flows include the current script inside the user prompt.
   - Source: `server/controllers/langchain/chains/edit/AppendPageChain.js`
   - Source: `server/controllers/langchain/chains/edit/FullScriptChain.js`
 - `appendPageController.appendPage` and `chatController.startChat` wrap that response as `response.content`
-  - Source: `server/controllers/appendPageController.js`
+  - Source: `server/controllers/script/append-page.controller.js`
   - Source: `server/controllers/chatController.js`
 
 ## Divergent Flows
@@ -111,7 +111,7 @@ Outcome: script context is conditionally included based on intent; chat history 
 
 ### 3) Dedicated Append-Page Endpoint
 `POST /script/:id/append-page` routes directly into `generateAppendPage()` and returns script output.
-```26:44:server/controllers/appendPageController.js
+```26:44:server/controllers/script/append-page.controller.js
 const result = await generateAppendPage({ scriptId, userId: req.userId, prompt });
 const responsePayload = buildAiResponse({ /* ... */ response: { content: result.responseText } });
 ```

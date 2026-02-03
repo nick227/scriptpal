@@ -18,7 +18,7 @@
 
 ### Repository/controller responsibilities
 - Create `server/repositories/scriptCommentRepository.js` (or extend the script repo) that exposes `countByScript(scriptId)` and `listByScript(scriptId, { limit, offset })` (joining the commenter email) plus `createForPublicScript(scriptId, userId, content)`.
-- Build `server/controllers/publicScriptCommentController.js` with two protected routes registered in `server/routes.js`:
+- Build `server/controllers/public/public-script-comment.controller.js` with two protected routes registered in `server/routes.js`:
   - `GET /public/scripts/:id/comments`: returns `{ comments: [...], count, page, pageSize }`; requires `validateSession` and verifies the script exists and is public.
   - `POST /public/scripts/:id/comments`: accepts `{ content }`, sanitizes/limits length (e.g., 500 characters), creates the comment, and returns the new comment plus refreshed count; it also requires `validateSession` and the script to remain public.
 - Enforce input validation, log errors with the same structure as other controllers, and return `404`/`403` when the target script is missing or private.

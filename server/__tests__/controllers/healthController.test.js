@@ -17,7 +17,7 @@ describe('HealthController', () => {
 
   it('should be importable', () => {
     expect(() => {
-      require('../../controllers/healthController.js');
+      require('../../controllers/common/health.controller.js');
     }).not.toThrow();
   });
 
