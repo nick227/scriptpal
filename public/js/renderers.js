@@ -538,11 +538,6 @@ export class EditorRenderer extends BaseRenderer {
             // Update page manager state
             await this.pageManager.validateState();
 
-            // Focus first line if available
-            if (!skipFocus && firstLineElement && firstLineElement.isConnected) {
-                firstLineElement.focus();
-            }
-
             debugLog('[EditorRenderer] Content rendering complete:', {
                 totalPages: this.pageManager.getPageCount(),
                 totalLines: lines.length,
