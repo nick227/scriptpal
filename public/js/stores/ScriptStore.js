@@ -182,7 +182,7 @@ export class ScriptStore extends BaseManager {
 
         try {
             this.setLoading(true);
-            const scripts = await this.api.getAllScriptsByUser(normalizedUserId);
+            const scripts = await this.api.scripts.getAllScriptsByUser(normalizedUserId);
 
             if (!scripts || !Array.isArray(scripts)) {
                 this.scripts = [];
@@ -237,7 +237,7 @@ export class ScriptStore extends BaseManager {
 
             const script = shouldUseCache
                 ? cached
-                : await this.api.getScript(scriptId);
+                : await this.api.scripts.getScript(scriptId);
             console.log('[ScriptStore] loadScript raw api response', { scriptId, script });
 
             return this.applyLoadedScript(script, options);
@@ -261,7 +261,7 @@ export class ScriptStore extends BaseManager {
 
         try {
             this.setLoading(true);
-            const script = await this.api.getScriptBySlug(slug);
+            const script = await this.api.scripts.getScriptBySlug(slug);
             console.log('[ScriptStore] loadScriptBySlug raw api response', { slug, script });
             return this.applyLoadedScript(script, options);
         } catch (error) {
@@ -605,7 +605,7 @@ export class ScriptStore extends BaseManager {
                 updateData.visibility = this.normalizeVisibility(scriptData.visibility);
             }
 
-            const updatedScript = await this.api.updateScript(id, updateData);
+            const updatedScript = await this.api.scripts.updateScript(id, updateData);
             if (!updatedScript || !updatedScript.id) {
                 throw new Error('Invalid response from API');
             }
@@ -683,7 +683,7 @@ export class ScriptStore extends BaseManager {
 
         let newScript;
         try {
-            newScript = await this.api.createScript({
+            newScript = await this.api.scripts.createScript({
                 userId: userId,
                 title,
                 status: 'draft',
@@ -719,7 +719,7 @@ export class ScriptStore extends BaseManager {
         let wasDeleted = false;
         try {
             this.setLoading(true);
-            await this.api.deleteScript(id);
+            await this.api.scripts.deleteScript(id);
 
             this.finalizeDelete(id);
             wasDeleted = true;

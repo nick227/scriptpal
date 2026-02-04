@@ -59,6 +59,10 @@ export class IntentRouter {
   async route(intentResult, context, prompt) {
     try {
       const { intent } = intentResult;
+      console.log('[IntentRouter] routing intent', {
+        intent,
+        chatRequestId: context?.chatRequestId
+      });
 
       // Get the chain class
       const ChainClass = this.chainRegistry.getChain(intent);

@@ -69,5 +69,8 @@ export class ListController {
             const nextItems = this.model.getReorderedItems(payload.sourceId, payload.targetId);
             await this.model.submitReorder(nextItems);
         }
+        if (type === 'findInScript') {
+            this.emitAction('findInScript');
+        }
     }
 }

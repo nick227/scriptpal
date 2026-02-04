@@ -10,13 +10,13 @@ export class ThemeStore extends ScriptItemStore {
             itemLabel: ITEM_LABELS.THEME,
             orderKey: 'themeId',
             apiHandlers: {
-                list: (scriptId) => api.getThemes(scriptId),
-                create: (scriptId, payload) => api.createTheme(scriptId, payload),
-                update: (scriptId, themeId, payload) => api.updateTheme(scriptId, themeId, payload),
-                delete: (scriptId, themeId) => api.deleteTheme(scriptId, themeId),
-                reorder: (scriptId, order) => api.reorderThemes(scriptId, order),
-                generateIdea: (scriptId, themeId, payload) => api.generateThemeIdea(scriptId, themeId, payload),
-                generateIdeaDraft: (scriptId, payload) => api.generateThemeIdeaDraft(scriptId, payload)
+                list: (scriptId) => api.entities.getThemes(scriptId),
+                create: (scriptId, payload) => api.entities.createTheme(scriptId, payload),
+                update: (scriptId, themeId, payload) => api.entities.updateTheme(scriptId, themeId, payload),
+                delete: (scriptId, themeId) => api.entities.deleteTheme(scriptId, themeId),
+                reorder: (scriptId, order) => api.entities.reorderThemes(scriptId, order),
+                generateIdea: (scriptId, themeId, payload) => api.entities.generateThemeIdea(scriptId, themeId, payload),
+                generateIdeaDraft: (scriptId, payload) => api.entities.generateThemeIdeaDraft(scriptId, payload)
             }
         });
     }

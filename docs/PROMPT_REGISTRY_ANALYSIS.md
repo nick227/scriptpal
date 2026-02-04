@@ -129,7 +129,7 @@ Note: `brainstorm-title` returns `{ "title": "..." }` so remains separate.
 
 | Aspect | append-page | next-five-lines |
 |--------|-------------|-----------------|
-| Line count | 12-16 | Exactly 5 |
+| Line count | 16-20 | Exactly 5 |
 | Grammar rules | ✅ Explicit | ✅ Explicit |
 | Example | ✅ Included | ✅ Included |
 | Context truncation | ✅ 30 lines | ✅ 20 lines |
@@ -231,7 +231,7 @@ systemInstruction: `You are a screenplay continuation engine.
 
 OUTPUT FORMAT
 Return valid JSON only:
-{ "formattedScript": "<12-16 lines>", "assistantResponse": "<under 40 words>" }
+{ "formattedScript": "<16-20 lines>", "assistantResponse": "<under 40 words>" }
 
 SCREENPLAY GRAMMAR (enforced)
 1. <speaker> MUST be followed by <dialog>
@@ -503,7 +503,7 @@ After implementing changes:
 │  └── JSON_ESCAPE_RULE        ✅ Shared instruction             │
 │                                                                 │
 │  SCRIPT GENERATION (uses shared grammar)                       │
-│  ├── append-page      ✅ 12-16 lines                           │
+│  ├── append-page      ✅ 16-20 lines                           │
 │  └── next-five-lines  ✅ 5 lines                               │
 │                                                                 │
 │  IDEATION (templated with tone differentiation)                │

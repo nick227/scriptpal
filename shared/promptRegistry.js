@@ -9,15 +9,23 @@ import {
 
 export const PROMPT_CATEGORIES = {
   SYSTEM: 'system',
-  SERVICE: 'service'
+  SERVICE: 'service',
+  BRAINSTORM: 'brainstorm',
+  ROUTE: 'route'
 };
 
-const createPrompt = (definition) => ({
-  attachScriptContext: false,
-  expectsFormattedScript: false,
-  scriptMutation: SCRIPT_MUTATION.NONE,
-  ...definition
-});
+const createPrompt = (definition) => {
+  const enabled = definition.enabled ?? true;
+  const category = definition.category ?? PROMPT_CATEGORIES.SERVICE;
+  return {
+    attachScriptContext: false,
+    expectsFormattedScript: false,
+    scriptMutation: SCRIPT_MUTATION.NONE,
+    ...definition,
+    enabled,
+    category
+  };
+};
 
 const VALID_TAGS = VALID_FORMAT_VALUES.join(', ');
 
@@ -62,7 +70,7 @@ RULES
  * Template for brainstorm prompts
  */
 const createBrainstormPrompt = (focus, targetCount, extras = {}) => createPrompt({
-  category: PROMPT_CATEGORIES.SERVICE,
+  category: PROMPT_CATEGORIES.BRAINSTORM,
   userPrompt: `Generate ${targetCount} concise ${focus} ideas for the seed concepts.`,
   systemInstruction: `You are a brainstorm engine.
 
@@ -86,10 +94,11 @@ export const PROMPT_REGISTRY = [
   // welcome
   createPrompt({
     id: 'initial',
-    label: 'Welcome / Orientation',
+    label: 'Introduction',
     clientCopy: 'I took a look at your script and can help you get oriented.',
     category: PROMPT_CATEGORIES.SYSTEM,
     route: '/system-prompts',
+    enabled: false,
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
     userPrompt: `
 SYSTEM WELCOME.
@@ -112,6 +121,7 @@ You are a calm, helpful script-writing assistant.
     id: 'status',
     label: 'Status Check',
     clientCopy: 'I can give you a quick status check and suggest what to focus on next.',
+    enabled: true,
     category: PROMPT_CATEGORIES.SYSTEM,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
@@ -164,6 +174,7 @@ You are a creative collaborator.
     category: PROMPT_CATEGORIES.SYSTEM,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
+    enabled: false,
     userPrompt: `
 SYSTEM STRUCTURE REVIEW.
 Analyze the script's structure and pacing.
@@ -189,6 +200,7 @@ You are a structure-focused script editor.
     attachScriptContext: true,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
+    enabled: false,
     userPrompt: `
 SYSTEM PRODUCTION REVIEW.
 Scan the script for production implications.
@@ -215,39 +227,42 @@ You are a production-minded assistant.
     attachScriptContext: true,
     expectsFormattedScript: true,
     scriptMutation: SCRIPT_MUTATION.APPEND,
-    userPrompt: 'Write the next page (12-16 lines) continuing this script.',
+    userPrompt: 'Write the next page (16-20 lines) continuing this script.',
     systemInstruction: `You are a screenplay continuation engine.
 
 OUTPUT FORMAT
 Return valid JSON only:
-{ "formattedScript": "<12-16 lines>", "assistantResponse": "<under 40 words>" }
+{
+  "lines": [
+    { "tag": "<tag>", "text": "<line text>" }
+  ],
+  "assistantResponse": "<under 40 words>"
+}
 
-${VALID_TAGS_BLOCK}
-
-${SCREENPLAY_GRAMMAR_V1}
+LINES RULES
+- Provide 16-20 objects in the lines array, one per screenplay beat.
+- Each object must include a tag from the valid set (${VALID_TAGS_BLOCK}) and a non-empty text value without nested XML.
+- Keep each tag/text focused on one beat; do not bundle multiple actions in one object.
+- ${SCREENPLAY_GRAMMAR_V1}
 
 LINE COUNTING
-Each XML tag = 1 line. Output 12-16 tags total.
-<speaker> + <dialog> = 2 lines (not 1 exchange)
+- The lines array must contain 16-20 entries.
+- <speaker> + <dialog> count as two separate entries even if they are adjacent.
 
 EXAMPLE
-<action>The door creaks open. Nick peers inside.</action>
-<speaker>NICK</speaker>
-<dialog>Hello?</dialog>
-<action>Silence. Then footsteps from above.</action>
-<speaker>SARAH</speaker>
-<directions>(whispering)</directions>
-<dialog>Over here. Quickly.</dialog>
-<action>Nick crosses to Sarah, crouching behind the counter.</action>
-<speaker>NICK</speaker>
-<dialog>What's going on?</dialog>
-<speaker>SARAH</speaker>
-<dialog>They found us.</dialog>
+{
+  "lines": [
+    { "tag": "<action>", "text": "The door creaks open. Nick peers inside." },
+    { "tag": "<speaker>", "text": "NICK" },
+    { "tag": "<dialog>", "text": "Hello?" }
+  ],
+  "assistantResponse": "Nick eases the tension with a brief question."
+}
 
 RULES
-- Continue naturally from the last line
-- Never repeat content from context
-- Match the established tone and pacing
+- Continue naturally from the last line.
+- Never repeat content from context.
+- Match the established tone and pacing.
 - ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
@@ -268,15 +283,21 @@ RULES
 
 OUTPUT FORMAT
 Return valid JSON only:
-{ "formattedScript": "<5 lines>", "assistantResponse": "<under 40 words>" }
+{
+  "lines": [
+    { "tag": "<tag>", "text": "<line text>" }
+  ],
+  "assistantResponse": "<under 40 words>"
+}
 
-${VALID_TAGS_BLOCK}
-
-${SCREENPLAY_GRAMMAR_V1}
+LINES RULES
+- Provide exactly 5 objects in the lines array.
+- Each object must include a valid tag (${VALID_TAGS_BLOCK}) and a non-empty text string; avoid repeating existing lines.
+- Keep each entry focused on one beat; do not combine multiple tags within a single object.
+- ${SCREENPLAY_GRAMMAR_V1}
 
 LINE COUNTING
-Each XML tag = 1 line. You must output EXACTLY 5 tags.
-<speaker> + <dialog> = 2 lines (not 1 exchange)
+- Each object counts as one line; deliver precisely five entries.
 
 EXAMPLE
 Context ends:
@@ -284,16 +305,21 @@ Context ends:
 <dialog>What happened?</dialog>
 
 Correct 5-line output:
-<action>Sarah looks away, composing herself.</action>
-<speaker>SARAH</speaker>
-<dialog>It's complicated.</dialog>
-<speaker>NICK</speaker>
-<dialog>Try me.</dialog>
+{
+  "lines": [
+    { "tag": "<action>", "text": "Sarah looks away, composing herself." },
+    { "tag": "<speaker>", "text": "SARAH" },
+    { "tag": "<dialog>", "text": "It's complicated." },
+    { "tag": "<speaker>", "text": "NICK" },
+    { "tag": "<dialog>", "text": "Try me." }
+  ],
+  "assistantResponse": "Sarah reluctantly admits there is far more to tell."
+}
 
 RULES
-- Continue from the last line naturally
-- Never repeat content from context
-- Match the tone and pacing
+- Continue from the last line naturally.
+- Never repeat content from context.
+- Match the tone and pacing.
 - ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
@@ -304,6 +330,7 @@ RULES
     label: 'Scene Idea',
     clientCopy: 'Generate a scene title and description.',
     route: '/script/:scriptId/scenes/ai/scene-idea',
+    enabled: false,
     intent: INTENT_TYPES.SCENE_IDEA
   }),
   createIdeationPrompt('character', {
@@ -311,6 +338,7 @@ RULES
     label: 'Character Idea',
     clientCopy: 'Generate a character title and description.',
     route: '/script/:scriptId/characters/ai/character-idea',
+    enabled: false,
     intent: INTENT_TYPES.CHARACTER_IDEA
   }),
   createIdeationPrompt('location', {
@@ -318,11 +346,13 @@ RULES
     label: 'Location Idea',
     clientCopy: 'Generate a location title and description.',
     route: '/script/:scriptId/locations/ai/location-idea',
+    enabled: false,
     intent: INTENT_TYPES.LOCATION_IDEA
   }),
   createIdeationPrompt('theme', {
     id: 'theme-idea',
     label: 'Theme Idea',
+    enabled: false,
     clientCopy: 'Generate a theme title and description.',
     route: '/script/:scriptId/themes/ai/theme-idea',
     intent: INTENT_TYPES.THEME_IDEA
@@ -366,6 +396,7 @@ RULES
     category: PROMPT_CATEGORIES.SERVICE,
     route: '/brainstorm/boards/:boardId/ai/title',
     intent: INTENT_TYPES.BRAINSTORM_TITLE,
+    enabled: false,
     userPrompt: 'Generate one concise title for the brainstorming board.',
     systemInstruction: `You are a title generator.
 
@@ -376,7 +407,57 @@ RULES
 - Title: short, specific, evocative (2-5 words)
 - No punctuation-heavy titles
 - No commentary outside JSON`
+  }),
+  // ---------------------------------
+  // ROUTE PROMPTS (quick chat actions)
+  // ---------------------------------
+  createPrompt({
+    id: 'route-script-conversation',
+    label: 'Script Chat',
+    clientCopy: 'Ask the assistant to continue the script with new lines.',
+    enabled: false,
+    category: PROMPT_CATEGORIES.ROUTE,
+    intent: INTENT_TYPES.SCRIPT_CONVERSATION,
+    userPrompt: 'Continue the current script and add the next set of lines in-story without rewriting what exists.'
+  }),
+  createPrompt({
+    id: 'route-script-reflection',
+    label: 'Script Reflection',
+    enabled: false,
+    clientCopy: 'Discuss themes, characters, and choices without writing new lines.',
+    category: PROMPT_CATEGORIES.ROUTE,
+    intent: INTENT_TYPES.SCRIPT_REFLECTION,
+    userPrompt: 'Reflect on the current script—its tone, characters, and pacing—without producing new formatted lines.'
+  }),
+  createPrompt({
+    id: 'route-next-five-lines',
+    label: 'Next Five Lines',
+    clientCopy: 'Request the assistant to write the next five formatted lines and explain the fit.',
+    category: PROMPT_CATEGORIES.ROUTE,
+    intent: INTENT_TYPES.NEXT_FIVE_LINES,
+    userPrompt: 'Write the next five formatted lines for the script.'
+  }),
+  createPrompt({
+    id: 'route-general-chat',
+    label: 'General Conversation',
+    clientCopy: 'Talk about anything else without editing the script.',
+    category: PROMPT_CATEGORIES.ROUTE,
+    intent: INTENT_TYPES.GENERAL_CONVERSATION,
+    enabled: false,
+    userPrompt: 'Let us talk about the story ideas or craft without changing the script.'
   })
 ];
 
 export const getPromptById = (id) => PROMPT_REGISTRY.find(prompt => prompt.id === id);
+
+const filterByCategory = (category) => PROMPT_REGISTRY.filter(
+  prompt => prompt.enabled && prompt.category === category
+);
+
+export const SYSTEM_PROMPTS = filterByCategory(PROMPT_CATEGORIES.SYSTEM);
+export const SYSTEM_PROMPTS_MAP = SYSTEM_PROMPTS.reduce((acc, prompt) => {
+  acc[prompt.id] = prompt;
+  return acc;
+}, {});
+export const ROUTE_PROMPTS = filterByCategory(PROMPT_CATEGORIES.ROUTE);
+export const BRAINSTORM_PROMPTS = filterByCategory(PROMPT_CATEGORIES.BRAINSTORM);

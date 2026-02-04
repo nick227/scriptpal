@@ -182,14 +182,15 @@
  
 .brainstorm-columns {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 1rem;
 }
 
 .brainstorm-column {
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 0.85rem;
+    width: calc(100% - 1.6rem);
+    padding: 0.8rem;
     background: #ffffff;
     display: flex;
     flex-direction: column;
@@ -206,7 +207,7 @@
 
 .brainstorm-column__notes {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.75rem;
 }
 
@@ -214,6 +215,7 @@
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    width: 225px;
 }
 
 .brainstorm-column__input {
@@ -270,8 +272,8 @@
  
  .brainstorm-note {
     position: relative;
-    width: 100%;
-     padding: 0.75rem 0.85rem;
+    width: auto;
+     padding: 0.75rem 0.8rem;
      border-radius: 10px;
      border: 1px solid rgba(31, 35, 48, 0.12);
      font-size: 0.9rem;
@@ -297,6 +299,8 @@
     cursor: pointer;
     padding: 0;
     line-height: 1;
+    width: 16px;
+    height: 16px;
 }
  
  .brainstorm-note.is-visible {

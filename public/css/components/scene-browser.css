@@ -12,7 +12,6 @@
 
 .panel-navigation-button {
     border: 1px solid var(--color-border);
-    background: var(--color-bg-white, #fff);
     padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
@@ -21,7 +20,6 @@
 
 .panel-navigation-control {
     border: 1px solid var(--color-border);
-    background: var(--color-bg-white, #fff);
     border-radius: 6px;
     width: 32px;
     height: 32px;
@@ -42,7 +40,7 @@
 
 .panel-navigation-button.is-active {
     border-color: var(--color-primary);
-    background: var(--color-primary-light);
+    background: var(--accent-color);
 }
 
 .list-panel-button {
@@ -65,10 +63,12 @@
     margin: 0;
 }
 
+.list-browser-modal__controls,
 .scene-panel-controls,
 .list-panel-controls {
     display: flex;
     gap: 8px;
+    justify-content: flex-end;
 }
 
 .scene-empty,
@@ -155,11 +155,9 @@
 .scene-grid .scene-tile,
 .list-grid .list-tile {
     position: relative;
-    width: 100%;
     min-height: 64px;
     justify-content: center;
     cursor: grab;
-    padding: 10px;
 }
 
 .scene-grid .scene-tile.is-dragging,
@@ -216,12 +214,15 @@
 .scene-browser-modal,
 .list-browser-modal {
 
-    z-index: 90;
-  width: 100%;
-  height: 100%;
+  z-index: 930;
+  width: 90%;
+  height: 90%;
   margin: auto;
   position: absolute;
-  top: 76px;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 1px 3px 43px rgba(0, 0, 0, 0.5);
 }
 
 .scene-browser-modal__backdrop,
@@ -282,7 +283,7 @@
 
 .side-panel-panel .scene-tile__title,
 .side-panel-panel .list-tile__title {
-    font-size: 16px;
+    font-size: 30px;
 }
 
 .scene-browser-modal__grid .scene-tile__meta,
@@ -321,23 +322,28 @@
     position: fixed;
     inset: 0;
     z-index: 2100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .scene-editor-modal__backdrop,
 .list-editor-modal__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.95);
+    background: transparent;
 }
 
 .scene-editor-modal__content,
 .list-editor-modal__content {
     position: relative;
-    max-width: 520px;
-    margin: 10vh auto;
+    max-width: 100%;
+    width: 640px;
+    margin: auto;
     background: #fff;
     border-radius: 10px;
     padding: 16px;
+    border: 10px solid var(--color-border);
 }
 
 .scene-editor-modal__header,
@@ -367,21 +373,28 @@
 .list-editor-modal__actions {
     display: flex;
     justify-content: flex-end;
+    gap: 2px;
 }
 
 .scene-editor-modal__save,
 .list-editor-modal__save {
     border: 1px solid var(--color-border);
-    background: var(--color-primary-light, #eef2ff);
+    background: #00e489;
     padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
+}
+
+.scene-editor-modal__save:hover,
+.list-editor-modal__save:hover {
+    background: #7de489 !important;
 }
 
 .scene-editor-modal__form .row,
 .list-editor-modal__form .row {
     display: flex;
     justify-content: space-between;
+    gap: 14px;
 }
 
 .scene-editor-modal__form .row input,
@@ -392,4 +405,5 @@
 .scene-editor-modal__form .row button,
 .list-editor-modal__form .row button {
     width: 25%;
+    background: transparent;
 }

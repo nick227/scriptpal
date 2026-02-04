@@ -51,9 +51,14 @@ export class ListView {
         expandButton.type = 'button';
         expandButton.addEventListener('click', () => this.openModal());
 
+        const findButton = this.createElement('button', classNames.panelButton, labels.find);
+        findButton.type = 'button';
+        findButton.addEventListener('click', () => this.findInScript());
+
         const controls = this.createElement('div', classNames.panelControls);
         controls.appendChild(addButton);
         controls.appendChild(expandButton);
+        controls.appendChild(findButton);
 
         header.appendChild(title);
         header.appendChild(controls);
@@ -78,12 +83,14 @@ export class ListView {
             <div class="${classNames.modalContent}">
                 <header class="${classNames.modalHeader}">
                     <h3>${labels.modalTitle}</h3>
+                </header>
+                <div class="${classNames.modalGrid}"></div>
+                <footer>
                     <div class="${classNames.modalControls}">
                         <button type="button" class="${classNames.panelButton}" data-action="add">${labels.add}</button>
                         <button type="button" class="${classNames.panelButton}" data-action="close">${labels.close}</button>
                     </div>
-                </header>
-                <div class="${classNames.modalGrid}"></div>
+                </footer>
             </div>
         `;
         document.body.appendChild(this.modal);
@@ -104,6 +111,10 @@ export class ListView {
                 this.emitAction('add');
             }
         });
+    }
+
+    findInScript () {
+        this.emitAction('findInScript');
     }
 
     openModal () {

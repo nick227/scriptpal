@@ -1,8 +1,6 @@
-import { PROMPT_REGISTRY, PROMPT_CATEGORIES } from './promptRegistry.js';
+import { SYSTEM_PROMPTS, SYSTEM_PROMPTS_MAP } from './promptRegistry.js';
 
-export const SYSTEM_PROMPTS = PROMPT_REGISTRY.filter(prompt => prompt.category === PROMPT_CATEGORIES.SYSTEM);
-
-export const SYSTEM_PROMPTS_MAP = SYSTEM_PROMPTS.reduce((acc, prompt) => {
-  acc[prompt.id] = prompt;
-  return acc;
-}, {});
+export {
+  SYSTEM_PROMPTS,
+  SYSTEM_PROMPTS_MAP
+};

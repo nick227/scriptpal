@@ -147,6 +147,10 @@ export class HttpClient {
             ...(data && { body: JSON.stringify(data) })
         };
 
+        if (data) {
+            debugLog(`[HttpClient] Request ${correlationId} body:`, JSON.stringify(data));
+        }
+
         let response;
         try {
             response = await fetch(this.baseUrl + endpoint, requestOptions);

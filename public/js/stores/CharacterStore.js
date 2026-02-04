@@ -10,13 +10,13 @@ export class CharacterStore extends ScriptItemStore {
             itemLabel: ITEM_LABELS.CHARACTER,
             orderKey: 'characterId',
             apiHandlers: {
-                list: (scriptId) => api.getCharacters(scriptId),
-                create: (scriptId, payload) => api.createCharacter(scriptId, payload),
-                update: (scriptId, characterId, payload) => api.updateCharacter(scriptId, characterId, payload),
-                delete: (scriptId, characterId) => api.deleteCharacter(scriptId, characterId),
-                reorder: (scriptId, order) => api.reorderCharacters(scriptId, order),
-                generateIdea: (scriptId, characterId, payload) => api.generateCharacterIdea(scriptId, characterId, payload),
-                generateIdeaDraft: (scriptId, payload) => api.generateCharacterIdeaDraft(scriptId, payload)
+                list: (scriptId) => api.entities.getCharacters(scriptId),
+                create: (scriptId, payload) => api.entities.createCharacter(scriptId, payload),
+                update: (scriptId, characterId, payload) => api.entities.updateCharacter(scriptId, characterId, payload),
+                delete: (scriptId, characterId) => api.entities.deleteCharacter(scriptId, characterId),
+                reorder: (scriptId, order) => api.entities.reorderCharacters(scriptId, order),
+                generateIdea: (scriptId, characterId, payload) => api.entities.generateCharacterIdea(scriptId, characterId, payload),
+                generateIdeaDraft: (scriptId, payload) => api.entities.generateCharacterIdeaDraft(scriptId, payload)
             }
         });
     }

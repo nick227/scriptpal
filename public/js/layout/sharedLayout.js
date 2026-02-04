@@ -1,7 +1,7 @@
 const SHARED_TOPBAR_HTML = `
     <header class="site-header">
         <div class="site-brand">
-            <a href="/public/" class="site-nav__link"><h1 class="title">ScriptPal</h1></a>
+            <a href="/public/" class="site-nav__link"><h1 class="title">screenplaye</h1></a>
         </div>
         <nav class="site-nav">
             <a href="/public/" class="site-nav__link">All</a>

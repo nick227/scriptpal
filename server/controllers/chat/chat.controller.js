@@ -2,8 +2,7 @@ import { ERROR_TYPES, INTENT_TYPES } from '../langchain/constants.js';
 import { ConversationCoordinator } from './orchestrator/ConversationCoordinator.js';
 import chatMessageRepository from '../../repositories/chatMessageRepository.js';
 import { verifyScriptOwnership } from '../../middleware/scriptOwnership.js';
-import { generateAppendPage, APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from '../script-services/AppendPageService.js';
-import { generateFullScript, FULL_SCRIPT_GENERATION_MODE } from '../script-services/FullScriptService.js';
+import { APPEND_PAGE_INTENT, APPEND_SCRIPT_INTENT } from '../script-services/AppendPageService.js';
 import { createIntentResult } from '../common/ai-response.service.js';
 import { router } from '../langchain/router/index.js';
 import { getPromptById } from '../../../shared/promptRegistry.js';
@@ -19,11 +18,186 @@ if (!NEXT_FIVE_LINES_PROMPT) {
   throw new Error('Next five lines prompt definition is missing from the registry');
 }
 
-const isSemanticValidationError = (error) => {
-  if (!error || typeof error.message !== 'string') {
-    return false;
+const APPEND_PAGE_PROMPT = getPromptById('append-page');
+
+if (!APPEND_PAGE_PROMPT) {
+  throw new Error('Append page prompt definition is missing from the registry');
+}
+
+const SCRIPT_INTENT_HANDLERS = {
+  fullScript: async ({ context, req, baseContext, ownedScript }) => {
+    const { scriptId, prompt, chatRequestId } = context;
+    console.log('[ChatController] full script intent detected', { scriptId, chatRequestId });
+    const chainContext = await buildPromptContext({
+      scriptId,
+      script: ownedScript,
+      userId: req.userId,
+      intent: APPEND_SCRIPT_INTENT,
+      includeScriptContext: true,
+      allowStructuredExtraction: true,
+      updatedAtKey: 'updatedAt',
+      chainConfig: {
+        shouldGenerateQuestions: false,
+        chatRequestId
+      },
+      overrides: {
+        ...baseContext,
+        disableHistory: true
+      },
+      protectedKeys: [
+        'chatRequestId',
+        'scriptId',
+        'scriptTitle',
+        'scriptContent',
+        'includeScriptContext',
+        'attachScriptContext',
+        'expectsFormattedScript',
+        'scriptMetadata',
+        'scriptCollections',
+        'chainConfig',
+        'intent',
+        'userId'
+      ]
+    });
+
+    chainContext.chatRequestId = chatRequestId;
+
+    const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
+    const response = await router.route(intentResult, chainContext, prompt);
+    return handleScriptMutationResponse({
+      response,
+      scriptId,
+      scriptTitle: ownedScript?.title || 'Untitled Script',
+      validationIntent: APPEND_SCRIPT_INTENT,
+      mode: APPEND_SCRIPT_INTENT
+    });
+  },
+
+  nextFiveLines: async ({ context, req, baseContext, ownedScript }) => {
+    const { scriptId, chatRequestId } = context;
+    console.log('[ChatController] next-five-lines intent detected', { scriptId, chatRequestId });
+    const chainContext = await buildPromptContext({
+      scriptId,
+      script: ownedScript,
+      userId: req.userId,
+      intent: INTENT_TYPES.NEXT_FIVE_LINES,
+      promptDefinition: NEXT_FIVE_LINES_PROMPT,
+      includeScriptContext: NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false,
+      allowStructuredExtraction: true,
+      updatedAtKey: 'updatedAt',
+      chainConfig: {
+        ...buildNextFiveLinesChainConfig(),
+        chatRequestId
+      },
+      overrides: {
+        ...baseContext,
+        disableHistory: true
+      }
+    });
+
+    chainContext.chatRequestId = chatRequestId;
+
+    const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
+    const response = await router.route(intentResult, chainContext, NEXT_FIVE_LINES_PROMPT.userPrompt);
+    return handleScriptMutationResponse({
+      response,
+      scriptId,
+      scriptTitle: ownedScript?.title || 'Untitled Script',
+      validationIntent: INTENT_TYPES.NEXT_FIVE_LINES,
+      mode: INTENT_TYPES.NEXT_FIVE_LINES
+    });
+  },
+
+  appendPage: async ({ context, req, baseContext, ownedScript }) => {
+    const { scriptId, prompt, chatRequestId } = context;
+    console.log('[ChatController] append-page intent detected', { scriptId, chatRequestId });
+    const chainContext = await buildPromptContext({
+      scriptId,
+      script: ownedScript,
+      userId: req.userId,
+      intent: APPEND_SCRIPT_INTENT,
+      promptDefinition: APPEND_PAGE_PROMPT,
+      includeScriptContext: APPEND_PAGE_PROMPT.attachScriptContext ?? true,
+      allowStructuredExtraction: true,
+      updatedAtKey: 'updatedAt',
+      chainConfig: {
+        shouldGenerateQuestions: false,
+        chatRequestId
+      },
+      overrides: {
+        ...baseContext,
+        disableHistory: true
+      }
+    });
+
+    chainContext.chatRequestId = chatRequestId;
+
+    const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
+    const response = await router.route(intentResult, chainContext, prompt);
+    return handleScriptMutationResponse({
+      response,
+      scriptId,
+      scriptTitle: chainContext.scriptTitle || 'Untitled Script',
+      validationIntent: APPEND_SCRIPT_INTENT,
+      mode: APPEND_PAGE_INTENT
+    });
   }
-  return /append_validation_failed|full_script_validation_failed/i.test(error.message);
+};
+
+const resolveScriptHandler = (context) => {
+  if (!context?.scriptId) {
+    return null;
+  }
+
+  const prompt = context.prompt;
+  if (Boolean(context.forceFullScript) || isFullScriptRequest(prompt)) {
+    return SCRIPT_INTENT_HANDLERS.fullScript;
+  }
+
+  if (isNextFiveLinesRequest(prompt)) {
+    return SCRIPT_INTENT_HANDLERS.nextFiveLines;
+  }
+
+  if (Boolean(context.forceAppend) || isAppendPageRequest(prompt)) {
+    return SCRIPT_INTENT_HANDLERS.appendPage;
+  }
+
+  return null;
+};
+
+const throwScriptValidationError = (details) => {
+  const error = new Error('Script mutation validation failed');
+  error.status = 400;
+  error.details = details;
+  throw error;
+};
+
+const handleScriptMutationResponse = ({
+  response,
+  scriptId,
+  scriptTitle,
+  validationIntent,
+  mode
+}) => {
+  const intentResult = createIntentResult(validationIntent);
+  const validatedResponse = buildValidatedChatResponse({
+    intentResult,
+    scriptId,
+    scriptTitle,
+    response,
+    validationIntent,
+    mode
+  });
+
+  if (!validatedResponse.valid) {
+    console.warn('[ChatController] script mutation validation failed', {
+      scriptId,
+      errors: validatedResponse.validation.errors
+    });
+    return throwScriptValidationError(validatedResponse.validation.errors);
+  }
+
+  return validatedResponse.responsePayload;
 };
 
 // Move handleChatError to be a standalone function
@@ -103,7 +277,6 @@ const chatController = {
       await verifyScriptOwnership(req.userId, scriptId);
 
       console.log('[ChatController] getChatMessages', { userId, scriptId });
-
       const rows = await chatMessageRepository.listByUser(userId, scriptId, limit, offset);
       const orderedRows = rows.slice().reverse();
       const messages = orderedRows.flatMap((row) => {
@@ -118,9 +291,20 @@ const chatController = {
               scriptId: row.scriptId
             });
           }
+
+          let content = row.content;
+          try {
+             const parsed = JSON.parse(content);
+             if (parsed && typeof parsed === 'object' && parsed.response) {
+                 content = parsed.response;
+             }
+          } catch (e) {
+             // If parsing fails, use original content string
+          }
+
           list.push({
             id: `assistant_${row.id}`,
-            content: row.content,
+            content: content,
             type: 'assistant',
             timestamp: row.createdAt,
             scriptId: row.scriptId
@@ -230,7 +414,11 @@ const chatController = {
       }
 
       // Handle enhanced context
-      const rawContext = req.body.context || {};
+      const baseContext = req.body.context || {};
+      const chatRequestId = baseContext.chatRequestId || req.headers['x-correlation-id']
+        || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      baseContext.chatRequestId = chatRequestId;
+      req.chatRequestId = chatRequestId;
 
       const { scriptId, script: ownedScript } = await loadScriptOrThrow(req, {
         required: false,
@@ -239,196 +427,37 @@ const chatController = {
       });
 
       const context = {
-        ...rawContext,
+        ...baseContext,
         userId: req.userId,
-        scriptId
+        scriptId,
+        chatRequestId,
+        prompt: req.body.prompt
       };
 
       console.log('[ChatController] startChat routing check', {
         scriptId,
-        prompt: req.body.prompt
+        prompt: req.body.prompt,
+        chatRequestId
       });
 
-      const forceFullScript = Boolean(context.forceFullScript);
-      let forceChatFallback = false;
-      const shouldGenerateFullScript = scriptId && (forceFullScript || isFullScriptRequest(req.body.prompt));
-      if (shouldGenerateFullScript) {
-        console.log('[ChatController] full script request detected, generating', {
-          scriptId,
-          forceFullScript
+      // If a script mutation intent is detected, we never fall back to general chat.
+      const handler = resolveScriptHandler(context);
+      if (handler) {
+        const payload = await handler({
+          context,
+          req,
+          baseContext,
+          ownedScript
         });
-        let fullScriptResult = null;
-        try {
-          fullScriptResult = await generateFullScript({
-            scriptId,
-            userId: req.userId,
-            prompt: req.body.prompt,
-            maxAttempts: 1
-          });
-        } catch (error) {
-          if (isSemanticValidationError(error)) {
-            console.warn('[ChatController] full script validation failed, falling back to chat', {
-              scriptId,
-              error: error.message
-            });
-            forceChatFallback = true;
-          } else {
-            throw error;
-          }
-        }
-
-        if (!fullScriptResult) {
-          console.log('[ChatController] full script fallback to chat', { scriptId });
-        } else {
-          console.log('[ChatController] full script generated', {
-            scriptId,
-            responseLength: fullScriptResult.responseText?.length || 0
-          });
-
-          // CANONICAL RESPONSE SHAPE (v2)
-          const fullResponse = {
-            message: fullScriptResult.assistantResponse || fullScriptResult.responseText,
-            script: fullScriptResult.formattedScript,
-            metadata: {
-              generationMode: FULL_SCRIPT_GENERATION_MODE,
-              fullScript: true,
-              forceFullScript
-            }
-          };
-          const validatedResponse = buildValidatedChatResponse({
-            intentResult: createIntentResult(APPEND_SCRIPT_INTENT),
-            scriptId,
-            scriptTitle: fullScriptResult.scriptTitle,
-            response: fullResponse,
-            validationIntent: APPEND_SCRIPT_INTENT
-          });
-          if (!validatedResponse.valid) {
-            console.warn('[ChatController] full script validation failed', {
-              errors: validatedResponse.validation.errors
-            });
-            console.log('[ChatController] full script fallback to chat due to validation');
-            forceChatFallback = true;
-          } else {
-            return res.status(200).json(validatedResponse.responsePayload);
-          }
-        }
-      }
-
-      const shouldGenerateNextFiveLines = scriptId && isNextFiveLinesRequest(req.body.prompt);
-      if (shouldGenerateNextFiveLines) {
-        console.log('[ChatController] next-five-lines detected, generating');
-        const context = await buildPromptContext({
-          scriptId,
-          script: ownedScript,
-          userId: req.userId,
-          intent: INTENT_TYPES.NEXT_FIVE_LINES,
-          promptDefinition: NEXT_FIVE_LINES_PROMPT,
-          includeScriptContext: NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false,
-          allowStructuredExtraction: true,
-          updatedAtKey: 'updatedAt',
-          chainConfig: buildNextFiveLinesChainConfig(),
-          overrides: {
-            ...rawContext,
-            disableHistory: true
-          }
-        });
-        const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
-        const response = await router.route(intentResult, context, NEXT_FIVE_LINES_PROMPT.userPrompt);
-        const validatedResponse = buildValidatedChatResponse({
-          intentResult,
-          scriptId,
-          scriptTitle: ownedScript.title,
-          response,
-          validationIntent: INTENT_TYPES.NEXT_FIVE_LINES,
-          mode: INTENT_TYPES.NEXT_FIVE_LINES
-        });
-        if (!validatedResponse.valid) {
-          console.warn('[ChatController] next-five-lines validation failed, falling back to chat', {
-            scriptId,
-            errors: validatedResponse.validation.errors
-          });
-          forceChatFallback = true;
-        } else {
-          const responsePayload = {
-            ...validatedResponse.responsePayload,
-            response: {
-              ...validatedResponse.responsePayload.response,
-              metadata: {
-                ...validatedResponse.responsePayload.response.metadata,
-                generationMode: INTENT_TYPES.NEXT_FIVE_LINES
-              }
-            }
-          };
-
-          return res.status(200).json(responsePayload);
-        }
-      }
-
-      const forceAppend = Boolean(context.forceAppend);
-      if (!forceChatFallback && scriptId && (forceAppend || isAppendPageRequest(req.body.prompt))) {
-        console.log('[ChatController] append-page detected, generating');
-        let appendResult = null;
-        try {
-          appendResult = await generateAppendPage({
-            scriptId,
-            userId: req.userId,
-            prompt: req.body.prompt,
-            maxAttempts: 1
-          });
-        } catch (error) {
-          if (isSemanticValidationError(error)) {
-            console.warn('[ChatController] append-page validation failed', {
-              scriptId,
-              error: error.message
-            });
-            return res.status(400).json({
-              error: 'Append page validation failed',
-              details: error.message
-            });
-          }
-          throw error;
-        }
-
-        if (!appendResult) {
-          console.log('[ChatController] append-page fallback to chat', { scriptId });
-        } else {
-          console.log('[ChatController] append-page generated', {
-            scriptId,
-            responseLength: appendResult.responseText?.length || 0
-          });
-
-          // CANONICAL RESPONSE SHAPE (v2)
-          const appendResponse = {
-            message: appendResult.assistantResponse || appendResult.responseText,
-            script: appendResult.formattedScript,
-            metadata: {
-              generationMode: APPEND_PAGE_INTENT,
-              forceAppend
-            }
-          };
-          const validatedResponse = buildValidatedChatResponse({
-            intentResult: createIntentResult(APPEND_SCRIPT_INTENT),
-            scriptId,
-            scriptTitle: appendResult.scriptTitle,
-            response: appendResponse,
-            validationIntent: APPEND_SCRIPT_INTENT
-          });
-          if (!validatedResponse.valid) {
-            console.warn('[ChatController] append-page validation failed', {
-              errors: validatedResponse.validation.errors
-            });
-            return res.status(400).json({
-              error: 'Append page validation failed',
-              details: validatedResponse.validation.errors
-            });
-          } else {
-            return res.status(200).json(validatedResponse.responsePayload);
-          }
-        }
+        return res.status(200).json(payload);
       }
 
       // 2. Create and execute chat
-      console.log('[ChatController] startChat', { userId: req.userId, scriptId, requestId: req.headers['x-correlation-id'] || null });
+      console.log('[ChatController] startChat', {
+        userId: req.userId,
+        scriptId,
+        requestId: chatRequestId
+      });
       const chat = new ConversationCoordinator(req.userId, scriptId);
       const result = await chat.processMessage(req.body.prompt, context);
 
@@ -437,7 +466,6 @@ const chatController = {
 
     } catch (error) {
       console.error('Chat controller error:', error);
-      // Handle different error types using the standalone function
       const errorResponse = handleChatError(error);
       res.status(errorResponse.status).json(errorResponse.body);
     }

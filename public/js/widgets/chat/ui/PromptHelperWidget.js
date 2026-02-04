@@ -51,12 +51,6 @@ export class PromptHelperWidget {
             const sectionEl = document.createElement('div');
             sectionEl.classList.add('prompt-helper-section');
 
-            const heading = document.createElement('div');
-            heading.classList.add('prompt-helper-section-title');
-            heading.textContent = section.title;
-
-            sectionEl.appendChild(heading);
-
             if (section.description) {
                 const desc = document.createElement('div');
                 desc.classList.add('prompt-helper-section-description');
@@ -65,7 +59,6 @@ export class PromptHelperWidget {
             }
 
             const buttonsBar = this.generateButtonBar(section);
-            heading.addEventListener('click', () => this.handleHeadingClick(buttonsBar));
 
             sectionEl.appendChild(buttonsBar);
             this.panel.appendChild(sectionEl);

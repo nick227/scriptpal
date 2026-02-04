@@ -54,7 +54,7 @@
 - Response validation: `buildValidatedChatResponse` guarantees every script-oriented payload contains the expected metadata, formatted script, and validation status.
 
 ## 6. LangChain chain inventory
-- `ScriptAppendChain` (`server/controllers/langchain/chains/script/ScriptAppendChain.js:1-82`, intent `SCRIPT_CONVERSATION`): merges the append prompt with the script header/content/collections, enforces 12-16 XML-style lines, and returns metadata such as `appendWithScript` plus formatted script text.
+- `ScriptAppendChain` (`server/controllers/langchain/chains/script/ScriptAppendChain.js:1-82`, intent `SCRIPT_CONVERSATION`): merges the append prompt with the script header/content/collections, enforces 16-20 XML-style lines, and returns metadata such as `appendWithScript` plus formatted script text.
 - `ScriptReflectionChain` (`server/controllers/langchain/chains/script/ScriptReflectionChain.js:1-65`, intent `SCRIPT_REFLECTION`): instructs the model to reflect on themes/risks instead of producing lines, includes script context/collections, and tags metadata with `reflection: true`.
 - `ScriptNextLinesChain` (`server/controllers/langchain/chains/script/ScriptNextLinesChain.js:1-201`, intent `NEXT_FIVE_LINES`): uses function-calling (`provide_next_lines`) to get `formattedScript` + `assistantResponse`, normalizes the payload, and validates it with `validateAiResponse`/`buildContractMetadata` before returning.
 - `DefaultChain` (`server/controllers/langchain/chains/base/DefaultChain.js:1-135`, intent `GENERAL_CONVERSATION`): supplies general assistance prompts, optionally includes script context/collections, and falls back to a canned reply when execution fails.

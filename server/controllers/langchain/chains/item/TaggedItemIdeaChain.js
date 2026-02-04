@@ -47,7 +47,7 @@ export const createTaggedItemIdeaChain = ({ intent, itemLabel }) => {
       try {
         const messages = await this.buildMessages(context, prompt);
         const rawResponse = await this.execute(messages, context, false);
-        return this.formatResponse(rawResponse?.response ?? rawResponse);
+        return this.formatResponse(rawResponse);
       } catch (error) {
         console.error(`${this.itemLabel}IdeaChain execution error:`, error);
         throw error;

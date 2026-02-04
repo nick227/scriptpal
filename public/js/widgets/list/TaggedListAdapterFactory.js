@@ -26,6 +26,7 @@ const DEFAULT_LABELS = {
     title: 'Items',
     modalTitle: 'Items',
     add: 'Add',
+    find: 'Find',
     fullscreen: 'Full Screen',
     close: 'Close',
     empty: 'No items yet',

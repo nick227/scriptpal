@@ -40,7 +40,6 @@
 
 .media-picker-trigger {
     border: 1px solid var(--color-border);
-    background: var(--color-bg-white, #fff);
     padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
@@ -51,6 +50,10 @@
     position: fixed;
     inset: 0;
     z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
 .media-picker-modal.hidden {
@@ -65,7 +68,7 @@
 
 .media-picker-panel {
     position: relative;
-    max-width: 720px;
+    max-width: 480px;
     margin: 5vh auto;
     background: #fff;
     border-radius: 10px;
@@ -74,6 +77,14 @@
     flex-direction: column;
     gap: 12px;
     z-index: 1;
+}
+
+.media-picker-file {
+    width: 190px;
+}
+
+.media-picker-section button {
+    width: 90px;
 }
 
 .media-picker-header {
@@ -91,16 +102,10 @@
 
 .media-picker-cancel,
 .media-picker-save {
-    border: 1px solid var(--color-border);
-    background: var(--color-primary-light, #eef2ff);
     padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 12px;
-}
-
-.media-picker-cancel {
-    background: #fff;
 }
 
 .media-picker-save:disabled {
@@ -134,8 +139,7 @@
 }
 
 .media-picker-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    display: flex;
     gap: 8px;
 }
 

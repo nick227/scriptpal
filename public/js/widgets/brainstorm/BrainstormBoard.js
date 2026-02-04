@@ -116,7 +116,7 @@ export class BrainstormBoard {
         }
 
         try {
-            const response = await this.api.requestBrainstormNotes(this.boardId, category.key);
+            const response = await this.api.brainstorm.requestNotes(this.boardId, category.key);
             const { notes, error } = this.parseAiNotes(response, category.key);
             if (error) {
                 this.dom.showStatusMessage(error);
@@ -162,7 +162,7 @@ export class BrainstormBoard {
         const boardId = this.boardId;
         this.dom.setDeleteBoardEnabled(false);
         try {
-            await this.api.deleteBrainstormBoard(boardId);
+            await this.api.brainstorm.deleteBoard(boardId);
             this.boards = this.boards.filter((entry) => entry.id !== boardId);
             if (this.boards.length) {
                 const nextBoard = this.boards[0];
@@ -280,12 +280,22 @@ export class BrainstormBoard {
         if (!response || typeof response !== 'object') {
             return '';
         }
+        // Case 1: response.response is the content string (e.g. from brainstorm controller)
+        if (typeof response.response === 'string') {
+            return response.response;
+        }
+        // Case 2: nested content/message object
+        if (response.response && typeof response.response.message === 'string') {
+            return response.response.message;
+        }
         if (response.response && typeof response.response.content === 'string') {
             return response.response.content;
         }
+        // Case 3: result object with content
         if (response.result && typeof response.result.content === 'string') {
             return response.result.content;
         }
+        // Case 4: direct content property
         if (typeof response.content === 'string') {
             return response.content;
         }
@@ -335,7 +345,7 @@ export class BrainstormBoard {
         }
         this.titleRequestInFlight = true;
         try {
-            const response = await this.api.requestBrainstormTitle(this.boardId);
+            const response = await this.api.brainstorm.requestTitle(this.boardId);
             const title = this.parseAiTitle(response);
             if (title) {
                 this.title = title;
@@ -351,7 +361,7 @@ export class BrainstormBoard {
     }
 
     async loadBoards () {
-        const response = await this.api.listBrainstormBoards();
+        const response = await this.api.brainstorm.listBoards();
         if (!response || !Array.isArray(response.boards)) {
             this.resetBoardState();
             return;
@@ -368,7 +378,7 @@ export class BrainstormBoard {
     }
 
     async loadBoardById (boardId) {
-        const board = await this.api.getBrainstormBoard(boardId);
+        const board = await this.api.brainstorm.getBoard(boardId);
         if (!board) {
             return false;
         }
@@ -430,17 +440,31 @@ export class BrainstormBoard {
         if (this.isHydrating) {
             return false;
         }
-        const payload = {
-            title: this.title,
-            seed: this.seedText,
-            notes: this.notes.map((note) => ({
+        
+        // Defensive check: ensure notes is always an array
+        if (!Array.isArray(this.notes)) {
+            console.error('[BrainstormBoard] saveBoard: this.notes is not an array!', typeof this.notes, this.notes);
+            this.notes = [];
+        }
+        
+        // Create a fresh array to avoid any reference/proxy issues
+        const notesArray = [];
+        for (const note of this.notes) {
+            notesArray.push({
                 category: note.category,
                 content: note.text
-            }))
+            });
+        }
+        
+        const payload = {
+            title: this.title || '',
+            seed: this.seedText || '',
+            notes: notesArray
         };
+        
         if (this.boardId) {
             try {
-                const updated = await this.api.updateBrainstormBoard(this.boardId, payload);
+                const updated = await this.api.brainstorm.updateBoard(this.boardId, payload);
                 if (updated) {
                     this.boardId = updated.id;
                     this.syncBoardList(updated);
@@ -453,7 +477,7 @@ export class BrainstormBoard {
             return false;
         }
         try {
-            const created = await this.api.createBrainstormBoard(payload);
+            const created = await this.api.brainstorm.createBoard(payload);
             if (created) {
                 this.boardId = created.id;
                 this.syncBoardList(created);

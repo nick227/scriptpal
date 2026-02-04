@@ -38,13 +38,18 @@ export class BrainstormService {
      * @param {object} data - Board data
      * @param {string} data.title - Board title
      * @param {string} [data.seed] - Initial seed idea
-     * @param {string} [data.notes] - Board notes
+     * @param {object[]} [data.notes] - Board notes array
      * @returns {Promise<object>} Created board object
      */
     async createBoard({ title, seed, notes }) {
+        const requestData = {
+            title: title,
+            seed: seed,
+            notes: Array.isArray(notes) ? notes : []
+        };
         return this.http.request(API_ENDPOINTS.BRAINSTORM_BOARDS, {
             method: 'POST',
-            data: { title, seed, notes }
+            data: requestData
         });
     }
 
@@ -54,7 +59,7 @@ export class BrainstormService {
      * @param {object} data - Board data to update
      * @param {string} [data.title] - Board title
      * @param {string} [data.seed] - Seed idea
-     * @param {string} [data.notes] - Board notes
+     * @param {object[]} [data.notes] - Board notes array
      * @returns {Promise<object>} Updated board object
      */
     async updateBoard(boardId, { title, seed, notes }) {

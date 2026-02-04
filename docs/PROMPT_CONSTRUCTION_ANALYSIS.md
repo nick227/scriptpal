@@ -122,19 +122,19 @@ createPrompt({
   attachScriptContext: true,
   expectsFormattedScript: true,
   scriptMutation: SCRIPT_MUTATION.APPEND,
-  userPrompt: 'Write the next page (12-16 lines) continuing this script.',
+  userPrompt: 'Write the next page (16-20 lines) continuing this script.',
   systemInstruction: `You are a screenplay continuation engine.
 
 OUTPUT FORMAT
 Return valid JSON only:
-{ "formattedScript": "<12-16 lines>", "assistantResponse": "<under 40 words>" }
+{ "formattedScript": "<16-20 lines>", "assistantResponse": "<under 40 words>" }
 
 ${VALID_TAGS_BLOCK}
 
 ${SCREENPLAY_GRAMMAR_V1}
 
 LINE COUNTING
-Each XML tag = 1 line. Output 12-16 tags total.
+Each XML tag = 1 line. Output 16-20 tags total.
 
 ...`
 })
@@ -244,7 +244,7 @@ const truncateToRecentLines = (scriptContent, maxLines) => {
 
 ### 3.2 ScriptPageAppendChain
 
-**Purpose**: Generate a full page (12-16 lines) of script.
+**Purpose**: Generate a full page (16-20 lines) of script.
 
 **File**: `server/controllers/langchain/chains/script/ScriptPageAppendChain.js`
 
@@ -359,7 +359,7 @@ Inline constant:
 ```javascript
 const SYSTEM_INSTRUCTION = `You are a scriptwriting assistant tasked with appending scripts.
 - Output ONLY new script lines.
-- Return 12-16 lines.
+- Return 16-20 lines.
 - Each line must be a single XML-style script tag using only: ${VALID_TAGS}.
 - Do not include markdown, numbering, or commentary.
 - Do not rewrite or repeat existing lines.`;

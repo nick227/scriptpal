@@ -14,6 +14,7 @@ import { ScriptPalUser } from './services/api/ScriptPalUser.js';
 import { PersistenceManager } from './services/persistence/PersistenceManager.js';
 import { CharacterStore } from './stores/CharacterStore.js';
 import { LocationStore } from './stores/LocationStore.js';
+import { MediaStore } from './stores/MediaStore.js';
 import { SceneStore } from './stores/SceneStore.js';
 import { ScriptStore } from './stores/ScriptStore.js';
 import { ThemeStore } from './stores/ThemeStore.js';
@@ -52,6 +53,7 @@ async function initScriptPal () {
         const scriptStore = new ScriptStore(api, stateManager, eventManager);
         const characterStore = new CharacterStore(api, stateManager, eventManager);
         const locationStore = new LocationStore(api, stateManager, eventManager);
+        const mediaStore = new MediaStore(api, stateManager, eventManager);
         const sceneStore = new SceneStore(api, stateManager, eventManager);
         const themeStore = new ThemeStore(api, stateManager, eventManager);
         const persistenceManager = new PersistenceManager({ api, stateManager, eventManager });
@@ -77,6 +79,7 @@ async function initScriptPal () {
                 scene: sceneStore,
                 character: characterStore,
                 location: locationStore,
+                media: mediaStore,
                 theme: themeStore
             }
         });
@@ -107,6 +110,7 @@ async function initScriptPal () {
         window.scriptPalLocationStore = locationStore;
         window.scriptPalSceneStore = sceneStore;
         window.scriptPalThemeStore = themeStore;
+        window.scriptPalMediaStore = mediaStore;
 
 
     } catch (error) {

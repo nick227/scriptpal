@@ -61,17 +61,29 @@ const brainstormBoardController = {
   },
 
   create: async(req, res) => {
-    const seed = req.body && typeof req.body.seed === 'string' ? req.body.seed.trim() : '';
-    const title = req.body && typeof req.body.title === 'string' ? req.body.title.trim() : '';
-    const notes = parseNotes(req.body ? req.body.notes : undefined);
+    const body = req.manualBody || req.body;
+    
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' });
+    }
+    const seed = typeof body.seed === 'string' ? body.seed.trim() : '';
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    const notesInput = body.notes !== undefined ? body.notes : [];
+    
+    if (!Array.isArray(notesInput)) {
+      console.error('[BrainstormBoardController] Create: Notes is not an array:', typeof notesInput, notesInput);
+      return res.status(400).json({ error: 'Notes field must be an array' });
+    }
+    
+    const notes = parseNotes(notesInput);
     if (!seed) {
       return res.status(400).json({ error: 'Seed is required' });
     }
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
-    if (!notes) {
-      return res.status(400).json({ error: 'Notes must be an array' });
+    if (notes === null) {
+      return res.status(400).json({ error: 'Invalid notes format (internal parsing failed)' });
     }
     const noteError = validateNotes(notes);
     if (noteError) {
@@ -97,17 +109,29 @@ const brainstormBoardController = {
     if (!boardId) {
       return res.status(400).json({ error: 'Invalid board id' });
     }
-    const seed = req.body && typeof req.body.seed === 'string' ? req.body.seed.trim() : '';
-    const title = req.body && typeof req.body.title === 'string' ? req.body.title.trim() : '';
-    const notes = parseNotes(req.body ? req.body.notes : undefined);
+    
+    const body = req.manualBody || req.body;
+    if (!body) {
+      return res.status(400).json({ error: 'Request body is required' });
+    }
+    const seed = typeof body.seed === 'string' ? body.seed.trim() : '';
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    const notesInput = body.notes !== undefined ? body.notes : [];
+
+    if (!Array.isArray(notesInput)) {
+      console.error('[BrainstormBoardController] Update: Notes is not an array:', typeof notesInput, notesInput);
+      return res.status(400).json({ error: 'Notes field must be an array' });
+    }
+
+    const notes = parseNotes(notesInput);
     if (!seed) {
       return res.status(400).json({ error: 'Seed is required' });
     }
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
-    if (!notes) {
-      return res.status(400).json({ error: 'Notes must be an array' });
+    if (notes === null) {
+      return res.status(400).json({ error: 'Invalid notes format (internal parsing failed)' });
     }
     const noteError = validateNotes(notes);
     if (noteError) {

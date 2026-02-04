@@ -11,6 +11,9 @@ const resolveContractKey = (intent) => {
 };
 
 export const buildContractMetadata = (intent, response) => {
+  const metadata = response.metadata || {};
+  metadata.generationMode = intent;
+  response.metadata = metadata;
   const contractKey = resolveContractKey(intent);
   const validation = validateAiResponse(contractKey, response);
   return {

@@ -2,18 +2,48 @@
  * Normalize AI response to canonical shape (v2 - no legacy aliases).
  * Extracts message and script from canonical fields only.
  */
+const extractField = (payload, field) => {
+  if (!payload) return null;
+
+  if (typeof payload === 'string') {
+    return field === 'message' ? payload : null;
+  }
+
+  if (payload[field]) {
+    return payload[field];
+  }
+
+  if (payload.response) {
+    return extractField(payload.response, field);
+  }
+
+  return null;
+};
+
+const extractMetadata = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return {};
+  }
+
+  const direct = payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {};
+  const nested = payload.response && typeof payload.response === 'object'
+    ? extractMetadata(payload.response)
+    : {};
+
+  return { ...nested, ...direct };
+};
+
 export const normalizeAiResponse = (response) => {
   if (!response) return { message: null, script: null, metadata: {} };
-  
+
   if (typeof response === 'string') {
     return { message: response, script: null, metadata: {} };
   }
 
   if (typeof response === 'object') {
-    // CANONICAL FIELDS ONLY (v2)
-    const message = response.message || null;
-    const script = response.script || null;
-    const metadata = response.metadata || {};
+    const message = extractField(response, 'message');
+    const script = extractField(response, 'script');
+    const metadata = extractMetadata(response);
 
     return {
       message,

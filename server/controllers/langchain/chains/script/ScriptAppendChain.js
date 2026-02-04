@@ -3,11 +3,12 @@ import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
+import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
 
 const VALID_TAGS = VALID_FORMAT_VALUES.join(', ');
 const SYSTEM_INSTRUCTION = `You are a scriptwriting assistant tasked specifically with appending or continuing scripts.
 - Output ONLY new script lines.
-- Return 12-16 lines.
+- Return 16-20 lines.
 - Each line must be a single XML-style script tag using only: ${VALID_TAGS}.
 - Do not include markdown, numbering, or commentary.
 - Do not rewrite or repeat existing lines.`;
@@ -49,17 +50,20 @@ export class ScriptAppendChain extends BaseChain {
 
     formatResponse (response) {
         const responseText = typeof response === 'string' ? response : response.response || response;
-        // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
-        return {
+        const metadata = {
+            ...this.extractMetadata(response, ['scriptId', 'scriptTitle']),
+            appendWithScript: true,
+            timestamp: new Date().toISOString()
+        };
+        const canonical = {
             message: responseText,
             script: responseText,
-            type: INTENT_TYPES.SCRIPT_CONVERSATION,
-            metadata: {
-                ...this.extractMetadata(response, ['scriptId', 'scriptTitle']),
-                appendWithScript: true,
-                timestamp: new Date().toISOString()
-            }
+            metadata
         };
+
+        Object.assign(metadata, buildContractMetadata(INTENT_TYPES.SCRIPT_CONVERSATION, canonical));
+
+        return this.ensureCanonicalResponse(canonical);
     }
 
     getDefaultQuestions () {
@@ -77,14 +81,22 @@ export class ScriptAppendChain extends BaseChain {
             };
         } catch (error) {
             console.error('ScriptAppendChain execution error:', error);
-            return {
-                response: 'I appended to your script.',
-                type: INTENT_TYPES.SCRIPT_CONVERSATION,
+            const fallback = {
+                message: 'I appended to your script.',
+                script: '',
                 metadata: {
                     appendWithScript: true,
                     error: error.message,
                     timestamp: new Date().toISOString()
-                },
+                }
+            };
+            Object.assign(
+                fallback.metadata,
+                buildContractMetadata(INTENT_TYPES.SCRIPT_CONVERSATION, fallback)
+            );
+            const canonicalFallback = this.ensureCanonicalResponse(fallback);
+            return {
+                ...canonicalFallback,
                 questions: this.getDefaultQuestions()
             };
         }

@@ -41,16 +41,16 @@ export class SceneIdeaChain extends BaseChain {
     });
   }
 
-  async run(context, prompt) {
-    try {
-      const messages = await this.buildMessages(context, prompt);
-      const rawResponse = await this.execute(messages, context, false);
-      return this.formatResponse(rawResponse?.response ?? rawResponse);
-    } catch (error) {
-      console.error('SceneIdeaChain execution error:', error);
-      throw error;
+    async run(context, prompt) {
+      try {
+        const messages = await this.buildMessages(context, prompt);
+        const rawResponse = await this.execute(messages, context, false);
+        return this.formatResponse(rawResponse);
+      } catch (error) {
+        console.error('SceneIdeaChain execution error:', error);
+        throw error;
+      }
     }
-  }
 
   addCommonInstructions(messages) {
     return messages;

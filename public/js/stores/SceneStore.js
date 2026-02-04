@@ -10,13 +10,13 @@ export class SceneStore extends ScriptItemStore {
             itemLabel: ITEM_LABELS.SCENE,
             orderKey: 'sceneId',
             apiHandlers: {
-                list: (scriptId) => api.getScenes(scriptId),
-                create: (scriptId, payload) => api.createScene(scriptId, payload),
-                update: (scriptId, sceneId, payload) => api.updateScene(scriptId, sceneId, payload),
-                delete: (scriptId, sceneId) => api.deleteScene(scriptId, sceneId),
-                reorder: (scriptId, order) => api.reorderScenes(scriptId, order),
-                generateIdea: (scriptId, sceneId, payload) => api.generateSceneIdea(scriptId, sceneId, payload),
-                generateIdeaDraft: (scriptId, payload) => api.generateSceneIdeaDraft(scriptId, payload)
+                list: (scriptId) => api.entities.getScenes(scriptId),
+                create: (scriptId, payload) => api.entities.createScene(scriptId, payload),
+                update: (scriptId, sceneId, payload) => api.entities.updateScene(scriptId, sceneId, payload),
+                delete: (scriptId, sceneId) => api.entities.deleteScene(scriptId, sceneId),
+                reorder: (scriptId, order) => api.entities.reorderScenes(scriptId, order),
+                generateIdea: (scriptId, sceneId, payload) => api.entities.generateSceneIdea(scriptId, sceneId, payload),
+                generateIdeaDraft: (scriptId, payload) => api.entities.generateSceneIdeaDraft(scriptId, payload)
             }
         });
     }

@@ -1,10 +1,8 @@
-import { ChatOpenAI as _ChatOpenAI } from '@langchain/openai';
 import { CHAIN_CONFIG, ERROR_TYPES, COMMON_PROMPT_INSTRUCTIONS } from '../../constants.js';
 import chatMessageRepository from '../../../../repositories/chatMessageRepository.js';
 import { ai } from '../../../../lib/ai.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 import { QuestionGenerator } from './QuestionGenerator.js';
-import { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } from '@langchain/core/prompts';
 
 export class BaseChain {
   constructor(config) {
@@ -131,27 +129,12 @@ export class BaseChain {
     return messages;
   }
 
-  validateResponse(response, schema) {
-    if (!response) throw new Error(ERROR_TYPES.MISSING_REQUIRED);
-    try {
-      const parsed = typeof response === 'string' ? JSON.parse(response) : response;
-      if (schema.required) {
-        for (const field of schema.required) {
-          if (!(field in parsed)) throw new Error(`Missing required field: ${field}`);
-        }
-      }
-      return parsed;
-    } catch {
-      throw new Error(ERROR_TYPES.INVALID_FORMAT);
-    }
-  }
-
   extractMetadata(source, fields) {
     const result = {};
     for (const field of fields) {
       result[field] = source[field] ||
-                (source.context && source.context[field]) ||
-                (source.metadata && source.metadata[field]);
+        (source.context && source.context[field]) ||
+        (source.metadata && source.metadata[field]);
     }
     return result;
   }
@@ -195,19 +178,21 @@ export class BaseChain {
 
   async execute(messages, metadata = {}, shouldGenerateQuestions = true) {
     try {
-      console.log('BaseChain.execute starting...');
-      const processedMessages = this.addCommonInstructions(messages);
-
-      const context = {
+      const ctx = {
         ...metadata,
         ...this.extractMetadata(metadata, ['scriptId', 'scriptTitle', 'userId', 'intent'])
       };
+      console.log('BaseChain.execute starting...', {
+        chain: this.type,
+        chatRequestId: ctx.chatRequestId
+      });
+      const processedMessages = this.addCommonInstructions(messages);
 
       const lastMessage = messages[messages.length - 1];
       const originalPrompt = lastMessage ? lastMessage.content : '';
 
       const allMessages = await Promise.race([
-        this.buildMessageChain(processedMessages, context),
+        this.buildMessageChain(processedMessages, ctx),
         new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Message chain build timeout')), 5000);
         })
@@ -227,32 +212,44 @@ export class BaseChain {
         }))
       });
 
-      console.log('Making API call via AIClient...');
-      const chainConfig = context.chainConfig || {};
+      if (!allMessages.length) {
+        throw new Error('No messages to send to model');
+      }
+
+      console.log('Making API call via AIClient...', {
+        chain: this.type,
+        chatRequestId: ctx.chatRequestId
+      });
+      const chainConfig = ctx.chainConfig || {};
       const modelConfig = chainConfig.modelConfig || {};
 
       const completionParams = {
-        model: modelConfig.model || this.config.model || 'gpt-4-turbo-preview',
         messages: allMessages,
-        temperature: this.temperature,
-        max_tokens: 4000,
-        ...this.modelConfig,
+        ...this.config,
         ...modelConfig
       };
+      const completionOptions = {
+        chatRequestId: ctx.chatRequestId
+      };
 
-      const result = await ai.generateCompletion(completionParams);
+      const result = await ai.generateCompletion(completionParams, completionOptions);
 
       if (!result.success) {
         console.error('AIClient completion failed:', result.error);
         throw new Error(`API call failed: ${result.error.message}`);
       }
 
-      console.log('AIClient call successful');
+      console.log('AIClient call successful', {
+        chain: this.type,
+        chatRequestId: ctx.chatRequestId
+      });
       console.log('[BaseChain] raw AI output', {
         choice: result.data.choices?.[0]
       });
       const aiMessage = result.data.choices?.[0]?.message || {};
-      const responseContent = aiMessage.content || aiMessage.function_call?.arguments || '';
+      const responseContent = aiMessage.function_call
+        ? JSON.stringify(aiMessage.function_call.arguments || {})
+        : (aiMessage.content || '');
       const usage = result.data.usage || {};
       const aiUsage = {
         promptTokens: Number(usage.prompt_tokens ?? 0),
@@ -263,14 +260,14 @@ export class BaseChain {
       };
 
       let loggedUsage = false;
-      if (context?.userId) {
+      if (ctx?.userId) {
         try {
           await chatMessageRepository.create({
-            userId: context.userId,
-            scriptId: context.scriptId ?? null,
+            userId: ctx.userId,
+            scriptId: ctx.scriptId ?? null,
             role: 'assistant',
             content: responseContent,
-            intent: context.intent ?? null,
+            intent: ctx.intent ?? null,
             metadata: {
               userPrompt: originalPrompt,
               chainType: this.type
@@ -290,19 +287,26 @@ export class BaseChain {
         aiUsage.loggedByBaseChain = true;
       }
 
+      const buildChainResponse = (content, questions = null) => {
+        const payload = this.createResponse(content, ctx, questions, { aiUsage });
+        payload.aiMessage = aiMessage;
+        payload.raw = result;
+        return payload;
+      };
+
       if (!shouldGenerateQuestions || chainConfig.shouldGenerateQuestions === false) {
-        return this.createResponse(responseContent, context, null, { aiUsage });
+        return buildChainResponse(responseContent);
       }
 
       try {
         const questions = await this.questionGenerator.generateQuestions(
-          context,
+          ctx,
           originalPrompt,
           responseContent
         );
-        return this.createResponse(responseContent, context, questions, { aiUsage });
+        return buildChainResponse(responseContent, questions);
       } catch (error) {
-        return this.createResponse(responseContent, context, this.getDefaultQuestions(), { aiUsage });
+        return buildChainResponse(responseContent, this.getDefaultQuestions());
       }
     } catch (error) {
       console.error('Chain execution error:', error);
@@ -337,8 +341,27 @@ export class BaseChain {
     return response;
   }
 
+  ensureCanonicalResponse(result) {
+    if (!result || typeof result !== 'object') {
+      throw new Error('Chain must return canonical response shape');
+    }
+    const { message, script, metadata } = result;
+    if (
+      typeof message !== 'string' ||
+      typeof script !== 'string' ||
+      !metadata ||
+      typeof metadata !== 'object'
+    ) {
+      throw new Error('Chain must return canonical response shape');
+    }
+    return Object.freeze(result);
+  }
+
   extractMessage(response) {
-    return response?.response || response;
+    if (response?.aiMessage) {
+      return response.aiMessage;
+    }
+    return response;
   }
 
   getPayloadText(message) {
@@ -349,8 +372,11 @@ export class BaseChain {
   }
 
   safeParseJson(value) {
-    if (!value || typeof value !== 'string') {
+    if (!value) {
       return null;
+    }
+    if (typeof value === 'object') {
+      return value;
     }
     try {
       return JSON.parse(value);
@@ -368,15 +394,68 @@ export class BaseChain {
     }
   }
 
+  expectsFunctionCall(schema) {
+    return Boolean(schema?.required?.length);
+  }
+
   parseFunctionPayload(response, schema, errorMessage = 'Invalid JSON payload from function call') {
     const message = this.extractMessage(response);
     const payloadText = this.getPayloadText(message);
-    const parsed = this.safeParseJson(payloadText);
-    if (!parsed) {
-      throw new Error(errorMessage);
+    let parsed = typeof payloadText === 'object'
+      ? payloadText
+      : this.safeParseJson(payloadText);
+
+    const functionCallArgs =
+      response?.aiMessage?.function_call?.arguments ??
+      response?.function_call?.arguments;
+
+    if (!parsed && functionCallArgs) {
+      parsed = this.safeParseJson(functionCallArgs);
     }
-    if (schema) {
-      return this.validateResponse(parsed, schema);
+
+    if (this.expectsFunctionCall(schema) && !message?.function_call) {
+      if (!parsed) {
+        const rawArgs = payloadText;
+        let lengthInfo = 0;
+        if (typeof rawArgs === 'string') {
+          lengthInfo = rawArgs.length;
+        } else if (rawArgs) {
+          try {
+            lengthInfo = JSON.stringify(rawArgs).length;
+          } catch {
+            lengthInfo = 0;
+          }
+        }
+        console.warn(`[${this.type}] parseFunctionPayload failed (length=${lengthInfo})`, rawArgs);
+        throw new Error(`[${this.type}] function_call missing despite schema expectation`);
+      }
+      console.warn(`[${this.type}] function_call missing despite schema expectation; parsed inline JSON payload`);
+    }
+
+    if (!parsed) {
+      const rawArgs = functionCallArgs ?? payloadText;
+      let lengthInfo = 0;
+      if (typeof rawArgs === 'string') {
+        lengthInfo = rawArgs.length;
+      } else if (rawArgs) {
+        try {
+          lengthInfo = JSON.stringify(rawArgs).length;
+        } catch {
+          lengthInfo = 0;
+        }
+      }
+      console.warn(`[${this.type}] parseFunctionPayload failed (length=${lengthInfo})`, rawArgs);
+      throw new Error(`[${this.type}] ${errorMessage}`);
+    }
+    if (parsed && typeof parsed !== 'object') {
+      throw new Error(`[${this.type}] Parsed payload is not an object`);
+    }
+    if (schema?.required) {
+      for (const field of schema.required) {
+        if (!(field in parsed)) {
+          throw new Error(ERROR_TYPES.MISSING_REQUIRED);
+        }
+      }
     }
     return parsed;
   }

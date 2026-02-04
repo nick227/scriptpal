@@ -41,7 +41,7 @@ export class ScriptPalUser {
                 savedUser: !!loadRawFromStorage('currentUser')
             });
 
-            const user = await this.api.getCurrentUser();
+            const user = await this.api.auth.getCurrentUser();
 
             if (user) {
                 this.currentUser = user;
@@ -73,7 +73,7 @@ export class ScriptPalUser {
                 throw new Error(ERROR_MESSAGES.INVALID_EMAIL);
             }
 
-            this.currentUser = await this.api.login(email, password);
+            this.currentUser = await this.api.auth.login(email, password);
 
             if (!this.currentUser) {
                 console.error('[USER] Login returned no user data');
@@ -110,7 +110,7 @@ export class ScriptPalUser {
                 throw new Error(ERROR_MESSAGES.INVALID_EMAIL);
             }
 
-            this.currentUser = await this.api.createUser({ email, password });
+            this.currentUser = await this.api.users.createUser({ email, password });
             if (!this.currentUser) {
                 throw new Error(ERROR_MESSAGES.USER_CREATION_FAILED);
             }
@@ -129,7 +129,7 @@ export class ScriptPalUser {
      */
     async handleLogout () {
         try {
-            await this.api.logout();
+            await this.api.auth.logout();
             this.currentUser = null;
             removeFromStorage('currentUser');
         } catch (error) {
@@ -147,7 +147,7 @@ export class ScriptPalUser {
      */
     async getUser (id) {
         try {
-            return await this.api.getUser(id);
+            return await this.api.users.getUser(id);
         } catch (error) {
             console.error('[USER] Get user failed:', error);
             throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);

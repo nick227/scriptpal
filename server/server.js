@@ -298,8 +298,44 @@ class ScriptPalServer {
     // 6. Cookie parsing (before auth)
     this.app.use(cookieParser());
 
+
     // 7. Body parsing
-    this.app.use(express.json({ limit: HTTP_LIMITS.BODY_SIZE }));
+    // Manual JSON parsing for brainstorm endpoints to avoid empty array corruption
+    this.app.use((req, res, next) => {
+      const isBrainstormBoard = req.path.startsWith('/api/brainstorm/boards');
+      const isScriptItem = req.path.match(/^\/api\/script\/\d+\/(locations|characters|scenes|themes)/);
+      
+      if ((isBrainstormBoard || isScriptItem) && (req.method === 'POST' || req.method === 'PUT')) {
+        let rawBody = '';
+        req.setEncoding('utf8');
+        req.on('data', chunk => {
+          rawBody += chunk;
+        });
+        req.on('end', () => {
+          try {
+            // Store in a separate property to avoid overwriting/corruption by downstream middleware
+            req.manualBody = JSON.parse(rawBody);
+            // Also set req.body for compatibility, but prefer manualBody in controller
+            req.body = req.manualBody;
+            next();
+          } catch (error) {
+            console.error('[Manual JSON Parser] Parse error:', error);
+            return res.status(400).json({ error: 'Invalid JSON' });
+          }
+        });
+      } else {
+        next();
+      }
+    });
+    
+    // Only run express.json() if we haven't already parsed the body manually
+    this.app.use((req, res, next) => {
+      if (req.body) {
+        return next();
+      }
+      express.json({ limit: HTTP_LIMITS.BODY_SIZE })(req, res, next);
+    });
+    
     this.app.use(express.urlencoded({ extended: true, limit: HTTP_LIMITS.URL_ENCODED_SIZE }));
 
     // 8. Custom security/auth middleware

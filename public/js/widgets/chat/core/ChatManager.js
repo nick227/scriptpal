@@ -697,16 +697,46 @@ export class ChatManager extends BaseManager {
      * CANONICAL SHAPE (v2): data.response.message
      */
     extractResponseContent (data) {
-        if (!data?.response) {
+    if (!data?.response) {
+        return null;
+    }
+
+    let message = null;
+    if (typeof data.response === 'string') {
+        message = data.response;
+    } else if (data.response) {
+        message = this._findResponseMessage(data.response);
+    }
+
+    if (!message) {
+        return null;
+    }
+
+    return this._extractJsonAssistantMessage(message);
+}
+
+    _findResponseMessage (payload) {
+        if (!payload) {
             return null;
         }
 
-        if (typeof data.response === 'string') {
-            return data.response;
+        if (typeof payload === 'string') {
+            return payload;
         }
 
-        // CANONICAL field only (v2)
-        return data.response.message || null;
+        if (typeof payload.message === 'string' && payload.message.trim()) {
+            return payload.message;
+        }
+
+        if (typeof payload.assistantResponse === 'string' && payload.assistantResponse.trim()) {
+            return payload.assistantResponse;
+        }
+
+        if (payload.response && payload.response !== payload) {
+            return this._findResponseMessage(payload.response);
+        }
+
+        return null;
     }
 
     /**
@@ -728,6 +758,41 @@ export class ChatManager extends BaseManager {
                 timestamp: Date.now()
             });
         }
+    }
+
+    /**
+     * Extract assistant text from raw JSON responses when the payload is returned as a string.
+     * @param {string} rawMessage
+     * @returns {string}
+     */
+    _extractJsonAssistantMessage (rawMessage) {
+        if (!rawMessage || typeof rawMessage !== 'string') {
+            return rawMessage;
+        }
+
+        const trimmed = rawMessage.trim();
+        if (!trimmed.startsWith('{')) {
+            return rawMessage;
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object') {
+                if (typeof parsed.assistantResponse === 'string' && parsed.assistantResponse.trim()) {
+                    return parsed.assistantResponse.trim();
+                }
+                if (typeof parsed.message === 'string' && parsed.message.trim()) {
+                    return parsed.message.trim();
+                }
+                if (typeof parsed.formattedScript === 'string' && parsed.formattedScript.trim()) {
+                    return parsed.formattedScript.trim();
+                }
+            }
+        } catch (error) {
+            console.warn('[ChatManager] Failed to parse JSON response message:', error);
+        }
+
+        return rawMessage;
     }
 
     /**

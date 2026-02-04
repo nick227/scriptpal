@@ -8,7 +8,7 @@ import { PromptHelperWidget } from '../ui/PromptHelperWidget.js';
 import { SystemPromptOrchestrator } from './SystemPromptOrchestrator.js';
 
 const SERVICE_HELPERS = PROMPT_REGISTRY
-    .filter(prompt => prompt.category === PROMPT_CATEGORIES.SERVICE)
+    .filter(prompt => prompt.enabled && prompt.category === PROMPT_CATEGORIES.SERVICE)
     .map(prompt => ({
         id: prompt.id,
         label: prompt.label,

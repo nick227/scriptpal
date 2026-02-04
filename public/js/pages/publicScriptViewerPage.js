@@ -184,7 +184,7 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
             errorState.textContent = '';
         }
         try {
-            const response = await api.getPublicScriptComments(currentScriptId, {
+            const response = await api.publicScripts.getComments(currentScriptId, {
                 page: 1,
                 pageSize: COMMENT_PAGE_SIZE
             });
@@ -245,7 +245,7 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
         isPosting = true;
         updateComposerState();
         try {
-            const payload = await api.addPublicScriptComment(currentScriptId, content);
+            const payload = await api.publicScripts.addComment(currentScriptId, content);
             if (payload?.comment) {
                 comments = [payload.comment, ...comments];
                 renderComments(comments);
@@ -354,8 +354,8 @@ const initPublicScriptViewer = async () => {
 
     try {
         const script = slug
-            ? await api.getPublicScriptBySlug(slug)
-            : await api.getPublicScript(scriptId);
+            ? await api.publicScripts.getPublicScriptBySlug(slug)
+            : await api.publicScripts.getPublicScript(scriptId);
         if (!script) {
             commentsPanelController?.setScriptId(null);
             setViewerMessage(viewerLines, 'Script is not available.', true);

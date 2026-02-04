@@ -35,6 +35,7 @@ export class AIClient {
     const startTime = Date.now();
     const maxRetries = options.maxRetries || this.providerConfig.maxRetries;
     const retryDelay = options.retryDelay || 1000;
+    const chatRequestId = options.chatRequestId;
     let lastError;
 
     this.metricsTracker.markRequestStart();
@@ -60,7 +61,8 @@ export class AIClient {
           model: this.provider.getModel(),
           tokens: usage.totalTokens,
           responseTime,
-          attempt
+          attempt,
+          chatRequestId
         });
 
         return {
@@ -82,7 +84,8 @@ export class AIClient {
           attempt,
           maxRetries,
           isRetryable,
-          model: this.provider.getModel()
+          model: this.provider.getModel(),
+          chatRequestId
         });
 
         if (isRetryable && attempt < maxRetries) {

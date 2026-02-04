@@ -41,7 +41,8 @@ export const createScriptItemController = (options) => {
 
     createItem: async(req, res) => {
       try {
-        const { script, body } = req;
+        const { script } = req;
+        const body = req.manualBody || req.body;
         const { title, description, notes, tags, sortIndex } = body;
         if (!title) {
           return res.status(400).json({ error: 'Title is required' });
@@ -49,8 +50,17 @@ export const createScriptItemController = (options) => {
         if (!script || !script.id) {
           return res.status(404).json({ error: 'Script not found' });
         }
-        if (tags !== undefined && !Array.isArray(tags)) {
-          return res.status(400).json({ error: 'Tags must be an array' });
+
+        let inputsTags = tags;
+        if (inputsTags !== undefined && !Array.isArray(inputsTags)) {
+          if (typeof inputsTags === 'object' && inputsTags !== null) {
+             console.log('[WARN] Tags parsed as object, converting to array');
+             inputsTags = Object.values(inputsTags);
+          }
+        }
+        
+        if (inputsTags !== undefined && !Array.isArray(inputsTags)) {
+           return res.status(400).json({ error: 'Tags must be an array' });
         }
 
         let nextSortIndex = parseSortIndex(sortIndex);
@@ -64,7 +74,7 @@ export const createScriptItemController = (options) => {
         const data = {
           scriptId: script.id,
           title,
-          tags: Array.isArray(tags) ? tags : [],
+          tags: Array.isArray(inputsTags) ? inputsTags : [],
           sortIndex: nextSortIndex
         };
         if (Object.prototype.hasOwnProperty.call(body, 'description')) {
@@ -84,7 +94,8 @@ export const createScriptItemController = (options) => {
 
     updateItem: async(req, res) => {
       try {
-        const { script, body, params } = req;
+        const { script, params } = req;
+        const body = req.manualBody || req.body;
         if (!script || !script.id) {
           return res.status(404).json({ error: 'Script not found' });
         }
@@ -111,10 +122,16 @@ export const createScriptItemController = (options) => {
           data.notes = body.notes;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'tags')) {
-          if (!Array.isArray(body.tags)) {
+          let inputTags = body.tags;
+          if (!Array.isArray(inputTags)) {
+             if (typeof inputTags === 'object' && inputTags !== null) {
+                 inputTags = Object.values(inputTags);
+             }
+          }
+          if (!Array.isArray(inputTags)) {
             return res.status(400).json({ error: 'Tags must be an array' });
           }
-          data.tags = body.tags;
+          data.tags = inputTags;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'sortIndex')) {
           const parsedSortIndex = parseSortIndex(body.sortIndex);

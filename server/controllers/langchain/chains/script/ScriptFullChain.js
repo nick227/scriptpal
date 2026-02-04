@@ -1,7 +1,6 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { SCRIPT_CONTEXT_PREFIX, VALID_FORMAT_VALUES } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
-import { sanitizeScriptLines } from '../helpers/ScriptSanitization.js';
 import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
 import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
@@ -9,39 +8,72 @@ export const FULL_SCRIPT_INTENT = 'SCRIPT_FULL_SCRIPT';
 
 const MIN_PAGES = 5;
 const MAX_PAGES = 6;
-const MIN_LINES_PER_PAGE = 12;
-const MAX_LINES_PER_PAGE = 22;
+const MIN_LINES_PER_PAGE = 14;
+const MAX_LINES_PER_PAGE = 18;
 const LINE_MIN = MIN_PAGES * MIN_LINES_PER_PAGE;
 const LINE_MAX = MAX_PAGES * MAX_LINES_PER_PAGE;
-const MAX_ATTEMPTS = 1;
+const ALLOWED_TAGS = new Set([...VALID_FORMAT_VALUES, 'chapter-break']);
+const ALLOWED_TAGS_LIST = Array.from(ALLOWED_TAGS);
+
 const FULL_SCRIPT_FUNCTIONS = [{
   name: 'provide_full_script',
   description: 'Return new script pages plus a short chat response.',
   parameters: {
     type: 'object',
     properties: {
-      formattedScript: {
-        type: 'string',
-        description: 'New script lines wrapped in validated tags (<header>, <action>, <speaker>, <dialog>, <directions>, <chapter-break>).'
+      lines: {
+        type: 'array',
+        minItems: LINE_MIN,
+        maxItems: LINE_MAX,
+        description: 'Screenplay lines for the next pages.',
+        items: {
+          type: 'object',
+          properties: {
+            tag: {
+              type: 'string',
+              enum: ALLOWED_TAGS_LIST,
+              description: 'Screenplay tag for this line.'
+            },
+            text: {
+              type: 'string',
+              minLength: 1,
+              description: 'Content of the line only.'
+            }
+          },
+          required: ['tag', 'text'],
+          additionalProperties: false
+        }
       },
       assistantResponse: {
         type: 'string',
         description: 'Short, simple chat response under 40 words.'
       }
     },
-    required: ['formattedScript', 'assistantResponse']
+    required: ['lines', 'assistantResponse'],
+    additionalProperties: false
   }
 }];
 
 const SYSTEM_INSTRUCTION = `You are a screenplay architect.
-- Respond only in JSON with two keys: "formattedScript" and "assistantResponse".
-  - "formattedScript" must contain 5-6 new pages of script lines using valid tags (${VALID_FORMAT_VALUES.join(', ')} and <chapter-break></chapter-break>).
-  - Treat each "<chapter-break></chapter-break>" as a page boundary and deliver roughly 15-16 lines per page.
+- Respond only in JSON with two keys: "lines" and "assistantResponse".
+  - "lines" must contain 5-6 new pages of screenplay beats using valid tags (${VALID_FORMAT_VALUES.join(', ')} and <chapter-break></chapter-break>).
+  - Each page must contain between ${MIN_LINES_PER_PAGE} and ${MAX_LINES_PER_PAGE} lines.
+  - Treat each "<chapter-break></chapter-break>" as an explicit page boundary.
   - "assistantResponse" should be a short, simple chat response (under 40 words).
-- Escape any double quotes inside JSON strings as \\".
 - Focus on a clear story arc (setup, escalation, turning point, resolution).
 - Do not rewrite what has already happened; pick up exactly where the script left off.
 - Do not include markdown, commentary, numbering, or prose outside the JSON envelope.`;
+
+const escapeLineText = (text) => (
+  text.replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+);
+
+const renderLinesToXml = (lines) => (
+  lines.map(line => `<${line.tag}>${escapeLineText(line.text)}</${line.tag}>`).join('\n')
+);
 
 export class ScriptFullChain extends BaseChain {
   constructor() {
@@ -56,8 +88,8 @@ export class ScriptFullChain extends BaseChain {
     });
   }
 
-  buildMessages(context, prompt, retryNote = '') {
-    const userPrompt = retryNote ? `${prompt}\n\nCorrection: ${retryNote}` : prompt;
+  buildMessages(context, prompt) {
+    const userPrompt = prompt;
     const scriptContent = context?.scriptContent || '';
     const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
     const collectionBlock = formatScriptCollections(context?.scriptCollections);
@@ -80,17 +112,6 @@ export class ScriptFullChain extends BaseChain {
     }];
   }
 
-  normalizeScriptText(text) {
-    if (!text || typeof text !== 'string') {
-      return '';
-    }
-    return text
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/<chapter-break\s*\/>/gi, '<chapter-break></chapter-break>')
-      .trim();
-  }
-
   validateScriptLines(lines) {
     if (!Array.isArray(lines)) {
       return { ok: false, reason: 'Lines missing' };
@@ -98,7 +119,10 @@ export class ScriptFullChain extends BaseChain {
 
     const lineCount = lines.length;
     const chapterBreakCount = lines
-      .filter(line => line.toLowerCase().startsWith('<chapter-break'))
+      .filter((line) => {
+        const tag = typeof line?.tag === 'string' ? line.tag.toLowerCase() : '';
+        return tag === 'chapter-break';
+      })
       .length;
     const pageCount = chapterBreakCount + 1;
 
@@ -141,72 +165,54 @@ export class ScriptFullChain extends BaseChain {
       metadata.pageCount = validation.pageCount;
     }
 
-    // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
-    const response = {
+    const canonical = {
       message: chatMessage,
       script: responseText,
-      type: FULL_SCRIPT_INTENT,
       metadata
     };
-    Object.assign(response.metadata, buildContractMetadata(FULL_SCRIPT_INTENT, response));
-    return response;
+    Object.assign(canonical.metadata, buildContractMetadata(FULL_SCRIPT_INTENT, canonical));
+    return this.ensureCanonicalResponse(canonical);
   }
 
   async run(context, prompt) {
-    let lastError = '';
-    let lastResponseText = '';
-    let lastAssistantResponse = '';
+    const messages = await this.buildMessages(context, prompt);
+    const response = await this.execute(messages, context, false);
 
-    const maxAttempts = Number.isInteger(context?.maxAttempts) ? context.maxAttempts : MAX_ATTEMPTS;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const retryNote = lastError
-        ? `${lastError}. Respond only in JSON with "formattedScript" and "assistantResponse". Return exactly ${MIN_PAGES}-${MAX_PAGES} pages separated by <chapter-break></chapter-break> while keeping valid tags (${VALID_FORMAT_VALUES.join(', ')}).`
-        : '';
-      const messages = await this.buildMessages(context, prompt, retryNote);
-      const response = await this.execute(messages, context, false);
+    const payload = this.parseFunctionPayload(response, {
+      required: ['lines', 'assistantResponse']
+    }, 'Invalid JSON payload from function call');
 
-      let validated = null;
-      try {
-        validated = this.parseFunctionPayload(response, {
-          required: ['formattedScript', 'assistantResponse']
-        }, 'Invalid JSON payload from function call');
-      } catch (error) {
-        lastError = error.message || 'Invalid full script payload';
-        console.warn('[ScriptFullChain] Invalid full script payload', { attempt, error: lastError });
-        continue;
-      }
+    const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
+    const normalizedLines = rawLines
+      .map(line => ({
+        tag: typeof line?.tag === 'string' ? line.tag.toLowerCase() : '',
+        text: typeof line?.text === 'string' ? line.text.trim() : ''
+      }))
+      .filter(line => ALLOWED_TAGS.has(line.tag) && line.text.length > 0);
 
-      const formattedScript = typeof validated.formattedScript === 'string'
-        ? validated.formattedScript
-        : JSON.stringify(validated.formattedScript);
-      lastAssistantResponse = typeof validated.assistantResponse === 'string'
-        ? validated.assistantResponse
-        : '';
-      lastResponseText = this.normalizeScriptText(formattedScript);
-      const { lines: sanitizedLines, stats } = sanitizeScriptLines(lastResponseText, VALID_FORMAT_VALUES);
-      if (stats.invalidTagCount || stats.coercedCount || stats.droppedCount) {
-        console.warn('[ScriptFullChain] Sanitized AI output', stats);
-      }
-
-      if (sanitizedLines.length > LINE_MAX) {
-        console.warn('[ScriptFullChain] Truncating lines to maximum', {
-          originalCount: sanitizedLines.length,
-          max: LINE_MAX
-        });
-      }
-
-      const finalLines = sanitizedLines.slice(0, LINE_MAX);
-      const validation = this.validateScriptLines(finalLines);
-
-      if (validation.ok) {
-        const finalText = finalLines.join('\n');
-        return this.formatResponse(finalText, context, validation, lastAssistantResponse);
-      }
-
-      lastError = validation.reason || 'Validation failure';
-      console.warn('[ScriptFullChain] Validation failed', { attempt, reason: lastError });
+    if (!normalizedLines.length || normalizedLines[0]?.tag === 'chapter-break') {
+      throw new Error('Script cannot start with chapter-break');
     }
 
-    throw new Error(`full_script_validation_failed: ${lastError}`);
+    for (let i = 1; i < normalizedLines.length; i += 1) {
+      if (
+        normalizedLines[i].tag === 'chapter-break' &&
+        normalizedLines[i - 1].tag === 'chapter-break'
+      ) {
+        throw new Error('Consecutive chapter-break tags');
+      }
+    }
+
+    const validation = this.validateScriptLines(normalizedLines);
+    if (!validation.ok) {
+      throw new Error(validation.reason || 'full_script_validation_failed');
+    }
+
+    const script = renderLinesToXml(normalizedLines);
+    const assistantResponse = typeof payload.assistantResponse === 'string'
+      ? payload.assistantResponse.trim()
+      : '';
+
+    return this.formatResponse(script, context, validation, assistantResponse);
   }
 }

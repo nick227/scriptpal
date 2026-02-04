@@ -121,7 +121,7 @@ export class MediaPickerWidget {
                     <input type="text" class="media-picker-prompt" placeholder="Describe the image" />
                     <button type="button" class="media-picker-generate">Generate</button>
                 </div>
-                <div class="media-picker-section">
+                <div class="media-picker-section hidden">
                     <h4>Library</h4>
                     <div class="media-picker-grid"></div>
                 </div>
@@ -199,11 +199,14 @@ export class MediaPickerWidget {
      */
     renderLibrary () {
         const grid = this.modal.querySelector('.media-picker-grid');
+
         grid.innerHTML = '';
         if (!this.libraryItems || this.libraryItems.length === 0) {
             grid.textContent = 'No media yet';
             return;
         }
+        const parent = grid.closest('.media-picker-section');
+        parent.classList.remove('hidden');
         this.libraryItems.forEach(item => {
             const card = document.createElement('div');
             card.className = 'media-picker-card';

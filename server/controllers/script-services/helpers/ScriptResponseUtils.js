@@ -1,9 +1,16 @@
 export const extractChainResponse = (response) => {
-  const responseText = response?.response || response;
-  const formattedScript = response?.metadata?.formattedScript || responseText;
-  const assistantResponse = response?.assistantResponse || responseText;
+  const payload = response?.response || response;
+  const baseText = typeof payload === 'string'
+    ? payload
+    : payload?.message ?? payload?.script ?? payload?.response ?? '';
+  const formattedScript = typeof payload === 'string'
+    ? payload
+    : payload?.script ?? baseText;
+  const assistantResponse = typeof payload === 'string'
+    ? payload
+    : payload?.message ?? baseText;
   return {
-    responseText,
+    responseText: baseText,
     formattedScript,
     assistantResponse
   };

@@ -1,8 +1,7 @@
 import scriptModel from '../../models/script.js';
-import { ScriptPageAppendChain, APPEND_PAGE_INTENT } from '../langchain/chains/script/ScriptPageAppendChain.js';
+import { ScriptPageAppendChain, APPEND_PAGE_INTENT, PAGE_APPEND_MAX_ATTEMPTS } from '../langchain/chains/script/ScriptPageAppendChain.js';
 import { normalizeScriptForAppend } from '../langchain/chains/helpers/ScriptNormalization.js';
 import { getPromptById } from '../../../shared/promptRegistry.js';
-import { extractChainResponse } from './helpers/ScriptResponseUtils.js';
 import { buildScriptContextBundle } from '../script/context-builder.service.js';
 
 export { APPEND_PAGE_INTENT };
@@ -37,6 +36,10 @@ export const generateAppendPage = async({ scriptId, userId, prompt, maxAttempts 
   });
 
   const chain = new ScriptPageAppendChain();
+  const attempts = Number.isInteger(maxAttempts) && maxAttempts > 0
+    ? maxAttempts
+    : PAGE_APPEND_MAX_ATTEMPTS;
+
   const response = await chain.run({
     userId,
     scriptId,
@@ -45,19 +48,15 @@ export const generateAppendPage = async({ scriptId, userId, prompt, maxAttempts 
     scriptContent,
     attachScriptContext: APPEND_PAGE_PROMPT.attachScriptContext ?? true,
     scriptCollections: contextBundle.scriptCollections,
-    maxAttempts,
+    maxAttempts: attempts,
     disableHistory: true,
     chainConfig: {
       shouldGenerateQuestions: false
     }
   }, prompt);
 
-  const { responseText, formattedScript, assistantResponse } = extractChainResponse(response);
-
   return {
-    responseText,
-    assistantResponse,
-    formattedScript,
+    ...response,
     scriptTitle: script.title || 'Untitled Script',
     intent: APPEND_PAGE_INTENT
   };

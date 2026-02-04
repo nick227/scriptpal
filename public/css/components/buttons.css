@@ -2,10 +2,10 @@
 
 button {
     padding: 0.5rem 1rem;
-    background-color: var(--button-bg);
+    background-color: var(--chat-ink);
+    color: white;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
-    color: var(--text-color);
+    border-radius: var(--border-radius);
     cursor: pointer;
     height: 36px;
 }
@@ -17,7 +17,7 @@ button:disabled {
 
 button.is-active,
 button:hover:not(:disabled) {
-    background-color: #0056b3 !important;
+    background-color: var(--chat-ink);
     color: white;
 }
 

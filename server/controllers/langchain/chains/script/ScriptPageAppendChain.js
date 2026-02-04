@@ -2,220 +2,113 @@ import { BaseChain } from '../base/BaseChain.js';
 import { VALID_FORMAT_VALUES } from '../../constants.js';
 import { getPromptById } from '../../../../../shared/promptRegistry.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
-import { sanitizeScriptLines } from '../helpers/ScriptSanitization.js';
 import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
-import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
 export const APPEND_PAGE_INTENT = 'SCRIPT_APPEND_PAGE';
+
 const LINE_MIN = 12;
 const LINE_MAX = 16;
+const MAX_CONTEXT_LINES = 30;
 const MAX_ATTEMPTS = 3;
-const MAX_CONTEXT_LINES = 30; // Smart truncation: only send recent context
 
-// Function schema: structural only (behavioral rules live in system prompt)
+export const PAGE_APPEND_MAX_ATTEMPTS = MAX_ATTEMPTS;
+
+// ─────────────────────────────────────────────────────────────
+// Function schema: structural only (no grammar enforcement)
+// ─────────────────────────────────────────────────────────────
 const APPEND_PAGE_FUNCTIONS = [{
   name: 'provide_append_page',
-  description: 'Return script continuation.',
+  description: 'Append a new page of screenplay lines.',
   parameters: {
     type: 'object',
     properties: {
-      formattedScript: {
-        type: 'string',
-        description: 'Script lines in XML tags.'
+      lines: {
+        type: 'array',
+        minItems: LINE_MIN,
+        maxItems: LINE_MAX,
+        description: 'Screenplay lines to append, in natural order.',
+        items: {
+          type: 'object',
+          properties: {
+            tag: {
+              type: 'string',
+              enum: VALID_FORMAT_VALUES,
+              description: 'Screenplay tag for this line.'
+            },
+            text: {
+              type: 'string',
+              minLength: 1,
+              description: 'Content of the line only.'
+            }
+          },
+          required: ['tag', 'text'],
+          additionalProperties: false
+        }
       },
       assistantResponse: {
         type: 'string',
         description: 'Brief explanation.'
       }
     },
-    required: ['formattedScript', 'assistantResponse']
+    required: ['lines', 'assistantResponse'],
+    additionalProperties: false
   }
 }];
 
-/**
- * Smart context truncation: keep only the last N lines.
- * ENSURES semantic boundary - never cuts between speaker and dialog.
- */
+// ─────────────────────────────────────────────────────────────
+// Context helpers
+// ─────────────────────────────────────────────────────────────
 const truncateToRecentLines = (scriptContent, maxLines = MAX_CONTEXT_LINES) => {
-  if (!scriptContent || typeof scriptContent !== 'string') {
-    return '';
-  }
+  if (!scriptContent || typeof scriptContent !== 'string') return '';
+
   const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>[\s\S]*?<\/\1>/g;
   const matches = scriptContent.match(tagPattern);
-  if (!matches || matches.length <= maxLines) {
-    return scriptContent;
-  }
+  if (!matches || matches.length <= maxLines) return scriptContent;
 
-  // Take last N lines
-  let recentLines = matches.slice(-maxLines);
+  let recent = matches.slice(-maxLines);
 
-  // SEMANTIC BOUNDARY: If first line is <dialog> or <directions>, include preceding <speaker>
-  const firstTag = recentLines[0];
-  if (firstTag && (firstTag.startsWith('<dialog>') || firstTag.startsWith('<directions>'))) {
-    const cutIndex = matches.length - maxLines;
-    if (cutIndex > 0) {
-      const preceding = matches[cutIndex - 1];
-      if (preceding && preceding.startsWith('<speaker>')) {
-        recentLines = [preceding, ...recentLines];
-      }
+  // preserve speaker → dialog boundary
+  const first = recent[0];
+  if (first && (first.startsWith('<dialog>') || first.startsWith('<directions>'))) {
+    const idx = matches.length - maxLines;
+    if (idx > 0 && matches[idx - 1]?.startsWith('<speaker>')) {
+      recent = [matches[idx - 1], ...recent];
     }
   }
 
-  return recentLines.join('\n');
+  return recent.join('\n');
 };
 
-/**
- * Analyze last line and determine what the AI should output first.
- * Returns EXCLUSIVE constraints (what to start with AND what NOT to start with).
- */
-const analyzeFirstLineConstraint = (truncatedContent) => {
-  if (!truncatedContent) {
-    return { lastTag: 'none', constraint: '', expectedTags: [] };
-  }
+const CONTINUATION_BIAS = {
+  header: 'After a header, action or a speaker usually follows.',
+  action: 'Action often continues or introduces a speaker.',
+  speaker: 'A speaker is typically followed by dialog.',
+  dialog: 'Dialog often transitions to action or another speaker.',
+  directions: 'Directions usually lead into dialog.',
+  'chapter-break': 'After a chapter break, a new header usually follows.'
+};
+
+const analyzeContinuationBias = (truncatedContent) => {
+  if (!truncatedContent) return '';
 
   const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>/g;
   const matches = [...truncatedContent.matchAll(tagPattern)];
-  if (matches.length === 0) {
-    return { lastTag: 'none', constraint: '', expectedTags: [] };
-  }
+  if (!matches.length) return '';
 
   const lastTag = matches[matches.length - 1][1];
-
-  // EXCLUSIVE constraints: what MUST and MUST NOT start with
-  const constraintMap = {
-    'header': {
-      must: ['action', 'speaker'],
-      mustNot: ['header', 'dialog', 'directions', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <action> or <speaker>.
-- You MUST NOT start with <header>, <dialog>, <directions>, or <chapter-break>.
-- Violation = invalid output.`
-    },
-    'action': {
-      must: ['speaker', 'action', 'header'],
-      mustNot: ['dialog', 'directions'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <speaker>, <action>, or <header>.
-- You MUST NOT start with <dialog> or <directions>.
-- Violation = invalid output.`
-    },
-    'speaker': {
-      must: ['dialog', 'directions'],
-      mustNot: ['speaker', 'header', 'action', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <dialog> (or <directions> then <dialog>).
-- You MUST NOT start with <speaker>, <header>, <action>, or <chapter-break>.
-- Violation = invalid output.`
-    },
-    'dialog': {
-      must: ['speaker', 'action', 'header'],
-      mustNot: ['dialog', 'directions'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <speaker>, <action>, or <header>.
-- You MUST NOT start with <dialog> or <directions>.
-- Violation = invalid output.`
-    },
-    'directions': {
-      must: ['dialog'],
-      mustNot: ['speaker', 'header', 'action', 'directions', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <dialog>.
-- You MUST NOT start with <speaker>, <header>, <action>, <directions>, or <chapter-break>.
-- Violation = invalid output.`
-    },
-    'chapter-break': {
-      must: ['header'],
-      mustNot: ['speaker', 'action', 'dialog', 'directions', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <header>.
-- You MUST NOT start with <speaker>, <action>, <dialog>, <directions>, or <chapter-break>.
-- Violation = invalid output.`
-    }
-  };
-
-  const entry = constraintMap[lastTag] || { must: [], mustNot: [], text: '' };
-
-  return {
-    lastTag,
-    constraint: entry.text,
-    expectedTags: entry.must
-  };
+  const note = CONTINUATION_BIAS[lastTag];
+  return note
+    ? `Continuation hint (last line <${lastTag}>): ${note}`
+    : '';
 };
 
-/**
- * Grammar validation: speaker must be followed by dialog.
- * @returns {{valid: boolean, errors: string[]}}
- */
-const validateScreenplayGrammar = (formattedScript) => {
-  const tagSequence = [];
-  const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>/g;
-  let match;
-  while ((match = tagPattern.exec(formattedScript)) !== null) {
-    tagSequence.push(match[1]);
-  }
+const renderLines = (lines) =>
+  lines.map(l => `<${l.tag}>${l.text}</${l.tag}>`).join('\n');
 
-  const errors = [];
-
-  for (let i = 0; i < tagSequence.length; i++) {
-    if (tagSequence[i] === 'speaker') {
-      const next = tagSequence[i + 1];
-      const afterNext = tagSequence[i + 2];
-      if (next !== 'dialog' && !(next === 'directions' && afterNext === 'dialog')) {
-        errors.push(`<speaker> at position ${i + 1} not followed by <dialog>`);
-      }
-    }
-    if (tagSequence[i] === 'dialog') {
-      const prev = tagSequence[i - 1];
-      const beforePrev = tagSequence[i - 2];
-      if (prev !== 'speaker' && !(prev === 'directions' && beforePrev === 'speaker')) {
-        errors.push(`<dialog> at position ${i + 1} has no preceding <speaker>`);
-      }
-    }
-  }
-  return { valid: errors.length === 0, errors };
-};
-
-/**
- * Repair grammar violations by inserting missing speakers.
- */
-const repairScreenplayGrammar = (formattedScript) => {
-  const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>([\s\S]*?)<\/\1>/g;
-  const lines = [];
-  let match;
-  while ((match = tagPattern.exec(formattedScript)) !== null) {
-    lines.push({ tag: match[1], content: match[2] });
-  }
-
-  const repaired = [];
-  let lastSpeaker = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const { tag, content } = lines[i];
-
-    if (tag === 'speaker') {
-      lastSpeaker = content;
-      repaired.push(`<speaker>${content}</speaker>`);
-    } else if (tag === 'dialog') {
-      const prev = lines[i - 1]?.tag;
-      const beforePrev = lines[i - 2]?.tag;
-      const needsSpeaker = prev !== 'speaker' && !(prev === 'directions' && beforePrev === 'speaker');
-
-      if (needsSpeaker) {
-        const speakerName = lastSpeaker || 'CHARACTER';
-        repaired.push(`<speaker>${speakerName}</speaker>`);
-        console.warn(`[GrammarRepair] Inserted missing <speaker>${speakerName}</speaker> before dialog`);
-      }
-      repaired.push(`<dialog>${content}</dialog>`);
-    } else {
-      repaired.push(`<${tag}>${content}</${tag}>`);
-    }
-  }
-
-  return repaired.join('\n');
-};
-
+// ─────────────────────────────────────────────────────────────
+// Prompt wiring
+// ─────────────────────────────────────────────────────────────
 const APPEND_PAGE_PROMPT = getPromptById('append-page');
-
 if (!APPEND_PAGE_PROMPT) {
   throw new Error('Append page prompt definition is missing from the registry');
 }
@@ -223,6 +116,9 @@ if (!APPEND_PAGE_PROMPT) {
 const SYSTEM_INSTRUCTION = APPEND_PAGE_PROMPT.systemInstruction;
 const ATTACH_SCRIPT_CONTEXT = APPEND_PAGE_PROMPT.attachScriptContext ?? true;
 
+// ─────────────────────────────────────────────────────────────
+// Chain
+// ─────────────────────────────────────────────────────────────
 export class ScriptPageAppendChain extends BaseChain {
   constructor() {
     super({
@@ -241,269 +137,142 @@ export class ScriptPageAppendChain extends BaseChain {
   }
 
   buildMessages(context, prompt, retryNote = '', precomputed = {}) {
-    // Use precomputed values if available (from run()), otherwise compute here
     const truncatedContent = precomputed.truncatedContent ?? (
       (context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT)
         ? truncateToRecentLines(context.scriptContent, MAX_CONTEXT_LINES)
         : ''
     );
 
-    // Analyze what the first output line should be (exclusive constraints)
-    const { lastTag, constraint } = precomputed.lastTag
-      ? { lastTag: precomputed.lastTag, constraint: precomputed.constraint }
-      : analyzeFirstLineConstraint(truncatedContent);
+    const continuationHint =
+      precomputed.continuationHint ?? analyzeContinuationBias(truncatedContent);
 
-    const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
-    const collectionBlock = formatScriptCollections(context?.scriptCollections);
+    const scriptHeader = buildScriptHeader(
+      context?.scriptTitle,
+      context?.scriptDescription
+    );
 
-    // Build user message with SCRIPT CONTEXT AT VERY BOTTOM (recency bias)
     const parts = [];
 
-    // 1. Task prompt first
     parts.push(prompt);
+    parts.push(
+      `Return ${LINE_MIN}-${LINE_MAX} new screenplay lines using the function schema.`,
+      `Do not repeat any existing lines.`
+    );
 
-    // 2. First-line constraint (EXCLUSIVE - what MUST and MUST NOT)
-    if (constraint) {
-      parts.push(constraint);
-    }
+    // Scene continuity bias (append-page specific)
+    parts.push(
+      `Scene continuity note:
+A new page does NOT automatically mean a new scene.
+Only introduce a <header> if the context clearly implies a scene change.`
+    );
 
-    // 3. SCENE CONTINUITY RULE (append-page specific - prevents "new page = new scene" drift)
-    parts.push(`SCENE CONTINUITY RULE:
-Do NOT introduce a new <header> unless the final context line clearly implies a scene change.
-A new page does NOT mean a new scene.`);
+    if (continuationHint) parts.push(continuationHint);
+    if (retryNote) parts.push(retryNote);
 
-    // 4. Retry note if any
-    if (retryNote) {
-      parts.push(`Correction: ${retryNote}`);
-    }
-
-    // 5. Script metadata (title, description)
     parts.push(scriptHeader);
 
-    // 6. Collections (scenes, characters, etc.)
-    if (collectionBlock) {
-      parts.push(collectionBlock);
-    }
-
-    // 7. HARD CONTINUATION CURSOR - mechanical binding
     if (truncatedContent) {
-      parts.push(`=== CONTINUATION CURSOR ===
-The cursor is positioned AFTER the final tag below.
-You MUST NOT repeat, paraphrase, or restate the final line.
-Your first output line MUST immediately follow it.
-Last line type: <${lastTag}>
-
-${truncatedContent}`);
+      parts.push(
+        `Most recent script context (continue naturally after this point):\n\n${truncatedContent}`
+      );
     } else {
       parts.push('No existing script content. Start fresh.');
     }
 
-    const content = parts.join('\n\n');
-    const systemInstruction = context?.systemInstruction || SYSTEM_INSTRUCTION;
-
     return [{
       role: 'system',
-      content: systemInstruction
+      content: context?.systemInstruction || SYSTEM_INSTRUCTION
     }, {
       role: 'user',
-      content: content
+      content: parts.join('\n\n')
     }];
-  }
-
-  validateAppendText(text) {
-    if (!text || typeof text !== 'string') {
-      return { ok: false, reason: 'Empty response' };
-    }
-
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return { ok: false, reason: 'Empty response' };
-    }
-
-    if (trimmed.includes('```')) {
-      return { ok: false, reason: 'Contains code fences' };
-    }
-
-    const lines = trimmed
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-
-    if (lines.length < LINE_MIN || lines.length > LINE_MAX) {
-      return {
-        ok: false,
-        reason: `Line count ${lines.length} (expected ${LINE_MIN}-${LINE_MAX})`
-      };
-    }
-
-    return { ok: true, lineCount: lines.length };
-  }
-
-  normalizeAppendText(text) {
-    if (!text || typeof text !== 'string') {
-      return '';
-    }
-    return text
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/<chapter-break\s*\/>/gi, '<chapter-break></chapter-break>')
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .join('\n');
-  }
-
-  formatResponse(responseText, context, lineCount, validationError, assistantResponse = '', wasRepaired = false, grammarResult = null) {
-    // Default chat message if AI didn't provide one - never use script content as chat message
-    const defaultMessage = `Added ${lineCount || 'several'} lines to your script.`;
-    const chatMessage = assistantResponse && assistantResponse.trim()
-      ? assistantResponse.trim()
-      : defaultMessage;
-
-    // Use provided grammarResult or validate
-    const grammar = grammarResult || validateScreenplayGrammar(responseText);
-
-    const metadata = {
-      ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
-      appendPage: true,
-      lineCount: lineCount || null,
-      grammarValid: grammar.valid,
-      grammarRepaired: wasRepaired,
-      grammarErrors: grammar.errors || [],
-      timestamp: new Date().toISOString()
-    };
-
-    if (validationError) {
-      metadata.validationError = validationError;
-    }
-
-    // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
-    const response = {
-      message: chatMessage,
-      script: responseText,
-      type: APPEND_PAGE_INTENT,
-      metadata
-    };
-
-    Object.assign(response.metadata, buildContractMetadata(APPEND_PAGE_INTENT, response));
-    return response;
   }
 
   async run(context, prompt) {
     let lastError = '';
-    let lastResponseText = '';
-    let lastAssistantResponse = '';
 
-    // Precompute truncation and constraints ONCE (avoid duplicate work in buildMessages)
-    const shouldAttachScriptContext = context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT;
-    const truncatedContent = shouldAttachScriptContext
+    const shouldAttach = context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT;
+    const truncatedContent = shouldAttach
       ? truncateToRecentLines(context.scriptContent, MAX_CONTEXT_LINES)
       : '';
-    const { lastTag, constraint, expectedTags } = analyzeFirstLineConstraint(truncatedContent);
-    const precomputed = { truncatedContent, lastTag, constraint };
 
-    const maxAttempts = Number.isInteger(context?.maxAttempts) ? context.maxAttempts : MAX_ATTEMPTS;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const isLastAttempt = attempt === maxAttempts;
+    const precomputed = {
+      truncatedContent,
+      continuationHint: analyzeContinuationBias(truncatedContent)
+    };
+
+    const maxAttempts =
+      Number.isInteger(context?.maxAttempts)
+        ? context.maxAttempts
+        : MAX_ATTEMPTS;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const retryNote = lastError
-        ? `${lastError}. Follow the screenplay grammar rules exactly. Respond only in JSON with "formattedScript" and "assistantResponse". Return 12-16 tagged lines using: ${VALID_FORMAT_VALUES.join(', ')}.`
+        ? `Previous issue: ${lastError}. Please continue cleanly.`
         : '';
-      const messages = await this.buildMessages(context, prompt, retryNote, precomputed);
-      const response = await this.execute(messages, {
-        ...context,
-        chainConfig: {
-          ...context.chainConfig,
-          shouldGenerateQuestions: false
-        }
-      }, false);
 
-      let validated = null;
+      const messages = await this.buildMessages(
+        context,
+        prompt,
+        retryNote,
+        precomputed
+      );
+
+      const response = await this.execute(messages, context, false);
+
+      let payload;
       try {
-        validated = this.parseFunctionPayload(response, {
-          required: ['formattedScript', 'assistantResponse']
-        }, 'Invalid JSON payload from function call');
-      } catch (error) {
-        lastError = error.message || 'Invalid append payload';
-        console.warn('[ScriptPageAppendChain] Invalid append payload', {
-          attempt,
-          error: lastError
-        });
+        payload = this.parseFunctionPayload(
+          response,
+          { required: ['lines', 'assistantResponse'] },
+          'Invalid append-page payload'
+        );
+      } catch (err) {
+        lastError = err.message;
         continue;
       }
 
-      const formattedScript = typeof validated.formattedScript === 'string'
-        ? validated.formattedScript
-        : JSON.stringify(validated.formattedScript);
-      lastAssistantResponse = typeof validated.assistantResponse === 'string'
-        ? validated.assistantResponse
-        : '';
-      lastResponseText = this.normalizeAppendText(formattedScript);
-      const { lines: sanitizedLines, stats } = sanitizeScriptLines(lastResponseText, VALID_FORMAT_VALUES);
-      if (stats.invalidTagCount || stats.coercedCount || stats.droppedCount) {
-        console.warn('[ScriptPageAppendChain] Sanitized AI output', stats);
+      const lines = Array.isArray(payload.lines) ? payload.lines : [];
+      if (lines.length < LINE_MIN) {
+        lastError = `Too few lines (${lines.length}, expected ${LINE_MIN}-${LINE_MAX})`;
+        continue;
       }
-      if (sanitizedLines.length > LINE_MAX) {
-        console.warn('[ScriptPageAppendChain] Truncating lines to max', {
-          originalCount: sanitizedLines.length,
-          max: LINE_MAX
-        });
+
+      const finalLines = lines.slice(0, LINE_MAX);
+      const script = renderLines(finalLines);
+
+      if (!script.trim()) {
+        lastError = 'Empty script output';
+        continue;
       }
-      let finalLines = sanitizedLines.slice(0, LINE_MAX);
 
-      if (finalLines.length >= LINE_MIN) {
-        let finalText = finalLines.join('\n');
+      const message = payload.assistantResponse?.trim()
+        || `Added ${finalLines.length} lines to your script.`;
 
-        // PRIORITY 4: First-line validation (cheap check before full grammar pass)
-        // Hard-fail even on last attempt - grammar repair won't fix wrong first line
-        if (expectedTags.length > 0) {
-          const firstTagMatch = finalText.match(/^<(header|action|speaker|dialog|directions|chapter-break)>/);
-          const firstTag = firstTagMatch ? firstTagMatch[1] : null;
+      const metadata = {
+        ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
+        appendPage: true,
+        lineCount: finalLines.length,
+        timestamp: new Date().toISOString()
+      };
 
-          if (firstTag && !expectedTags.includes(firstTag)) {
-            console.warn(`[ScriptPageAppendChain] First-line violation: got <${firstTag}>, expected one of [${expectedTags.join(', ')}]`);
-            lastError = `First line must be <${expectedTags.join('|')}>, got <${firstTag}>`;
-            continue;
-          }
-        }
+      const result = {
+        message,
+        script,
+        type: APPEND_PAGE_INTENT,
+        metadata
+      };
 
-        // Grammar validation
-        let grammarResult = validateScreenplayGrammar(finalText);
-        let wasRepaired = false;
+      Object.assign(
+        result.metadata,
+        buildContractMetadata(APPEND_PAGE_INTENT, result)
+      );
 
-        if (!grammarResult.valid) {
-          console.warn('[ScriptPageAppendChain] Grammar validation failed:', grammarResult.errors);
+      this.ensureCanonicalResponse(result);
 
-          if (isLastAttempt) {
-            // Last attempt: repair instead of failing
-            console.warn('[ScriptPageAppendChain] Applying grammar repair on final attempt');
-            finalText = repairScreenplayGrammar(finalText);
-            grammarResult = validateScreenplayGrammar(finalText);
-            wasRepaired = true;
-          } else {
-            // Not last attempt: continue to retry
-            lastError = `Grammar violation: ${grammarResult.errors.join('; ')}`;
-            continue;
-          }
-        }
-
-        const validation = this.validateAppendText(finalText);
-        if (validation.ok) {
-          return this.formatResponse(finalText, context, validation.lineCount, null, lastAssistantResponse, wasRepaired, grammarResult);
-        }
-        console.warn('[ScriptPageAppendChain] Validation failed after sanitize', {
-          attempt,
-          reason: validation.reason
-        });
-        lastError = validation.reason;
-      } else {
-        lastError = `Line count ${finalLines.length} (expected ${LINE_MIN}-${LINE_MAX})`;
-        console.warn('[ScriptPageAppendChain] Validation failed', {
-          attempt,
-          reason: lastError
-        });
-      }
+      return result;
     }
 
-    throw new Error(`append_validation_failed: ${lastError}`);
+    throw new Error(`append_page_failed: ${lastError}`);
   }
 }

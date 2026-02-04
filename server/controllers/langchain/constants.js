@@ -117,27 +117,18 @@ export const TOKEN_LIMITS = {
 };
 
 export const CHAIN_CONFIG = {
-  MODEL: 'gpt-3.5-turbo',
-  TEMPERATURE: 0.3,
-  MAX_TOKENS: TOKEN_LIMITS.DEFAULT,
-  RESPONSE_FORMAT: 'json'
+  model: 'gpt-3.5-turbo',
+  temperature: 0.3,
+  max_tokens: TOKEN_LIMITS.DEFAULT,
+  response_format: { type: 'json_object' }
 };
 
 // System instructions for AI responses
 export const COMMON_PROMPT_INSTRUCTIONS = {
   SYSTEM_PREFIX: `
 You are a script writing assistant.
-
-You return JSON object with the following fields:
-- formattedScript: Formatted script lines:
-    <header>header</header>
-    <action>action</action>
-    <speaker>speaker</speaker>
-    <dialog>dialog</dialog>
-    <directions>directions</directions>
-    <chapter-break>chapter-break</chapter-break>
-
-AND assistantResponse: The response to the user's question, short meaningful educational brief response.
+Follow the system and developer instructions carefully.
+Return outputs only in the format explicitly requested.
 `,
   RESPONSE_GUIDELINES: {
     FORMAT: 'Always using meaningful and concise language.',

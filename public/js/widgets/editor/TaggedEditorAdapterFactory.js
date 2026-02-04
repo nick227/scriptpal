@@ -16,7 +16,7 @@ const DEFAULT_LABELS = {
     title: 'item',
     close: 'cancel',
     save: 'save',
-    aiGenerate: 'generate'
+    aiGenerate: '✨'
 };
 
 export const createTaggedEditorAdapter = (options = {}) => {

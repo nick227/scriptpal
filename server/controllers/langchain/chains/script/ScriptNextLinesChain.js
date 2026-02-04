@@ -2,36 +2,53 @@ import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, VALID_FORMAT_VALUES } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { buildContractMetadata, validateAiResponse } from '../helpers/ChainOutputGuards.js';
-import { normalizeFormattedScript } from '../../../../lib/scriptFormatter.js';
-import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 
-// Function schema: structural only, no behavioral rules (those live in system prompt)
+// Function schema: structural only (behavioral guidance lives in prompt/system)
 const NEXT_FIVE_FUNCTIONS = [{
   name: 'provide_next_lines',
-  description: 'Return script continuation.',
+  description: 'Continue the screenplay with the next five lines.',
   parameters: {
     type: 'object',
     properties: {
-      formattedScript: {
-        type: 'string',
-        description: 'Script lines in XML tags.'
+      lines: {
+        type: 'array',
+        description: 'Exactly five screenplay lines, in natural screenplay order.',
+        minItems: 5,
+        maxItems: 5,
+        items: {
+          type: 'object',
+          properties: {
+            tag: {
+              type: 'string',
+              enum: VALID_FORMAT_VALUES,
+              description: 'Pick the most natural screenplay tag for this line.'
+            },
+            text: {
+              type: 'string',
+              minLength: 1,
+              description: 'Content for this line only. Do not repeat previous lines.'
+            }
+          },
+          required: ['tag', 'text'],
+          additionalProperties: false
+        }
       },
       assistantResponse: {
         type: 'string',
         description: 'Brief explanation.'
       }
     },
-    required: ['formattedScript', 'assistantResponse']
+    required: ['lines', 'assistantResponse'],
+    additionalProperties: false
   }
 }];
 
 const EXPECTED_LINE_COUNT = 5;
 const MAX_CONTEXT_LINES = 20; // Only send last N lines for better relevance & lower tokens
-const VALID_TAGS_PATTERN = new RegExp(`<(${VALID_FORMAT_VALUES.join('|')})>`, 'g');
 
 /**
  * Smart context truncation: keep only the last N lines.
- * ENSURES semantic boundary - never cuts between speaker and dialog.
+ * Attempts to preserve a speaker→dialog boundary when truncation starts on dialog/directions.
  * @param {string} scriptContent - Full script content
  * @param {number} maxLines - Maximum lines to keep
  * @returns {string} - Truncated content
@@ -51,9 +68,9 @@ const truncateToRecentLines = (scriptContent, maxLines = MAX_CONTEXT_LINES) => {
   // Take last N lines
   let recentLines = matches.slice(-maxLines);
 
-  // SEMANTIC BOUNDARY: If first line is <dialog> or <directions>, include preceding <speaker>
-  const firstTag = recentLines[0];
-  if (firstTag && (firstTag.startsWith('<dialog>') || firstTag.startsWith('<directions>'))) {
+  // If we cut onto a dialog/directions, include the preceding speaker if present
+  const firstLine = recentLines[0];
+  if (firstLine && (firstLine.startsWith('<dialog>') || firstLine.startsWith('<directions>'))) {
     const cutIndex = matches.length - maxLines;
     if (cutIndex > 0) {
       const preceding = matches[cutIndex - 1];
@@ -67,182 +84,96 @@ const truncateToRecentLines = (scriptContent, maxLines = MAX_CONTEXT_LINES) => {
 };
 
 /**
- * Analyze last line and determine what the AI should output first.
- * Returns EXCLUSIVE constraints (what to start with AND what NOT to start with).
- * @param {string} truncatedContent - The truncated script content
- * @returns {{lastTag: string, constraint: string, expectedTags: string[]}}
+ * Continuation bias: gentle guidance for what tends to follow the last tag.
+ * No enforcement; used only to nudge the model without confusing it.
+ * @param {string} truncatedContent
+ * @returns {{lastTag: string, hint: string}}
  */
-const analyzeFirstLineConstraint = (truncatedContent) => {
+const analyzeContinuationBias = (truncatedContent) => {
   if (!truncatedContent) {
-    return { lastTag: 'none', constraint: '', expectedTags: [] };
+    return { lastTag: 'none', hint: '' };
   }
 
-  // Find the last tag type
   const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>/g;
   const matches = [...truncatedContent.matchAll(tagPattern)];
   if (matches.length === 0) {
-    return { lastTag: 'none', constraint: '', expectedTags: [] };
+    return { lastTag: 'none', hint: '' };
   }
 
   const lastTag = matches[matches.length - 1][1];
 
-  // EXCLUSIVE constraints: what MUST and MUST NOT start with
-  const constraintMap = {
-    'header': {
-      must: ['action', 'speaker'],
-      mustNot: ['header', 'dialog', 'directions', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <action> or <speaker>.
-- You MUST NOT start with <header>, <dialog>, <directions>, or <chapter-break>.
-- Violation = invalid output.`
+  const BIAS = {
+    header: {
+      prefers: ['action', 'speaker'],
+      note: 'After a header, action or a speaker usually follows.'
     },
-    'action': {
-      must: ['speaker', 'action', 'header'],
-      mustNot: ['dialog', 'directions'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <speaker>, <action>, or <header>.
-- You MUST NOT start with <dialog> or <directions>.
-- Violation = invalid output.`
+    action: {
+      prefers: ['action', 'speaker', 'header'],
+      note: 'Action often continues, introduces a speaker, or shifts to a new header.'
     },
-    'speaker': {
-      must: ['dialog', 'directions'],
-      mustNot: ['speaker', 'header', 'action', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <dialog> (or <directions> then <dialog>).
-- You MUST NOT start with <speaker>, <header>, <action>, or <chapter-break>.
-- Violation = invalid output.`
+    speaker: {
+      prefers: ['dialog'],
+      allows: ['directions'],
+      note: 'A speaker is typically followed by dialog (sometimes a brief directions beat first).'
     },
-    'dialog': {
-      must: ['speaker', 'action', 'header'],
-      mustNot: ['dialog', 'directions'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <speaker>, <action>, or <header>.
-- You MUST NOT start with <dialog> or <directions>.
-- Violation = invalid output.`
+    dialog: {
+      prefers: ['speaker', 'action'],
+      allows: ['header'],
+      note: 'Dialog often moves to another speaker or an action beat.'
     },
-    'directions': {
-      must: ['dialog'],
-      mustNot: ['speaker', 'header', 'action', 'directions', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <dialog>.
-- You MUST NOT start with <speaker>, <header>, <action>, <directions>, or <chapter-break>.
-- Violation = invalid output.`
+    directions: {
+      prefers: ['dialog'],
+      note: 'Directions usually lead into dialog.'
     },
     'chapter-break': {
-      must: ['header'],
-      mustNot: ['speaker', 'action', 'dialog', 'directions', 'chapter-break'],
-      text: `FIRST LINE CONSTRAINT:
-- You MUST start with <header>.
-- You MUST NOT start with <speaker>, <action>, <dialog>, <directions>, or <chapter-break>.
-- Violation = invalid output.`
+      prefers: ['header'],
+      note: 'After a chapter break, a new header usually follows.'
     }
   };
 
-  const entry = constraintMap[lastTag] || { must: [], mustNot: [], text: '' };
+  const entry = BIAS[lastTag];
+  if (!entry) {
+    return { lastTag, hint: '' };
+  }
 
-  return {
-    lastTag,
-    constraint: entry.text,
-    expectedTags: entry.must
-  };
+  const prefers = entry.prefers?.length ? entry.prefers.map(t => `<${t}>`).join(', ') : '';
+  const allows = entry.allows?.length ? entry.allows.map(t => `<${t}>`).join(', ') : '';
+
+  const hintLines = [
+    `Continuation hint (based on last line type <${lastTag}>):`,
+    entry.note
+  ];
+
+  if (prefers) hintLines.push(`Preferred next tags: ${prefers}${allows ? ` (also ok: ${allows})` : ''}.`);
+
+  return { lastTag, hint: hintLines.join('\n') };
 };
 
-/**
- * Hard validation: exactly 5 lines required.
- * @param {string} formattedScript
- * @returns {{valid: boolean, count: number, error?: string}}
- */
-const validateLineCount = (formattedScript) => {
-  const matches = formattedScript.match(VALID_TAGS_PATTERN);
-  const count = matches ? matches.length : 0;
-  if (count !== EXPECTED_LINE_COUNT) {
-    return {
-      valid: false,
-      count,
-      error: `Expected ${EXPECTED_LINE_COUNT} lines, got ${count}`
-    };
-  }
-  return { valid: true, count };
+const escapeLineText = (text) => {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 };
 
-/**
- * Grammar validation: speaker must be followed by dialog.
- * @param {string} formattedScript
- * @returns {{valid: boolean, errors: string[]}}
- */
-const validateScreenplayGrammar = (formattedScript) => {
-  const tagSequence = [];
-  const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>/g;
-  let match;
-  while ((match = tagPattern.exec(formattedScript)) !== null) {
-    tagSequence.push(match[1]);
-  }
-
-  const errors = [];
-
-  for (let i = 0; i < tagSequence.length; i++) {
-    if (tagSequence[i] === 'speaker') {
-      const next = tagSequence[i + 1];
-      const afterNext = tagSequence[i + 2];
-      if (next !== 'dialog' && !(next === 'directions' && afterNext === 'dialog')) {
-        errors.push(`<speaker> at position ${i + 1} not followed by <dialog>`);
-      }
-    }
-    if (tagSequence[i] === 'dialog') {
-      const prev = tagSequence[i - 1];
-      const beforePrev = tagSequence[i - 2];
-      if (prev !== 'speaker' && !(prev === 'directions' && beforePrev === 'speaker')) {
-        errors.push(`<dialog> at position ${i + 1} has no preceding <speaker>`);
-      }
-    }
-  }
-
-  return { valid: errors.length === 0, errors };
+const normalizeTag = (tag) => {
+  if (!tag) return '';
+  return String(tag)
+    .trim()
+    .replace(/^<|>$/g, '')
+    .toLowerCase();
 };
 
-/**
- * Repair grammar violations by inserting missing speakers.
- * @param {string} formattedScript
- * @returns {string}
- */
-const repairScreenplayGrammar = (formattedScript) => {
-  const tagPattern = /<(header|action|speaker|dialog|directions|chapter-break)>([\s\S]*?)<\/\1>/g;
-  const lines = [];
-  let match;
-  while ((match = tagPattern.exec(formattedScript)) !== null) {
-    lines.push({ tag: match[1], content: match[2] });
-  }
+const ALLOWED_TAGS = new Set([...VALID_FORMAT_VALUES, 'chapter-break']);
 
-  const repaired = [];
-  let lastSpeaker = null;
-
-  for (let i = 0; i < lines.length; i++) {
-    const { tag, content } = lines[i];
-
-    if (tag === 'speaker') {
-      lastSpeaker = content;
-      repaired.push(`<speaker>${content}</speaker>`);
-    } else if (tag === 'dialog') {
-      const prev = lines[i - 1]?.tag;
-      const beforePrev = lines[i - 2]?.tag;
-      const needsSpeaker = prev !== 'speaker' && !(prev === 'directions' && beforePrev === 'speaker');
-
-      if (needsSpeaker) {
-        // Insert last known speaker or placeholder
-        const speakerName = lastSpeaker || 'CHARACTER';
-        repaired.push(`<speaker>${speakerName}</speaker>`);
-        console.warn(`[GrammarRepair] Inserted missing <speaker>${speakerName}</speaker> before dialog`);
-      }
-      repaired.push(`<dialog>${content}</dialog>`);
-    } else {
-      repaired.push(`<${tag}>${content}</${tag}>`);
-    }
-  }
-
-  return repaired.join('\n');
+const renderLinesToXml = (lines) => {
+  return lines
+    .map((l) => `<${l.tag}>${escapeLineText(l.text)}</${l.tag}>`)
+    .join('\n');
 };
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 1;
 
 export class ScriptNextLinesChain extends BaseChain {
   constructor () {
@@ -261,19 +192,15 @@ export class ScriptNextLinesChain extends BaseChain {
     let lastError = '';
     const maxAttempts = Number.isInteger(context?.maxAttempts) ? context.maxAttempts : MAX_ATTEMPTS;
 
-    // Get expected first-line tags for validation
-    const truncatedContent = truncateToRecentLines(context?.scriptContent, MAX_CONTEXT_LINES);
-    const { expectedTags } = analyzeFirstLineConstraint(truncatedContent);
-
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const retryNote = lastError
-          ? `Correction: ${lastError}. Follow the screenplay grammar rules exactly.`
+          ? `Quick correction: ${lastError}. Please continue cleanly.`
           : '';
         const messages = await this.buildMessages(context, prompt, retryNote);
         const rawResponse = await this.execute(messages, context, false);
         const isLastAttempt = attempt === maxAttempts;
-        return this.formatResponse(rawResponse?.response ?? rawResponse, isLastAttempt, expectedTags);
+        return this.formatResponse(rawResponse, isLastAttempt);
       } catch (error) {
         lastError = error.message || 'Invalid response';
         console.warn(`[ScriptNextLinesChain] Attempt ${attempt}/${maxAttempts} failed:`, lastError);
@@ -286,47 +213,42 @@ export class ScriptNextLinesChain extends BaseChain {
 
   buildMessages (context, prompt, retryNote = '') {
     const scriptHeader = buildScriptHeader(context?.scriptTitle, context?.scriptDescription);
-    const collectionBlock = formatScriptCollections(context?.scriptCollections);
 
-    // Smart context truncation: only send last N lines (semantic boundary safe)
+    // Only send last N lines
     const truncatedContent = truncateToRecentLines(context?.scriptContent, MAX_CONTEXT_LINES);
 
-    // Analyze what the first output line should be (exclusive constraints)
-    const { lastTag, constraint } = analyzeFirstLineConstraint(truncatedContent);
+    // Gentle continuation hint (no enforcement)
+    const { hint } = analyzeContinuationBias(truncatedContent);
 
-    // Build user message with SCRIPT CONTEXT AT VERY BOTTOM (recency bias)
     const parts = [];
 
-    // 1. Task prompt first
+    // 1) Task prompt first
     parts.push(prompt);
 
-    // 2. First-line constraint (EXCLUSIVE - what MUST and MUST NOT)
-    if (constraint) {
-      parts.push(constraint);
+    // 2) Convert prompt to match new output shape
+    parts.push(
+      `Return exactly ${EXPECTED_LINE_COUNT} new screenplay lines using the function call schema.`,
+      `Do not repeat anything from the provided context.`
+    );
+
+    // 3) Gentle continuation hint
+    if (hint) {
+      parts.push(hint);
     }
 
-    // 3. Retry note if any
+    // 4) Retry note (lightweight)
     if (retryNote) {
-      parts.push(`Correction: ${retryNote}`);
+      parts.push(retryNote);
     }
 
-    // 4. Script metadata (title, description)
+    // 5) Script metadata
     parts.push(scriptHeader);
 
-    // 5. Collections (scenes, characters, etc.)
-    if (collectionBlock) {
-      parts.push(collectionBlock);
-    }
-
-    // 6. HARD CONTINUATION CURSOR - mechanical binding
+    // 6) Context at bottom for recency bias (no "cursor" theatrics)
     if (truncatedContent) {
-      parts.push(`=== CONTINUATION CURSOR ===
-The cursor is positioned AFTER the final tag below.
-You MUST NOT repeat, paraphrase, or restate the final line.
-Your first output line MUST immediately follow it.
-Last line type: <${lastTag}>
-
-${truncatedContent}`);
+      parts.push(
+        `Most recent script context (continue after this point, without repeating it):\n\n${truncatedContent}`
+      );
     } else {
       parts.push('No existing script content. Start fresh.');
     }
@@ -346,81 +268,60 @@ ${truncatedContent}`);
     return messages;
   }
 
-  formatResponse (response, isLastAttempt = false, expectedTags = []) {
-    const schema = { required: ['formattedScript', 'assistantResponse'] };
+  formatResponse (response, _isLastAttempt = false) {
+    const schema = { required: ['lines', 'assistantResponse'] };
     const validated = this.parseFunctionPayload(response, schema, 'Invalid JSON payload from function call');
-    console.log('[ScriptNextLinesChain] function payload', validated);
 
-    const formattedScript = typeof validated.formattedScript === 'string'
-      ? validated.formattedScript
-      : JSON.stringify(validated.formattedScript);
-    let normalizedScript = normalizeFormattedScript(formattedScript);
+    const lines = Array.isArray(validated.lines) ? validated.lines : [];
 
-    if (!normalizedScript || !normalizedScript.trim()) {
-      throw new Error('formatted_script_missing');
+    const normalizedCandidates = lines
+      .map((l) => ({
+        tag: normalizeTag(l?.tag),
+        text: typeof l?.text === 'string'
+          ? l.text.trim()
+          : String(l?.text ?? '').trim()
+      }))
+      .filter((line) => ALLOWED_TAGS.has(line.tag) && line.text.length > 0);
+
+    if (normalizedCandidates.length < EXPECTED_LINE_COUNT) {
+      throw new Error('script_lines_invalid');
     }
 
-    // PRIORITY 4: First-line validation (cheap check before full grammar pass)
-    // Hard-fail even on last attempt - grammar repair won't fix wrong first line
-    if (expectedTags.length > 0) {
-      const firstTagMatch = normalizedScript.match(/^<(header|action|speaker|dialog|directions|chapter-break)>/);
-      const firstTag = firstTagMatch ? firstTagMatch[1] : null;
+    const safeLines = normalizedCandidates.slice(0, EXPECTED_LINE_COUNT);
 
-      if (firstTag && !expectedTags.includes(firstTag)) {
-        console.warn(`[ScriptNextLinesChain] First-line violation: got <${firstTag}>, expected one of [${expectedTags.join(', ')}]`);
-        throw new Error(`first_line_invalid: Expected <${expectedTags.join('|')}>, got <${firstTag}>`);
+    if (safeLines[0]?.tag === 'chapter-break') {
+      throw new Error('leading_chapter_break');
+    }
+
+    for (let i = 1; i < safeLines.length; i += 1) {
+      if (safeLines[i].tag === 'chapter-break' && safeLines[i - 1].tag === 'chapter-break') {
+        throw new Error('consecutive_chapter_breaks');
       }
     }
 
-    // Grammar validation: screenplay rules
-    let grammarResult = validateScreenplayGrammar(normalizedScript);
-    let wasRepaired = false;
+    const script = renderLinesToXml(safeLines);
 
-    if (!grammarResult.valid) {
-      console.warn('[ScriptNextLinesChain] Grammar validation failed:', grammarResult.errors);
-
-      if (isLastAttempt) {
-        // Last attempt: repair instead of failing
-        console.warn('[ScriptNextLinesChain] Applying grammar repair on final attempt');
-        normalizedScript = repairScreenplayGrammar(normalizedScript);
-        grammarResult = validateScreenplayGrammar(normalizedScript);
-        wasRepaired = true;
-      } else {
-        // Not last attempt: throw to trigger retry
-        throw new Error(`grammar_invalid: ${grammarResult.errors.join('; ')}`);
-      }
-    }
-
-    // Hard validation: exactly 5 lines (after potential repair)
-    const lineCountResult = validateLineCount(normalizedScript);
-    if (!lineCountResult.valid) {
-      console.warn('[ScriptNextLinesChain] Line count validation failed:', lineCountResult);
-      throw new Error(`line_count_invalid: ${lineCountResult.error}`);
+    if (!script || !script.trim()) {
+      throw new Error('script_lines_missing');
     }
 
     const extractedMeta = this.extractMetadata(response, ['scriptId', 'scriptTitle']);
 
-    // Default chat message if AI didn't provide one
-    const defaultMessage = `Added ${lineCountResult.count} lines to your script.`;
+    const defaultMessage = `Added ${safeLines.length} lines to your script.`;
     const chatMessage = validated.assistantResponse && validated.assistantResponse.trim()
       ? validated.assistantResponse.trim()
       : defaultMessage;
 
-    // Build metadata
     const metadata = {
       ...(response?.metadata || {}),
       ...extractedMeta,
-      lineCount: lineCountResult.count,
-      grammarValid: grammarResult.valid,
-      grammarRepaired: wasRepaired,
-      grammarErrors: grammarResult.errors || [],
+      lineCount: safeLines.length,
       timestamp: new Date().toISOString()
     };
 
-    // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
     const formattedResponse = {
       message: chatMessage,
-      script: normalizedScript,
+      script,
       type: INTENT_TYPES.NEXT_FIVE_LINES,
       metadata
     };
@@ -431,7 +332,9 @@ ${truncatedContent}`);
     }
 
     Object.assign(formattedResponse.metadata, buildContractMetadata(INTENT_TYPES.NEXT_FIVE_LINES, formattedResponse));
+
+    this.ensureCanonicalResponse(formattedResponse);
+
     return formattedResponse;
   }
-
 }
