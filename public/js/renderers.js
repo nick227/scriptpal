@@ -9,28 +9,28 @@ export class BaseRenderer {
      *
      * @param container
      */
-    constructor (container) {
+    constructor(container) {
         this.container = container;
     }
 
     /**
      *
      */
-    clear () {
+    clear() {
         this.container.innerHTML = '';
     }
 
     /**
      *
      */
-    scrollToBottom () {
+    scrollToBottom() {
         this.container.scrollTop = this.container.scrollHeight;
     }
 
     /**
      *
      */
-    scrollToTop () {
+    scrollToTop() {
         this.sleep(1000).then(() => {
             this.container.scrollTop = 0;
         });
@@ -40,7 +40,7 @@ export class BaseRenderer {
      *
      * @param ms
      */
-    sleep (ms) {
+    sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
@@ -50,7 +50,7 @@ export class BaseRenderer {
      * @param className
      * @param content
      */
-    createElement (tag, className, content = '') {
+    createElement(tag, className, content = '') {
         const element = document.createElement(tag);
         element.className = className;
         if (content) {
@@ -63,7 +63,7 @@ export class BaseRenderer {
      *
      * @param element
      */
-    appendElement (element) {
+    appendElement(element) {
         this.container.appendChild(element);
     }
 
@@ -71,7 +71,7 @@ export class BaseRenderer {
      *
      * @param element
      */
-    prependElement (element) {
+    prependElement(element) {
         this.container.insertBefore(element, this.container.firstChild);
     }
 
@@ -79,7 +79,7 @@ export class BaseRenderer {
      *
      * @param className
      */
-    createContainer (className) {
+    createContainer(className) {
         return this.createElement('div', className);
     }
 
@@ -89,7 +89,7 @@ export class BaseRenderer {
      * @param className
      * @param condition
      */
-    toggleClass (element, className, condition) {
+    toggleClass(element, className, condition) {
         if (condition) {
             element.classList.add(className);
         } else {
@@ -104,7 +104,7 @@ export class ModernMessageRenderer extends BaseRenderer {
      * @param container
      * @param chat
      */
-    constructor (container, chat) {
+    constructor(container, chat) {
         super(container);
         this.chat = chat;
         this.buttonRenderer = new ButtonContainerRenderer(container);
@@ -115,7 +115,7 @@ export class ModernMessageRenderer extends BaseRenderer {
      * @param content
      * @param type
      */
-    render (content, type = MESSAGE_TYPES.USER) {
+    render(content, type = MESSAGE_TYPES.USER) {
         const message = this.normalizeMessage(content, type);
         const quickReplies = this.container.querySelector('.quick-replies');
         if (quickReplies) {
@@ -148,7 +148,7 @@ export class ModernMessageRenderer extends BaseRenderer {
      *
      * @param buttons
      */
-    renderButtons (buttons) {
+    renderButtons(buttons) {
         this.buttonRenderer.render(buttons, (text) => {
             if (this.chat) {
                 this.chat.handleButtonClick(text);
@@ -156,7 +156,7 @@ export class ModernMessageRenderer extends BaseRenderer {
         });
     }
 
-    normalizeMessage (content, type) {
+    normalizeMessage(content, type) {
         if (content && typeof content === 'object') {
             return {
                 id: content.id || `msg_${Date.now()}`,
@@ -175,7 +175,7 @@ export class ModernMessageRenderer extends BaseRenderer {
         };
     }
 
-    formatMessageContent (content) {
+    formatMessageContent(content) {
         if (!content) return '';
         let formatted = content.toString();
         formatted = formatted.replace(
@@ -186,7 +186,7 @@ export class ModernMessageRenderer extends BaseRenderer {
         return formatted;
     }
 
-    formatTime (timestamp) {
+    formatTime(timestamp) {
         try {
             return new Date(timestamp).toLocaleTimeString([], {
                 hour: '2-digit',
@@ -206,7 +206,7 @@ export class ScriptRenderer extends BaseRenderer {
      *
      * @param container
      */
-    constructor (container) {
+    constructor(container) {
         super(container);
         this.container.classList.add('scripts-list-container');
     }
@@ -216,7 +216,7 @@ export class ScriptRenderer extends BaseRenderer {
      * @param scripts
      * @param currentScriptId
      */
-    render (scripts, currentScriptId) {
+    render(scripts, currentScriptId) {
         if (!scripts || !Array.isArray(scripts)) {
             console.warn('[RENDERER] Invalid scripts data for rendering');
             return;
@@ -247,7 +247,7 @@ export class ScriptRenderer extends BaseRenderer {
      * @param script
      * @param currentScriptId
      */
-    createScriptElement (script, currentScriptId) {
+    createScriptElement(script, currentScriptId) {
         const container = this.createElement('li', 'script-item');
         container.dataset.scriptId = script.id;
 
@@ -294,7 +294,7 @@ export class ScriptRenderer extends BaseRenderer {
      *
      * @param scriptId
      */
-    updateActiveScript (scriptId) {
+    updateActiveScript(scriptId) {
         const allScripts = this.container.querySelectorAll('.script-item');
         allScripts.forEach(script => script.classList.remove('selected'));
 
@@ -308,7 +308,7 @@ export class ScriptRenderer extends BaseRenderer {
         }
     }
 
-    formatDate (dateString) {
+    formatDate(dateString) {
         if (!dateString) {
             return 'Unknown';
         }
@@ -341,7 +341,7 @@ export class ButtonElementRenderer extends BaseRenderer {
      * @param button
      * @param onClick
      */
-    render (button, onClick) {
+    render(button, onClick) {
         if (!button || !button.text) return null;
 
         const buttonElement = this.createElement('button', 'action-button', button.text);
@@ -360,7 +360,7 @@ export class ButtonContainerRenderer extends BaseRenderer {
      *
      * @param container
      */
-    constructor (container) {
+    constructor(container) {
         super(container);
         this.buttonRenderer = new ButtonElementRenderer(container);
     }
@@ -370,7 +370,7 @@ export class ButtonContainerRenderer extends BaseRenderer {
      * @param buttons
      * @param onClick
      */
-    render (buttons, onClick) {
+    render(buttons, onClick) {
         if (!Array.isArray(buttons) || buttons.length === 0) return;
 
         const buttonContainer = this.createContainer('button-container');
@@ -395,7 +395,7 @@ export class EditorRenderer extends BaseRenderer {
      * @param container
      * @param options
      */
-    constructor (container, options = {}) {
+    constructor(container, options = {}) {
         super(container);
         this.lineFormatter = options.lineFormatter;
         this.pageManager = options.pageManager;
@@ -409,7 +409,7 @@ export class EditorRenderer extends BaseRenderer {
      *
      * @param pageCount
      */
-    async createPageShells (pageCount) {
+    async createPageShells(pageCount) {
         const fragment = document.createDocumentFragment();
         for (let i = 0; i < pageCount; i++) {
             const page = document.createElement('div');
@@ -431,8 +431,8 @@ export class EditorRenderer extends BaseRenderer {
      * @param lines
      * @param options
      */
-    async renderContentChunk (lines, options = {}) {
-        const { preserveState = false, startPage = null, skipFocus = false } = options;
+    async renderContentChunk(lines, options = {}) {
+        const { preserveState = false, startPage = null, skipFocus = true } = options;
 
         try {
             // Calculate required pages
@@ -538,6 +538,11 @@ export class EditorRenderer extends BaseRenderer {
             // Update page manager state
             await this.pageManager.validateState();
 
+            // Focus first line if available
+            if (!skipFocus && firstLineElement && firstLineElement.isConnected) {
+                firstLineElement.focus();
+            }
+
             debugLog('[EditorRenderer] Content rendering complete:', {
                 totalPages: this.pageManager.getPageCount(),
                 totalLines: lines.length,
@@ -559,7 +564,7 @@ export class EditorRenderer extends BaseRenderer {
      *
      * @param line
      */
-    _createLineElement (line) {
+    _createLineElement(line) {
         if (!this.lineFormatter) {
             console.error('[EditorRenderer] LineFormatter not initialized');
             return null;
@@ -591,7 +596,7 @@ export class EditorRenderer extends BaseRenderer {
      * @param line
      * @param index
      */
-    async insertLine (line, index) {
+    async insertLine(line, index) {
         const page = this._findPageForLineIndex(index);
         if (!page) return null;
 
@@ -612,7 +617,7 @@ export class EditorRenderer extends BaseRenderer {
      *
      * @param index
      */
-    async removeLine (index) {
+    async removeLine(index) {
         const page = this._findPageForLineIndex(index);
         if (!page) return false;
 
@@ -632,7 +637,7 @@ export class EditorRenderer extends BaseRenderer {
      * @param index
      * @param line
      */
-    async updateLine (index, line) {
+    async updateLine(index, line) {
         const page = this._findPageForLineIndex(index);
         if (!page) return false;
 
@@ -653,7 +658,7 @@ export class EditorRenderer extends BaseRenderer {
      *
      * @param index
      */
-    _findPageForLineIndex (index) {
+    _findPageForLineIndex(index) {
         let currentIndex = 0;
         for (const page of this.pageManager.getPages()) {
             const contentContainer = page.querySelector('.editor-page-content');
@@ -679,7 +684,7 @@ export class RendererFactory {
      * @param container
      * @param chat
      */
-    static createMessageRenderer (container, chat) {
+    static createMessageRenderer(container, chat) {
         return new ModernMessageRenderer(container, chat);
     }
 
@@ -687,7 +692,7 @@ export class RendererFactory {
      *
      * @param container
      */
-    static createScriptRenderer (container) {
+    static createScriptRenderer(container) {
         return new ScriptRenderer(container);
     }
 
@@ -696,7 +701,7 @@ export class RendererFactory {
      * @param container
      * @param options
      */
-    static createEditorRenderer (container, options) {
+    static createEditorRenderer(container, options) {
         return new EditorRenderer(container, options);
     }
 }
