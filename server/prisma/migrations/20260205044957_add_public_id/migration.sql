@@ -1,12 +1,5 @@
 -- AlterTable
 ALTER TABLE `script_slugs` MODIFY `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
-
--- AddForeignKey
-ALTER TABLE `script_slugs` ADD CONSTRAINT `script_slugs_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `script_slugs` ADD CONSTRAINT `script_slugs_scriptId_fkey` FOREIGN KEY (`scriptId`) REFERENCES `scripts`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
 -- RenameIndex
 ALTER TABLE `chat_messages` RENAME INDEX `chat_messages_scriptId_fkey` TO `chat_messages_scriptId_idx`;
 
