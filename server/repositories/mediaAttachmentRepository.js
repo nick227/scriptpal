@@ -15,22 +15,27 @@ const mediaAttachmentRepository = {
       ...(sortOrder !== undefined ? { sortOrder } : {}),
       ...(meta !== undefined ? { meta } : {})
     };
-    return prisma.mediaAttachment.upsert({
-      where: {
-        ownerType_ownerId_role: {
-          ownerType,
-          ownerId,
-          role
-        }
-      },
-      create: data,
-      update: {
-        assetId,
-        userId,
-        ...(sortOrder !== undefined ? { sortOrder } : {}),
-        ...(meta !== undefined ? { meta } : {})
+
+    const scope = { userId, ownerType, ownerId, role };
+    if (role === 'gallery') {
+      const existingAsset = await prisma.mediaAttachment.findFirst({
+        where: { ...scope, assetId }
+      });
+      if (existingAsset) {
+        return existingAsset;
       }
-    });
+      return prisma.mediaAttachment.create({ data });
+    }
+
+    const existing = await prisma.mediaAttachment.findFirst({ where: scope });
+    if (existing) {
+      return prisma.mediaAttachment.update({
+        where: { id: existing.id },
+        data
+      });
+    }
+
+    return prisma.mediaAttachment.create({ data });
   },
 
   listByOwner: async({ userId, ownerType, ownerId, role }) => {

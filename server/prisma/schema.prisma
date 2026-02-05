@@ -85,13 +85,14 @@ model User {
   passwordSalt String
   createdAt    DateTime @default(now())
 
-  scripts        Script[]
-  sessions       Session[]
-  personas       Persona[]
-  chatMessages   ChatMessage[]
-  scriptComments ScriptComment[]
+  scripts          Script[]
+  sessions         Session[]
+  personas         Persona[]
+  slugs            ScriptSlug[]      @relation("UserSlugs")
+  chatMessages     ChatMessage[]
+  scriptComments   ScriptComment[]
   brainstormBoards BrainstormBoard[]
-  mediaAssets    MediaAsset[]
+  mediaAssets      MediaAsset[]
 
   @@map("users")
 }
@@ -105,8 +106,8 @@ model Session {
 
   user User @relation(fields: [userId], references: [id])
 
-  @@map("sessions")
   @@index([expiresAt])
+  @@map("sessions")
 }
 
 model Script {
@@ -131,12 +132,30 @@ model Script {
   characters     Character[]
   locations      Location[]
   themes         Theme[]
+  slugs          ScriptSlug[]    @relation("ScriptSlugs")
   chatMessages   ChatMessage[]
   scriptComments ScriptComment[]
 
   @@unique([userId, slug])
   @@index([slug])
   @@map("scripts")
+}
+
+model ScriptSlug {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  scriptId    Int
+  slug        String   @db.VarChar(80)
+  isCanonical Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  user   User   @relation("UserSlugs", fields: [userId], references: [id])
+  script Script @relation("ScriptSlugs", fields: [scriptId], references: [id])
+
+  @@unique([userId, slug])
+  @@index([slug])
+  @@index([scriptId, isCanonical])
+  @@map("script_slugs")
 }
 
 model ScriptVersion {
@@ -196,11 +215,11 @@ model ChatMessage {
   user   User    @relation(fields: [userId], references: [id])
   script Script? @relation(fields: [scriptId], references: [id])
 
-  @@map("chat_messages")
   @@index([userId])
   @@index([scriptId])
   @@index([createdAt])
   @@index([userId, scriptId])
+  @@map("chat_messages")
 }
 
 model Persona {
@@ -349,28 +368,28 @@ model BrainstormNote {
 }
 
 model MediaAsset {
-  id             Int            @id @default(autoincrement())
-  userId         Int
-  type           MediaType
-  status         MediaStatus    @default(processing)
-  visibility     MediaVisibility @default(private)
-  source         MediaSource
-  title          String?
-  description    String?        @db.LongText
-  tags           Json?
-  mimeType       String
-  sizeBytes      Int?
-  width          Int?
-  height         Int?
-  durationMs     Int?
+  id              Int             @id @default(autoincrement())
+  userId          Int
+  type            MediaType
+  status          MediaStatus     @default(processing)
+  visibility      MediaVisibility @default(private)
+  source          MediaSource
+  title           String?
+  description     String?         @db.LongText
+  tags            Json?
+  mimeType        String
+  sizeBytes       Int?
+  width           Int?
+  height          Int?
+  durationMs      Int?
   storageProvider String
-  storageKey     String
-  checksum       String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deletedAt      DateTime?
+  storageKey      String
+  checksum        String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
 
-  user        User             @relation(fields: [userId], references: [id])
+  user        User              @relation(fields: [userId], references: [id])
   variants    MediaVariant[]
   attachments MediaAttachment[]
 
@@ -398,39 +417,39 @@ model MediaVariant {
 }
 
 model MediaAttachment {
-  id        Int        @id @default(autoincrement())
+  id        Int            @id @default(autoincrement())
   assetId   Int
   userId    Int
   ownerType MediaOwnerType
   ownerId   Int
   role      MediaRole
-  sortOrder Int        @default(0)
+  sortOrder Int            @default(0)
   meta      Json?
-  createdAt DateTime   @default(now())
+  createdAt DateTime       @default(now())
 
   asset MediaAsset @relation(fields: [assetId], references: [id])
 
+  @@unique([ownerType, ownerId, role, assetId])
   @@index([ownerType, ownerId])
   @@index([assetId])
   @@index([userId])
-  @@unique([ownerType, ownerId, role])
   @@map("media_attachments")
 }
 
 model MediaGenerationJob {
-  id            Int        @id @default(autoincrement())
-  userId        Int
-  type          MediaType
-  status        String     @default("queued")
-  prompt        String     @db.LongText
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  type           MediaType
+  status         String    @default("queued")
+  prompt         String    @db.LongText
   negativePrompt String?   @db.LongText
-  params        Json?
-  provider      String
-  model         String
-  error         String?    @db.LongText
-  resultAssetId Int?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  params         Json?
+  provider       String
+  model          String
+  error          String?   @db.LongText
+  resultAssetId  Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
   @@index([status])

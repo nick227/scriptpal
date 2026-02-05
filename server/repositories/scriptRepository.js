@@ -1,4 +1,5 @@
 import prisma from '../db/prismaClient.js';
+import scriptSlugRepository from './scriptSlugRepository.js';
 
 const scriptSelect = {
   id: true,
@@ -88,16 +89,14 @@ const scriptRepository = {
 
   getSlugByIdForUser: async(id, userId) => {
     if (!id || !userId) return null;
-    return await prisma.script.findFirst({
-      where: {
-        id,
-        userId
-      },
-      select: {
-        id: true,
-        slug: true
-      }
-    });
+    const slugRecord = await scriptSlugRepository.getCanonicalByScriptId(id);
+    if (!slugRecord || slugRecord.userId !== userId) {
+      return null;
+    }
+    return {
+      id,
+      slug: slugRecord.slug
+    };
   },
 
   getByUserId: async(userId) => {
@@ -107,26 +106,19 @@ const scriptRepository = {
     });
   },
 
-  existsSlugForUser: async(userId, slug) => {
-    if (!userId || !slug) return false;
-    const count = await prisma.script.count({
-      where: {
-        userId,
-        slug
-      }
+  existsSlugForUser: async(userId, slug, excludeScriptId) => {
+    return scriptSlugRepository.existsSlugForUser({
+      userId,
+      slug,
+      excludeScriptId
     });
-    return count > 0;
   },
 
-  existsPublicSlug: async(slug) => {
-    if (!slug) return false;
-    const count = await prisma.script.count({
-      where: {
-        slug,
-        visibility: 'public'
-      }
+  existsPublicSlug: async(slug, excludeScriptId) => {
+    return scriptSlugRepository.existsPublicSlug({
+      slug,
+      excludeScriptId
     });
-    return count > 0;
   },
 
   updateMetadata: async(id, { title, status, author, description }) => {

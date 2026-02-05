@@ -7,6 +7,7 @@ import { ScriptFormatter } from '../services/format/ScriptFormatter.js';
 import { loadRawFromStorage, removeFromStorage } from '../services/persistence/PersistenceManager.js';
 
 import { resolveCacheState } from './storeLoadUtils.js';
+import { buildMinePath, getMineSlugFromPathname } from '../services/script/slugPaths.js';
 
 /** @type {Set<string>} Valid visibility values */
 const ALLOWED_VISIBILITIES = new Set(['private', 'public']);
@@ -16,6 +17,18 @@ const ALLOWED_FILTERS = new Set(['all', 'private', 'public']);
 
 /** @type {string[]} Fields to check for dirty state in patches */
 const PATCHABLE_FIELDS = ['content', 'title', 'author', 'description', 'visibility', 'versionNumber'];
+
+const replacePathWithCanonicalSlug = (slug, scriptId) => {
+    if (!slug || typeof window === 'undefined') {
+        return;
+    }
+    const pathSlug = getMineSlugFromPathname();
+    if (pathSlug === slug) {
+        return;
+    }
+    const nextPath = buildMinePath(slug);
+    window.history.replaceState({ scriptId }, '', nextPath);
+};
 
 /**
  * ScriptStore - single source of truth for script state
@@ -269,14 +282,10 @@ export class ScriptStore extends BaseManager {
             this.handleAuthError(error);
             this.handleError(error, 'script');
             if (error?.status === 404) {
-                this.setScriptError({
-                    type: 'slug_not_found',
-                    slug,
-                    status: 404,
-                    message: ERROR_MESSAGES.SCRIPT_NOT_FOUND
-                });
+                error.type = error.type || 'slug_not_found';
+                error.slug = slug;
             }
-            return null;
+            throw error;
         } finally {
             this.setLoading(false);
         }
@@ -564,6 +573,7 @@ export class ScriptStore extends BaseManager {
         if (!versionNumber || typeof versionNumber !== 'number') {
             throw new Error('Invalid version number provided');
         }
+        const previousSlug = this.getCurrentScript()?.slug;
 
         try {
             const rawContent = this.normalizeContent(scriptData.content);
@@ -615,6 +625,10 @@ export class ScriptStore extends BaseManager {
                 standardized.formatInvalid = true;
             }
             this.updateScriptInCache(standardized);
+
+            if (standardized.slug && standardized.slug !== previousSlug) {
+                replacePathWithCanonicalSlug(standardized.slug, standardized.id);
+            }
 
             if (String(this.currentScriptId) === String(id)) {
                 this.setCurrentScript(standardized, { source: 'update' });

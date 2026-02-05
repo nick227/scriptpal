@@ -1,23 +1,7 @@
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
 import { ERROR_MESSAGES } from '../../constants.js';
-
-const getSlugFromPath = () => {
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const mineIndex = parts.indexOf('mine');
-    if (mineIndex === -1) {
-        return null;
-    }
-    const slug = parts[mineIndex + 1];
-    return slug ? decodeURIComponent(slug) : null;
-};
-
-const buildMinePath = (slug) => {
-    if (!slug) {
-        return '/mine';
-    }
-    return `/mine/${encodeURIComponent(slug)}`;
-};
+import { getMineSlugFromPathname, buildMinePath } from './slugPaths.js';
 
 /**
  * ScriptsController - handles script UI intent and editor sync
@@ -108,16 +92,73 @@ export class ScriptsController {
         }
 
         await this.scriptStore.ensureUserHasScripts(user.id);
-        const slug = getSlugFromPath();
+        const slug = getMineSlugFromPathname();
         if (slug) {
-            const loaded = await this.scriptStore.loadScriptBySlug(slug, { source: 'slug' });
-            if (loaded) {
-                return;
+            try {
+                const loaded = await this.scriptStore.loadScriptBySlug(slug, { source: 'slug' });
+                if (loaded) {
+                    this.syncCanonicalSlugPath(slug, loaded.slug);
+                    return;
+                }
+            } catch (error) {
+                if (error && (error.status === 404 || error.type === 'slug_not_found')) {
+                    const recovered = await this.recoverFromMissingSlug(slug);
+                    if (recovered) {
+                        return;
+                    }
+                    this.scriptStore.setScriptError({
+                        type: 'slug_not_found',
+                        slug,
+                        status: 404,
+                        message: ERROR_MESSAGES.SCRIPT_NOT_FOUND
+                    });
+                    return;
+                }
+                console.error('[ScriptsController] Unexpected slug load error', error);
             }
             this.scriptStore.setCurrentScript(null, { source: 'slug' });
             return;
         }
+
         await this.scriptStore.selectInitialScript({ source: 'startup' });
+    }
+
+    syncCanonicalSlugPath (requestedSlug, canonicalSlug) {
+        if (!canonicalSlug || canonicalSlug === requestedSlug) {
+            return;
+        }
+        const pathSlug = getMineSlugFromPathname();
+        if (!pathSlug || pathSlug === canonicalSlug) {
+            return;
+        }
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const nextPath = buildMinePath(canonicalSlug);
+        window.history.replaceState({ scriptId: this.scriptStore.getCurrentScriptId() }, '', nextPath);
+    }
+
+    async recoverFromMissingSlug (slug) {
+        const user = this.stateManager.getState(StateManager.KEYS.USER);
+        if (!user || !user.id) {
+            return false;
+        }
+        await this.scriptStore.ensureUserHasScripts(user.id);
+        const scripts = this.scriptStore.getScripts();
+        if (!scripts || scripts.length === 0) {
+            return false;
+        }
+        const fallback = scripts[0];
+        if (!fallback || !fallback.id) {
+            return false;
+        }
+        try {
+            await this.scriptStore.loadScript(fallback.id, { source: 'slug', forceFresh: true });
+            return true;
+        } catch (error) {
+            console.error('[ScriptsController] Fallback script load failed after missing slug:', error);
+            return false;
+        }
     }
 
     handleScriptError (error) {

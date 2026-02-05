@@ -4,6 +4,7 @@ import scriptRepository from '../repositories/scriptRepository.js';
 import scriptCommentRepository from '../repositories/scriptCommentRepository.js';
 import scriptVersionRepository from '../repositories/scriptVersionRepository.js';
 import { generateUniqueSlug } from '../lib/slug.js';
+import scriptSlugRepository from '../repositories/scriptSlugRepository.js';
 
 const toScriptWithVersion = (script, version) => {
   if (!script) return null;
@@ -39,19 +40,22 @@ const scriptModel = {
   },
   createScript: async(script) => {
     const normalizedVisibility = script.visibility || 'private';
-    const isSlugTaken = async(candidate) => {
-      const takenForUser = await scriptRepository.existsSlugForUser(script.userId, candidate);
-      if (takenForUser) return true;
-      if (normalizedVisibility === 'public') {
-        return await scriptRepository.existsPublicSlug(candidate);
-      }
-      return false;
-    };
-    const slug = await generateUniqueSlug({
-      title: script.title,
-      isTaken: isSlugTaken
-    });
     const result = await prisma.$transaction(async(tx) => {
+      const slug = await generateUniqueSlug({
+        title: script.title,
+        isTaken: async(candidate) => {
+          const takenForUser = await scriptSlugRepository.existsSlugForUser({
+            userId: script.userId,
+            slug: candidate
+          }, tx);
+          if (takenForUser) return true;
+          if (normalizedVisibility === 'public') {
+            return await scriptSlugRepository.existsPublicSlug({ slug: candidate }, tx);
+          }
+          return false;
+        }
+      });
+
       const createdScript = await tx.script.create({
         data: {
           userId: script.userId,
@@ -61,6 +65,15 @@ const scriptModel = {
           description: script.description || null,
           visibility: normalizedVisibility,
           slug
+        }
+      });
+
+      await tx.scriptSlug.create({
+        data: {
+          userId: script.userId,
+          scriptId: createdScript.id,
+          slug,
+          isCanonical: true
         }
       });
 
@@ -100,6 +113,48 @@ const scriptModel = {
 
       const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
 
+      const requestedVisibility = script.visibility === 'public'
+        ? 'public'
+        : script.visibility === 'private'
+          ? 'private'
+          : undefined;
+      const desiredVisibility = requestedVisibility ?? currentScript.visibility;
+
+      let nextSlug = currentScript.slug;
+      const shouldRefreshSlug = script.title !== currentScript.title
+        || (desiredVisibility === 'public' && currentScript.visibility !== 'public');
+
+      if (shouldRefreshSlug) {
+        const candidateSlug = await generateUniqueSlug({
+          title: script.title,
+          isTaken: async(candidate) => {
+            const takenForUser = await scriptSlugRepository.existsSlugForUser({
+              userId: currentScript.userId,
+              slug: candidate,
+              excludeScriptId: currentScript.id
+            }, tx);
+            if (takenForUser) return true;
+            if (desiredVisibility === 'public') {
+              return await scriptSlugRepository.existsPublicSlug({
+                slug: candidate,
+                excludeScriptId: currentScript.id
+              }, tx);
+            }
+            return false;
+          }
+        });
+        if (candidateSlug && candidateSlug !== currentScript.slug) {
+          await scriptSlugRepository.deactivateCanonical(currentScript.id, tx);
+          await scriptSlugRepository.create({
+            userId: currentScript.userId,
+            scriptId: currentScript.id,
+            slug: candidateSlug,
+            isCanonical: true
+          }, tx);
+          nextSlug = candidateSlug;
+        }
+      }
+
       const updatedScript = await tx.script.update({
         where: { id: currentScript.id },
         data: {
@@ -107,7 +162,8 @@ const scriptModel = {
           status: script.status,
           author: script.author || null,
           description: script.description || null,
-          visibility: script.visibility ?? currentScript.visibility
+          visibility: desiredVisibility,
+          slug: nextSlug
         }
       });
 
@@ -258,14 +314,18 @@ const scriptModel = {
   },
 
   getScriptBySlug: async(userId, slug) => {
-    const script = await scriptRepository.getBySlugForUser(Number(userId), slug);
+    const slugRecord = await scriptSlugRepository.getBySlugForUser(Number(userId), slug);
+    if (!slugRecord) return null;
+    const script = await scriptRepository.getById(slugRecord.scriptId);
     if (!script) return null;
     const version = await scriptVersionRepository.getLatestByScriptId(script.id);
     return toScriptWithVersion(script, version);
   },
 
   getPublicScriptBySlug: async(slug) => {
-    const script = await scriptRepository.getPublicScriptBySlug(slug);
+    const slugRecord = await scriptSlugRepository.getPublicBySlug(slug);
+    if (!slugRecord) return null;
+    const script = await scriptRepository.getPublicScriptById(slugRecord.scriptId);
     if (!script) return null;
     const version = Array.isArray(script.versions) ? script.versions[0] : null;
     const commentCount = await scriptCommentRepository.countByScript(script.id);

@@ -22,6 +22,7 @@ jest.mock('../../repositories/mediaVariantRepository.js', () => ({
 
 jest.mock('../../repositories/mediaAttachmentRepository.js', () => ({
   create: jest.fn(),
+  upsertForOwnerRole: jest.fn(),
   listByOwner: jest.fn()
 }));
 
@@ -199,11 +200,11 @@ describe('Media Controllers', () => {
       mockRequest.body = { ownerType: 'script', ownerId: '2', role: 'cover' };
       mediaAssetRepository.getByIdForUser.mockResolvedValue({ id: 9 });
       ownerService.ensureOwnerExists.mockResolvedValue(true);
-      mediaAttachmentRepository.create.mockResolvedValue({ id: 55 });
+      mediaAttachmentRepository.upsertForOwnerRole.mockResolvedValue({ id: 55 });
 
       await mediaAttachmentController(mockRequest, mockResponse);
 
-      expect(mediaAttachmentRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      expect(mediaAttachmentRepository.upsertForOwnerRole).toHaveBeenCalledWith(expect.objectContaining({
         assetId: 9,
         userId: 12,
         ownerType: 'script',
