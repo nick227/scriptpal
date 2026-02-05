@@ -1,10 +1,6 @@
 -- AlterTable
 ALTER TABLE `script_slugs` MODIFY `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
 
--- CreateIndex
-CREATE INDEX IF NOT EXISTS `chat_messages_userId_idx` ON `chat_messages`(`userId`);
-
-
 -- AddForeignKey
 ALTER TABLE `script_slugs` ADD CONSTRAINT `script_slugs_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
