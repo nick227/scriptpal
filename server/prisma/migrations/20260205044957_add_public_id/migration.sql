@@ -1,8 +1,8 @@
 -- DropForeignKey
-ALTER TABLE `script_slugs` DROP FOREIGN KEY `script_slugs_script_id_fkey`;
+ALTER TABLE `script_slugs` DROP FOREIGN KEY `script_slugs_script_id_fkey` IF EXISTS;
 
 -- DropForeignKey
-ALTER TABLE `script_slugs` DROP FOREIGN KEY `script_slugs_user_id_fkey`;
+ALTER TABLE `script_slugs` DROP FOREIGN KEY `script_slugs_user_id_fkey` IF EXISTS;
 
 -- AlterTable
 ALTER TABLE `script_slugs` MODIFY `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
