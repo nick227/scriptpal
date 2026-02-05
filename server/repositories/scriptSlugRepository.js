@@ -83,6 +83,18 @@ const scriptSlugRepository = {
     }
     const count = await client.scriptSlug.count({ where });
     return count > 0;
+  },
+
+  countPublicBySlug: async(slug, client = prisma) => {
+    if (!slug) return 0;
+    return await client.scriptSlug.count({
+      where: {
+        slug,
+        script: {
+          visibility: 'public'
+        }
+      }
+    });
   }
 };
 

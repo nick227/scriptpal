@@ -78,6 +78,11 @@ const routes = [
     handler: publicScriptController.getBySlug
   },
   {
+    path: '/public/scripts/public/:publicId',
+    method: 'get',
+    handler: publicScriptController.getByPublicId
+  },
+  {
     path: '/public/scripts/:id',
     method: 'get',
     handler: publicScriptController.get

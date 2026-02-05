@@ -12,14 +12,41 @@ const getQueryParam = (key) => {
     return new URLSearchParams(window.location.search).get(key);
 };
 
-const getSlugFromPath = () => {
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const publicIndex = parts.indexOf('public');
+const getPublicPathInfo = () => {
+    const segments = window.location.pathname.split('/').filter(Boolean);
+    const publicIndex = segments.indexOf('public');
+    const info = {
+        publicId: null,
+        slug: null,
+        legacySlug: null
+    };
     if (publicIndex === -1) {
-        return null;
+        return info;
     }
-    const slug = parts[publicIndex + 1];
-    return slug ? decodeURIComponent(slug) : null;
+
+    const remaining = segments.slice(publicIndex + 1);
+    if (remaining.length === 0) {
+        return info;
+    }
+
+    if (remaining.length === 1) {
+        info.legacySlug = decodeURIComponent(remaining[0]);
+        return info;
+    }
+
+    info.publicId = remaining[0];
+    const slugSegment = remaining[remaining.length - 1];
+    info.slug = slugSegment ? decodeURIComponent(slugSegment) : null;
+    return info;
+};
+
+const canonicalizePublicUrl = (script) => {
+    if (!script || !script.publicId) return;
+    const slugSegment = script.slug ? `/${encodeURIComponent(script.slug)}` : '';
+    const targetPath = `/public/${encodeURIComponent(script.publicId)}${slugSegment}`;
+    if (window.location.pathname !== targetPath) {
+        window.history.replaceState(null, '', targetPath);
+    }
 };
 
 const setViewerMessage = (container, message, isError = false) => {
@@ -334,7 +361,7 @@ const initPublicScriptViewer = async () => {
     const user = new ScriptPalUser(api);
     const { authWidget } = await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
 
-    const slug = getSlugFromPath();
+    const { publicId, legacySlug } = getPublicPathInfo();
     const scriptId = getQueryParam('id');
     const viewerLines = document.querySelector('.public-script-viewer__lines');
     const titleEl = document.querySelector('.public-script-viewer__title');
@@ -347,20 +374,24 @@ const initPublicScriptViewer = async () => {
     const commentsPanelController = setupCommentsPanel(api, authWidget, stateManager);
     commentsPanelController?.setScriptId(null);
 
-    if (!slug && !scriptId) {
+    if (!publicId && !legacySlug && !scriptId) {
         setViewerMessage(viewerLines, 'No script selected.', false);
         return;
     }
 
     try {
-        const script = slug
-            ? await api.publicScripts.getPublicScriptBySlug(slug)
-            : await api.publicScripts.getPublicScript(scriptId);
+        const script = publicId
+            ? await api.publicScripts.getPublicScriptByPublicId(publicId)
+            : legacySlug
+                ? await api.publicScripts.getPublicScriptBySlug(legacySlug)
+                : await api.publicScripts.getPublicScript(scriptId);
         if (!script) {
             commentsPanelController?.setScriptId(null);
             setViewerMessage(viewerLines, 'Script is not available.', true);
             return;
         }
+
+        canonicalizePublicUrl(script);
 
         if (titleEl) {
             titleEl.textContent = script.title || 'Untitled Script';

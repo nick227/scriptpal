@@ -8,6 +8,7 @@ const scriptSelect = {
   author: true,
   description: true,
   slug: true,
+  publicId: true,
   status: true,
   visibility: true,
   createdAt: true,
@@ -186,6 +187,33 @@ const scriptRepository = {
     return await prisma.script.findFirst({
       where: {
         id,
+        visibility: 'public'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true
+          }
+        },
+        versions: {
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+          select: {
+            versionNumber: true,
+            content: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+  },
+
+  getPublicScriptByPublicId: async(publicId) => {
+    if (!publicId) return null;
+    return await prisma.script.findFirst({
+      where: {
+        publicId,
         visibility: 'public'
       },
       include: {

@@ -28,6 +28,7 @@ const routesModule = await import('./routes.js');
 const securityMiddlewareModule = await import('./middleware/security.js');
 const authModule = await import('./middleware/auth.js');
 const scriptRepositoryModule = await import('./repositories/scriptRepository.js');
+const scriptSlugRepositoryModule = await import('./repositories/scriptSlugRepository.js');
 
 import helmet from 'helmet';
 
@@ -39,6 +40,7 @@ const routes = routesModule.default;
 const { SecurityMiddleware } = securityMiddlewareModule;
 const { validateSession } = authModule;
 const scriptRepository = scriptRepositoryModule.default;
+const scriptSlugRepository = scriptSlugRepositoryModule.default;
 
 // Constants
 const HTTP_LIMITS = {
@@ -433,7 +435,28 @@ class ScriptPalServer {
 
     // Frontend routes
     this.app.get('/public', (req, res) => sendClientFile(res, 'public-scripts.html'));
-    this.app.get('/public/:slug', (req, res) => sendClientFile(res, 'public-script.html'));
+    this.app.get('/public/:slug', asyncHandler(async (req, res) => {
+      const slug = req.params.slug;
+      if (!slug) {
+        return sendClientFile(res, 'public-script.html');
+      }
+
+      const normalizedSlug = decodeURIComponent(slug);
+      const matchCount = await scriptSlugRepository.countPublicBySlug(normalizedSlug);
+
+      if (matchCount === 1) {
+        const script = await scriptRepository.getPublicScriptBySlug(normalizedSlug);
+        if (script?.publicId) {
+          const canonicalSlug = script.slug || normalizedSlug;
+          const slugSegment = canonicalSlug ? `/${encodeURIComponent(canonicalSlug)}` : '';
+          const encodedId = encodeURIComponent(script.publicId);
+          return res.redirect(301, `/public/${encodedId}${slugSegment}`);
+        }
+      }
+
+      return sendClientFile(res, 'public-script.html');
+    }));
+    this.app.get('/public/:publicId([A-Za-z0-9]+)/:slug?', (req, res) => sendClientFile(res, 'public-script.html'));
     this.app.get('/mine', validateSession, (req, res) => sendClientFile(res, 'index.html'));
     this.app.get('/mine/:slug', validateSession, (req, res) => sendClientFile(res, 'index.html'));
     this.app.get('/brainstorm', validateSession, (req, res) => sendClientFile(res, 'brainstorm.html'));

@@ -130,9 +130,13 @@ export class PublicScriptsWidget {
         titleLink.className = 'public-script-card__title';
         titleLink.textContent = script.title || 'Untitled Script';
         const slug = script.slug ? encodeURIComponent(script.slug) : '';
-        titleLink.href = slug
-            ? `/public/${slug}`
-            : `public-script.html?id=${encodeURIComponent(script.id || '')}`;
+        const publicId = script.publicId ? encodeURIComponent(script.publicId) : '';
+        const hasPrettyUrl = publicId && slug;
+        titleLink.href = hasPrettyUrl
+            ? `/public/${publicId}/${slug}`
+            : publicId
+                ? `/public/${publicId}`
+                : `public-script.html?id=${encodeURIComponent(script.id || '')}`;
         titleLink.target = '_blank';
         titleLink.rel = 'noopener noreferrer';
 

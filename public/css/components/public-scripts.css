@@ -9,11 +9,11 @@
     width: 100%;
     height: 100%;
     margin: 0;
-    padding: 1rem 2vw 0;
+    padding: 2vw 0;
     border-radius: 0;
     background: transparent;
-    border: 1px solid var(--border-color);
     box-shadow: none;
+    border-bottom: 1px solid var(--border-color, #e1e5e9);
 }
 
 .public-scripts-header {
@@ -74,7 +74,6 @@
 }
 
 .public-script-card {
-    border-bottom: 1px solid var(--border-color, #e1e5e9);
     padding: 1.25rem;
     background: transparent;
     box-shadow: none;

@@ -117,6 +117,7 @@ model Script {
   author      String?
   description String?      @db.LongText
   slug        String?      @db.VarChar(80)
+  publicId    String?      @db.VarChar(32) @unique
   status      ScriptStatus @default(draft)
   visibility  Visibility   @default(private)
   createdAt   DateTime     @default(now())

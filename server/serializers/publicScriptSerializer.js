@@ -44,6 +44,7 @@ export const serializePublicScript = (script) => {
   if (!script) return null;
   const content = sanitizeContent(script.content);
   return {
+    publicId: script.publicId || null,
     id: script.id,
     slug: script.slug || null,
     title: script.title || 'Untitled Script',

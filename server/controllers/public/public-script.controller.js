@@ -87,6 +87,28 @@ const publicScriptController = {
     }
   },
 
+  getByPublicId: async(req, res) => {
+    try {
+      const script = await scriptModel.getPublicScriptByPublicId(req.params.publicId);
+      if (!script) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      const attachments = await mediaAttachmentRepository.listByOwnerIdsPublic({
+        ownerType: 'script',
+        ownerIds: [script.id],
+        role: 'cover'
+      });
+      const serialized = serializePublicScript({
+        ...script,
+        coverAttachment: attachments[0] || null
+      });
+      res.json(serialized);
+    } catch (error) {
+      console.error('Error fetching public script by publicId:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   getBySlug: async(req, res) => {
     try {
       const script = await scriptModel.getPublicScriptBySlug(req.params.slug);

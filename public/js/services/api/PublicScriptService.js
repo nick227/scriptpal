@@ -50,6 +50,18 @@ export class PublicScriptService {
     }
 
     /**
+     * Get a public script by its stable public ID
+     * @param {string} publicId - Stable public identifier
+     * @returns {Promise<object>} Public script object
+     */
+    async getPublicScriptByPublicId(publicId) {
+        if (!publicId) {
+            throw new ValidationError('PUBLIC_ID_REQUIRED');
+        }
+        return this.http.request(API_ENDPOINTS.PUBLIC_SCRIPT_BY_PUBLIC_ID(encodeURIComponent(publicId)), { method: 'GET' });
+    }
+
+    /**
      * Get a public script by slug
      * @param {string} slug - Public script slug
      * @returns {Promise<object>} Public script object

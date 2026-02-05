@@ -4,7 +4,7 @@ import scriptRepository from '../repositories/scriptRepository.js';
 import scriptCommentRepository from '../repositories/scriptCommentRepository.js';
 import scriptVersionRepository from '../repositories/scriptVersionRepository.js';
 import { generateUniqueSlug } from '../lib/slug.js';
-import scriptSlugRepository from '../repositories/scriptSlugRepository.js';
+import { generatePublicId } from '../lib/id.js';
 
 const toScriptWithVersion = (script, version) => {
   if (!script) return null;
@@ -64,7 +64,8 @@ const scriptModel = {
           author: script.author || null,
           description: script.description || null,
           visibility: normalizedVisibility,
-          slug
+          slug,
+          publicId: normalizedVisibility === 'public' ? generatePublicId() : null
         }
       });
 
@@ -121,6 +122,7 @@ const scriptModel = {
       const desiredVisibility = requestedVisibility ?? currentScript.visibility;
 
       let nextSlug = currentScript.slug;
+      let nextPublicId = currentScript.publicId;
       const shouldRefreshSlug = script.title !== currentScript.title
         || (desiredVisibility === 'public' && currentScript.visibility !== 'public');
 
@@ -155,6 +157,10 @@ const scriptModel = {
         }
       }
 
+      if (desiredVisibility === 'public' && !nextPublicId) {
+        nextPublicId = generatePublicId();
+      }
+
       const updatedScript = await tx.script.update({
         where: { id: currentScript.id },
         data: {
@@ -163,7 +169,8 @@ const scriptModel = {
           author: script.author || null,
           description: script.description || null,
           visibility: desiredVisibility,
-          slug: nextSlug
+          slug: nextSlug,
+          publicId: nextPublicId
         }
       });
 
@@ -306,6 +313,15 @@ const scriptModel = {
 
   getPublicScript: async(id) => {
     const script = await scriptRepository.getPublicScriptById(Number(id));
+    if (!script) return null;
+    const version = Array.isArray(script.versions) ? script.versions[0] : null;
+    const commentCount = await scriptCommentRepository.countByScript(script.id);
+    script.commentCount = commentCount;
+    return toScriptWithVersion(script, version);
+  },
+
+  getPublicScriptByPublicId: async(publicId) => {
+    const script = await scriptRepository.getPublicScriptByPublicId(publicId);
     if (!script) return null;
     const version = Array.isArray(script.versions) ? script.versions[0] : null;
     const commentCount = await scriptCommentRepository.countByScript(script.id);
