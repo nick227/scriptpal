@@ -2,9 +2,6 @@
 ALTER TABLE `script_slugs` MODIFY `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
 
 -- RenameIndex
-ALTER TABLE `media_attachments` RENAME INDEX `media_attachments_ownerType_ownerId_role_asset_key` TO `media_attachments_ownerType_ownerId_role_assetId_key`;
-
--- RenameIndex
 ALTER TABLE `script_slugs` RENAME INDEX `script_slugs_script_id_is_canonical_idx` TO `script_slugs_scriptId_isCanonical_idx`;
 
 -- RenameIndex
