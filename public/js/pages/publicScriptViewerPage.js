@@ -42,7 +42,8 @@ const getPublicPathInfo = () => {
 
 const canonicalizePublicUrl = (script) => {
     if (!script || !script.publicId) return;
-    const slugSegment = script.slug ? `/${encodeURIComponent(script.slug)}` : '';
+    const canonicalSlug = script.canonicalSlug || script.slug;
+    const slugSegment = canonicalSlug ? `/${encodeURIComponent(canonicalSlug)}` : '';
     const targetPath = `/public/${encodeURIComponent(script.publicId)}${slugSegment}`;
     if (window.location.pathname !== targetPath) {
         window.history.replaceState(null, '', targetPath);
@@ -370,6 +371,11 @@ const initPublicScriptViewer = async () => {
     const metadataEl = document.querySelector('.public-script-viewer__metadata');
     const metadataVersionEl = metadataEl?.querySelector('[data-script-version]');
     const ownerEl = document.querySelector('.public-script-owner');
+
+    if (!viewerLines) {
+        console.warn('[PublicScriptViewer] Viewer container missing');
+        return;
+    }
 
     const commentsPanelController = setupCommentsPanel(api, authWidget, stateManager);
     commentsPanelController?.setScriptId(null);

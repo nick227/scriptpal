@@ -129,7 +129,8 @@ export class PublicScriptsWidget {
         const titleLink = document.createElement('a');
         titleLink.className = 'public-script-card__title';
         titleLink.textContent = script.title || 'Untitled Script';
-        const slug = script.slug ? encodeURIComponent(script.slug) : '';
+        const slugCandidate = script.canonicalSlug || script.slug;
+        const slug = slugCandidate ? encodeURIComponent(slugCandidate) : '';
         const publicId = script.publicId ? encodeURIComponent(script.publicId) : '';
         const hasPrettyUrl = publicId && slug;
         titleLink.href = hasPrettyUrl

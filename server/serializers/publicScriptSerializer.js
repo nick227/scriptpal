@@ -47,6 +47,7 @@ export const serializePublicScript = (script) => {
     publicId: script.publicId || null,
     id: script.id,
     slug: script.slug || null,
+    canonicalSlug: script.slug || null,
     title: script.title || 'Untitled Script',
     author: script.author || '',
     description: script.description || '',
