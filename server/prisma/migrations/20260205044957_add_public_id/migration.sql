@@ -1,3 +1,2 @@
--- Add publicId column to scripts
-ALTER TABLE `scripts`
-ADD COLUMN `publicId` VARCHAR(32);
+-- no-op migration (publicId already exists in production)
+SELECT 1;
