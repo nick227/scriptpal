@@ -1,7 +1,5 @@
 -- AlterTable
 ALTER TABLE `script_slugs` MODIFY `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3);
--- RenameIndex
-ALTER TABLE `chat_messages` RENAME INDEX `chat_messages_scriptId_fkey` TO `chat_messages_scriptId_idx`;
 
 -- RenameIndex
 ALTER TABLE `media_attachments` RENAME INDEX `media_attachments_ownerType_ownerId_role_asset_key` TO `media_attachments_ownerType_ownerId_role_assetId_key`;
