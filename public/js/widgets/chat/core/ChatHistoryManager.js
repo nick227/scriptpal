@@ -1,9 +1,34 @@
-﻿/**
- * ChatHistoryManager - Manages script-specific chat history by querying the API for every load
+/**
+ * ChatHistoryManager - Manages script-specific chat history by querying the API for every load.
+ * Singleton so all callers share one instance and one in-flight/time dedupe state.
  */
 
 import { StateManager } from '../../../core/StateManager.js';
 import { EventManager } from '../../../core/EventManager.js';
+
+let _instance = null;
+
+/**
+ * Return the single ChatHistoryManager instance, creating it on first call.
+ * @param {object} options - api, stateManager, eventManager (used only on first call)
+ * @returns {ChatHistoryManager}
+ */
+export function getInstance(options) {
+    if (!_instance) {
+        _instance = new ChatHistoryManager(options);
+    }
+    return _instance;
+}
+
+/**
+ * Clear the singleton (e.g. for tests). Next getInstance() will create a new instance.
+ */
+export function resetSingleton() {
+    if (_instance) {
+        _instance.destroy();
+        _instance = null;
+    }
+}
 
 /**
  * ChatHistoryManager class for managing script-specific chat history
@@ -27,6 +52,11 @@ export class ChatHistoryManager {
         this.currentScriptId = null;
         this.currentUserId = this.stateManager.getState(StateManager.KEYS.USER)?.id || null;
         this.lastHistory = [];
+        this._lastLoadedScriptId = null;
+        this._lastLoadTime = 0;
+        this._loadDedupMs = 2000;
+        this._inFlightScriptId = null;
+        this._inFlightPromise = null;
 
         this._scriptListener = this.handleScriptChange.bind(this);
         this._userListener = this.handleUserChange.bind(this);
@@ -35,7 +65,7 @@ export class ChatHistoryManager {
     }
 
     /**
-     * Initialize subscriptions and hydrate history
+     * Initialize subscriptions and hydrate history. Uses handleScriptChange as single entry so dedupe works when setState fires later.
      */
     async initialize() {
         this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this._scriptListener);
@@ -43,7 +73,7 @@ export class ChatHistoryManager {
 
         const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
         if (currentScript?.id) {
-            await this.loadScriptHistory(currentScript.id);
+            await this.handleScriptChange(currentScript);
         }
     }
 
@@ -68,6 +98,10 @@ export class ChatHistoryManager {
      */
     resetHistoryStorage() {
         this.lastHistory = [];
+        this._lastLoadedScriptId = null;
+        this._lastLoadTime = 0;
+        this._inFlightScriptId = null;
+        this._inFlightPromise = null;
     }
 
     appendHistory(messages = []) {
@@ -128,7 +162,7 @@ export class ChatHistoryManager {
     }
 
     /**
-     * Load chat history for a specific script (always calls GET /chat/messages)
+     * Load chat history for a specific script (GET /chat/messages). Dedupes by in-flight (same scriptId) and by recent load (time).
      */
     async loadScriptHistory(scriptId) {
         if (!scriptId) {
@@ -140,10 +174,36 @@ export class ChatHistoryManager {
             return [];
         }
 
+        const key = String(scriptId);
+
+        if (this._inFlightScriptId === key && this._inFlightPromise) {
+            return this._inFlightPromise;
+        }
+
+        const now = Date.now();
+        if (this._lastLoadedScriptId === key && (now - this._lastLoadTime) < this._loadDedupMs) {
+            return this.lastHistory;
+        }
+
         this.currentScriptId = scriptId;
+        this._inFlightScriptId = key;
+        this._inFlightPromise = this._fetchScriptHistory(scriptId);
 
         try {
+            return await this._inFlightPromise;
+        } finally {
+            if (this._inFlightScriptId === key) {
+                this._inFlightScriptId = null;
+                this._inFlightPromise = null;
+            }
+        }
+    }
+
+    async _fetchScriptHistory(scriptId) {
+        try {
             const rawHistory = await this.api.getChatMessages(scriptId);
+            this._lastLoadedScriptId = String(scriptId);
+            this._lastLoadTime = Date.now();
             const processedHistory = this.processHistoryData(rawHistory);
             this.lastHistory = processedHistory;
             this.emitHistoryUpdated(scriptId, processedHistory);

@@ -2,12 +2,14 @@
  * Tests for Requirement #11: The chat history changes on script change
  */
 
-import { ChatHistoryManager } from '../../widgets/chat/core/ChatHistoryManager.js';
+import { StateManager } from '../../core/StateManager.js';
+import { getInstance, resetSingleton } from '../../widgets/chat/core/ChatHistoryManager.js';
 
 const createStateManager = () => ({
-    getState: jest.fn().mockReturnValue(null),
+    getState: jest.fn((key) => key === StateManager.KEYS.USER ? { id: 1 } : null),
     setState: jest.fn(),
-    subscribe: jest.fn()
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn()
 });
 
 describe('Requirement #11: Chat History Changes on Script Change', () => {
@@ -25,7 +27,8 @@ describe('Requirement #11: Chat History Changes on Script Change', () => {
         mockStateManager = createStateManager();
         mockEventManager = { publish: jest.fn(), subscribe: jest.fn() };
 
-        chatHistoryManager = new ChatHistoryManager({
+        resetSingleton();
+        chatHistoryManager = getInstance({
             api: mockApi,
             stateManager: mockStateManager,
             eventManager: mockEventManager
@@ -33,7 +36,7 @@ describe('Requirement #11: Chat History Changes on Script Change', () => {
     });
 
     afterEach(() => {
-        chatHistoryManager.destroy();
+        resetSingleton();
     });
 
     describe('Automatic Chat History Switching', () => {
@@ -46,12 +49,10 @@ describe('Requirement #11: Chat History Changes on Script Change', () => {
                 .mockResolvedValueOnce([{ id: 2, content: 'Script 2 chat', type: 'user' }]);
 
             await chatHistoryManager.handleScriptChange(script1);
-            let currentHistory = chatHistoryManager.getCurrentScriptHistory();
-            expect(currentHistory.scriptId).toBe(1);
+            expect(chatHistoryManager.currentScriptId).toBe(1);
 
             await chatHistoryManager.handleScriptChange(script2);
-            currentHistory = chatHistoryManager.getCurrentScriptHistory();
-            expect(currentHistory.scriptId).toBe(2);
+            expect(chatHistoryManager.currentScriptId).toBe(2);
         });
 
         test('should load chat history immediately on script change', async () => {
@@ -65,7 +66,7 @@ describe('Requirement #11: Chat History Changes on Script Change', () => {
             await chatHistoryManager.handleScriptChange(script);
 
             expect(mockApi.getChatMessages).toHaveBeenCalledWith(script.id);
-            expect(chatHistoryManager.getCurrentScriptHistory().messages).toEqual(scriptHistory);
+            expect(chatHistoryManager.getCurrentScriptHistory()).toEqual(scriptHistory);
         });
     });
 
@@ -90,7 +91,7 @@ describe('Requirement #11: Chat History Changes on Script Change', () => {
                 await chatHistoryManager.handleScriptChange(script);
             }
 
-            expect(chatHistoryManager.getCurrentScriptHistory().scriptId).toBe(5);
+            expect(chatHistoryManager.currentScriptId).toBe(5);
         });
     });
 
@@ -110,9 +111,8 @@ describe('Requirement #11: Chat History Changes on Script Change', () => {
 
             await chatHistoryManager.handleScriptChange(script);
 
-            const currentHistory = chatHistoryManager.getCurrentScriptHistory();
-            expect(currentHistory.scriptId).toBe(script.id);
-            expect(currentHistory.messages).toEqual(mockHistory);
+            expect(chatHistoryManager.currentScriptId).toBe(script.id);
+            expect(chatHistoryManager.getCurrentScriptHistory()).toEqual(mockHistory);
         });
     });
 });

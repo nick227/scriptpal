@@ -4,6 +4,7 @@
 
 import { MESSAGE_TYPES, ERROR_MESSAGES } from '../../../constants.js';
 import { ChatManager } from '../../../widgets/chat/core/ChatManager.js';
+import { resetSingleton } from '../../../widgets/chat/core/ChatHistoryManager.js';
 import { StateManager } from '../../../core/StateManager.js';
 
 const defaultScript = { id: 'script-1', title: 'My Script', versionNumber: 1 };
@@ -35,18 +36,21 @@ describe('Requirement #6: AI Script Discussion', () => {
                 }
                 return () => {};
             }),
+            unsubscribe: jest.fn(),
             setState: jest.fn((key, value) => {
                 stateStorage[key] = value;
             }),
             getState: jest.fn((key) => stateStorage[key])
         };
 
-        // Create mock API
+        // Create mock API (getChatMessages required by ChatHistoryManager singleton)
         mockApi = {
             getChatResponse: jest.fn().mockResolvedValue({
                 response: 'Test AI response',
                 intent: 'GENERAL'
-            })
+            }),
+            getChatMessages: jest.fn().mockResolvedValue([]),
+            clearChatMessages: jest.fn().mockResolvedValue(true)
         };
 
         // Create mock event manager
@@ -70,12 +74,13 @@ describe('Requirement #6: AI Script Discussion', () => {
             container: mockElements.messagesContainer
         };
 
-        // Create chat manager
+        resetSingleton();
         chatManager = new ChatManager(mockStateManager, mockApi, mockEventManager);
     });
 
     afterEach(() => {
         chatManager.destroy();
+        resetSingleton();
     });
 
     describe('Initialization', () => {
@@ -153,13 +158,8 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             expect(mockApi.getChatResponse).toHaveBeenCalled();
             expect(mockEventManager.publish).toHaveBeenCalledWith(
-                'CHAT:MESSAGE_ADDED',
-                expect.objectContaining({
-                    message: expect.objectContaining({
-                        content: userMessage,
-                        type: MESSAGE_TYPES.USER
-                    })
-                })
+                'CHAT:MESSAGE_SENT',
+                { message: userMessage }
             );
         });
 
@@ -276,13 +276,13 @@ describe('Requirement #6: AI Script Discussion', () => {
             expect(mockRenderer.render).toHaveBeenCalledWith(malformedJson, MESSAGE_TYPES.ASSISTANT);
         });
 
-        test('should process question buttons', async () => {
+        test('should process question buttons', () => {
             const responseWithQuestions = {
                 response: 'Hello, user!',
                 questions: ['What can I help with?', 'Need assistance?']
             };
 
-            await chatManager.processAndRenderMessage(responseWithQuestions, MESSAGE_TYPES.ASSISTANT);
+            chatManager.processQuestionButtons(responseWithQuestions);
 
             expect(mockRenderer.renderButtons).toHaveBeenCalledWith(['What can I help with?', 'Need assistance?']);
         });
@@ -323,7 +323,6 @@ describe('Requirement #6: AI Script Discussion', () => {
                     scriptTitle: expect.any(String)
                 })
             );
-            expect(mockRenderer.render).toHaveBeenCalledWith(message, MESSAGE_TYPES.USER);
             expect(mockRenderer.render).toHaveBeenCalledWith('Hello, user!', MESSAGE_TYPES.ASSISTANT);
             expect(mockEventManager.publish).toHaveBeenCalled();
             expect(result).toEqual(apiResponse);

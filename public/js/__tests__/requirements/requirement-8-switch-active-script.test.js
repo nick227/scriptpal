@@ -2,14 +2,15 @@
  * Tests for Requirement #8: The user can switch active script loading the script UI and switching the AI context
  */
 
-import { ChatHistoryManager } from '../../widgets/chat/core/ChatHistoryManager.js';
+import { StateManager } from '../../core/StateManager.js';
+import { getInstance, resetSingleton } from '../../widgets/chat/core/ChatHistoryManager.js';
 import { ScriptContextManager } from '../../widgets/editor/context/ScriptContextManager.js';
 
-// Minimal state manager stub
 const createStateManager = () => ({
-    getState: jest.fn().mockReturnValue(null),
+    getState: jest.fn((key) => key === StateManager.KEYS.USER ? { id: 1 } : null),
     setState: jest.fn(),
-    subscribe: jest.fn()
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn()
 });
 
 describe('Requirement #8: Switch Active Script with AI Context', () => {
@@ -52,7 +53,8 @@ describe('Requirement #8: Switch Active Script with AI Context', () => {
             getChapters: jest.fn().mockReturnValue([])
         };
 
-        chatHistoryManager = new ChatHistoryManager({
+        resetSingleton();
+        chatHistoryManager = getInstance({
             api: mockApi,
             stateManager: mockStateManager,
             eventManager: mockEventManager
@@ -68,37 +70,37 @@ describe('Requirement #8: Switch Active Script with AI Context', () => {
     });
 
     afterEach(() => {
-        chatHistoryManager.destroy();
+        resetSingleton();
         scriptContextManager.destroy();
     });
 
     describe('AI Context Switching', () => {
-        test('should update AI context when script changes', () => {
+        test('should update AI context when script changes', async () => {
             const script1 = { id: 1, title: 'Script 1', content: 'Content 1', author: 'Author 1' };
             const script2 = { id: 2, title: 'Script 2', content: 'Content 2', author: 'Author 2' };
 
             scriptContextManager.handleScriptChange(script1);
-            let context = scriptContextManager.getScriptMetadata();
+            let context = await scriptContextManager.getScriptMetadata();
             expect(context.id).toBe(1);
             expect(context.title).toBe('Script 1');
 
             scriptContextManager.handleScriptChange(script2);
-            context = scriptContextManager.getScriptMetadata();
+            context = await scriptContextManager.getScriptMetadata();
             expect(context.id).toBe(2);
             expect(context.title).toBe('Script 2');
         });
 
-        test('should invalidate context cache when script changes', () => {
+        test('should invalidate context cache when script changes', async () => {
             const script1 = { id: 1, title: 'Script 1', content: 'Content 1' };
             const script2 = { id: 2, title: 'Script 2', content: 'Content 2' };
 
             scriptContextManager.handleScriptChange(script1);
-            scriptContextManager.getScriptMetadata();
+            await scriptContextManager.getScriptMetadata();
 
             scriptContextManager.handleScriptChange(script2);
             scriptContextManager.invalidateCache();
 
-            const context = scriptContextManager.getScriptMetadata();
+            const context = await scriptContextManager.getScriptMetadata();
             expect(context.id).toBe(2);
         });
     });
@@ -113,12 +115,10 @@ describe('Requirement #8: Switch Active Script with AI Context', () => {
                 .mockResolvedValueOnce([{ id: 2, content: 'Script 2 chat', type: 'user' }]);
 
             await chatHistoryManager.handleScriptChange(script1);
-            let history = chatHistoryManager.getCurrentScriptHistory();
-            expect(history.scriptId).toBe(1);
+            expect(chatHistoryManager.currentScriptId).toBe(1);
 
             await chatHistoryManager.handleScriptChange(script2);
-            history = chatHistoryManager.getCurrentScriptHistory();
-            expect(history.scriptId).toBe(2);
+            expect(chatHistoryManager.currentScriptId).toBe(2);
         });
 
         test('should load script-specific chat history', async () => {
@@ -133,7 +133,7 @@ describe('Requirement #8: Switch Active Script with AI Context', () => {
             await chatHistoryManager.handleScriptChange(script);
 
             expect(mockApi.getChatMessages).toHaveBeenCalledWith(script.id);
-            expect(chatHistoryManager.getCurrentScriptHistory().messages).toEqual(mockHistory);
+            expect(chatHistoryManager.getCurrentScriptHistory()).toEqual(mockHistory);
         });
     });
 });

@@ -58,7 +58,8 @@ export class ListView {
         const controls = this.createElement('div', classNames.panelControls);
         controls.appendChild(addButton);
         controls.appendChild(expandButton);
-        controls.appendChild(findButton);
+        // to-do add later
+        // controls.appendChild(findButton);
 
         header.appendChild(title);
         header.appendChild(controls);

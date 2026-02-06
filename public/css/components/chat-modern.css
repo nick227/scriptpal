@@ -38,7 +38,7 @@
 
 .chatbot-container.minimized {
     height: 75px !important;
-    width: 175px !important;
+    width: 205px !important;
     border-radius: 22px !important;
     z-index: 1000 !important;
     position: fixed !important;
@@ -82,8 +82,8 @@
     color: var(--chat-ink);
 }
 
-.chat-action-btn:hover i {
-    color: white !important;
+.chat-header h3 {
+    white-space: nowrap;
 }
 
 .chat-action-btn {

@@ -71,7 +71,7 @@ export class SidePanelWidget {
         if (!this.panelContainer) {
             return;
         }
-        this.panelHeader = this.panelContainer.querySelector('h3');
+        this.panelHeader = document.querySelector('.panel-button');
         if (!this.panelHeader) {
             throw new Error('Side panel header not found');
         }

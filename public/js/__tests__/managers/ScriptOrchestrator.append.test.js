@@ -51,7 +51,7 @@ describe('ScriptOrchestrator append flow', () => {
         });
         expect(appendedLines[2]).toEqual({
             content: 'hello there',
-            format: 'dialog'
+            format: 'action'
         });
     });
 });

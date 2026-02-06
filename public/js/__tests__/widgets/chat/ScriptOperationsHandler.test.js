@@ -12,10 +12,8 @@ describe('ScriptOperationsHandler append flow', () => {
 
         const data = {
             response: {
-                content: 'INT. ROOM - DAY\nJOHN\nhello there',
-                metadata: {
-                    formattedScript
-                }
+                script: formattedScript,
+                metadata: {}
             }
         };
 

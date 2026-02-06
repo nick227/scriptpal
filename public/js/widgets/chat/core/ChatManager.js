@@ -6,7 +6,7 @@ import { StateManager } from '../../../core/StateManager.js';
 import { RendererFactory } from '../../../renderers.js';
 import { ScriptContextManager } from '../../editor/context/ScriptContextManager.js';
 
-import { ChatHistoryManager } from './ChatHistoryManager.js';
+import { getInstance } from './ChatHistoryManager.js';
 import { validateSendConditions, validateHistoryConditions } from './ChatValidationService.js';
 import {
     extractFormattedScriptFromResponse,
@@ -59,6 +59,10 @@ export class ChatManager extends BaseManager {
         this.currentScriptId = null;
         this.appendQueue = new Map();
         this._boundHandleScriptChange = this.handleScriptChange.bind(this);
+        this._unsubHistoryUpdated = this.eventManager.subscribe(
+            EventManager.EVENTS.CHAT.HISTORY_UPDATED,
+            this._onHistoryUpdated.bind(this)
+        );
 
         this.scriptOperationsHandler = new ScriptOperationsHandler({
             getScriptOrchestrator: () => this.scriptOrchestrator,
@@ -67,8 +71,8 @@ export class ChatManager extends BaseManager {
             onError: this.handleError.bind(this)
         });
 
-        // Initialize chat history manager
-        this.chatHistoryManager = new ChatHistoryManager({
+        // Use singleton so all callers share one instance (single dedupe state for GET /chat/messages)
+        this.chatHistoryManager = getInstance({
             api: this.api,
             stateManager: this.stateManager,
             eventManager: this.eventManager
@@ -114,7 +118,32 @@ export class ChatManager extends BaseManager {
         this.setRenderer(RendererFactory.createMessageRenderer(elements.messagesContainer, this));
         this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this._boundHandleScriptChange);
         const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-        if (!currentScript) {
+        if (currentScript?.id) {
+            this.currentScriptId = currentScript.id;
+            this.renderer.clear();
+            this.renderer.render(`Now chatting about: ${currentScript.title}`, MESSAGE_TYPES.ASSISTANT);
+            const history = this.chatHistoryManager.getCurrentScriptHistory();
+            if (history.length > 0) {
+                this.loadChatHistory(history, { skipClear: true });
+            } else {
+                this.renderWelcomeMessage();
+            }
+        } else {
+            this.renderWelcomeMessage();
+        }
+    }
+
+    /**
+     * React to history loaded by ChatHistoryManager (single source for GET /chat/messages).
+     */
+    _onHistoryUpdated (data) {
+        if (!data || data.scriptId == null || String(data.scriptId) !== String(this.currentScriptId)) {
+            return;
+        }
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        if (messages.length > 0) {
+            this.loadChatHistory(messages, { skipClear: true });
+        } else {
             this.renderWelcomeMessage();
         }
     }
@@ -133,16 +162,9 @@ export class ChatManager extends BaseManager {
             return;
         }
 
-        // Only add title message if it's a different script (by ID)
         if (isNewScript) {
             this.renderer.clear();
             this.renderer.render(`Now chatting about: ${script.title}`, MESSAGE_TYPES.ASSISTANT);
-            const history = await this.chatHistoryManager.loadScriptHistory(script.id);
-            if (history.length > 0) {
-                await this.loadChatHistory(history, { skipClear: true });
-            } else {
-                this.renderWelcomeMessage();
-            }
         }
 
         this.dropQueueForOtherScripts(script.id);
@@ -768,6 +790,10 @@ export class ChatManager extends BaseManager {
         if (this.stateManager && this._boundHandleScriptChange) {
             this.stateManager.unsubscribe(StateManager.KEYS.CURRENT_SCRIPT, this._boundHandleScriptChange);
             this._boundHandleScriptChange = null;
+        }
+        if (typeof this._unsubHistoryUpdated === 'function') {
+            this._unsubHistoryUpdated();
+            this._unsubHistoryUpdated = null;
         }
 
         super.destroy();

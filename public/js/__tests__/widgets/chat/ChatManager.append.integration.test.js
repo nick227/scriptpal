@@ -1,7 +1,9 @@
 import { ChatManager } from '../../../widgets/chat/core/ChatManager.js';
+import { resetSingleton } from '../../../widgets/chat/core/ChatHistoryManager.js';
 
 describe('ChatManager append integration', () => {
     test('routes APPEND_SCRIPT response to orchestrator append', async () => {
+        resetSingleton();
         const mockStateManager = {
             subscribe: jest.fn(),
             setState: jest.fn(),
@@ -17,13 +19,13 @@ describe('ChatManager append integration', () => {
         };
         const formattedScript = Array.from({ length: 12 }, (_, index) => `LINE ${index + 1}`).join('\n');
         const mockApi = {
+            getChatMessages: jest.fn().mockResolvedValue([]),
             getChatResponse: jest.fn().mockResolvedValue({
                 intent: 'APPEND_SCRIPT',
                 response: {
-                    content: 'INT. ROOM - DAY\nJOHN\nhello there',
-                    metadata: {
-                        formattedScript
-                    }
+                    script: formattedScript,
+                    message: 'Added the next lines.',
+                    metadata: {}
                 }
             })
         };

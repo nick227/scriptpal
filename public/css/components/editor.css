@@ -308,7 +308,7 @@
         .script-line.format-header {
             text-transform: uppercase;
             font-weight: bold;
-            margin: 0;
+            margin: var(--spacing-sm) 0;
         }
         
         .script-line.format-action {

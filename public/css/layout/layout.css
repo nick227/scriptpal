@@ -60,11 +60,11 @@
     top: 0;
 }
 .side-panel-panel {
+    position: fixed;
     width: 500px;
     height: auto;   
-    position: fixed;
-    left: 1vw;
-    top: 15vh;
+    left: 0;
+    top: 6vh;
     z-index: 1;
     background: white;
     display: flex;
@@ -74,33 +74,14 @@
     border: 10px solid lightgray;
 }
 .side-panel-panel.is-minimized {
-    width: 75px;
-    height: 75px;
-    padding: 0;
-    margin: 0;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0;
-    overflow: hidden;
-    z-index: 1000;
-    bottom: 20px;
-    top: auto;
-    left: 20px;
-    overflow: visible;
-}
-.side-panel-panel.is-minimized > *:not(h3) {
     display: none;
 }
-.side-panel-panel h3 {
+.panel-button {
     position: fixed;
-    top: 10.5vh;
-    left: 30px;
-    width: 100px;
+    top: 10px;
+    left: 10px;
+    width: 200px;
     height: 50px;
-    border-radius: var(--border-radius);
-    background: var(--chat-ink);
-    color: #fff;
     font-size: 12px;
     font-weight: bold;
     display: flex;
@@ -109,7 +90,10 @@
     cursor: pointer;
     pointer-events: auto;
     z-index: 1000;
-    animation: blinkIn 2s linear;
+}
+.panel-button img {
+    width: 60px;
+    margin-right: 10px;
 }
 @keyframes blinkIn {
     0% { opacity: 0; }

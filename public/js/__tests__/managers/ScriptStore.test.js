@@ -8,11 +8,14 @@ import { ScriptStore } from '../../stores/ScriptStore.js';
 import { ScriptFormatter } from '../../services/format/ScriptFormatter.js';
 
 const mockApi = {
-    getAllScriptsByUser: jest.fn(),
-    getScript: jest.fn(),
-    updateScript: jest.fn(),
-    deleteScript: jest.fn(),
-    createScript: jest.fn()
+    scripts: {
+        getAllScriptsByUser: jest.fn(),
+        getScript: jest.fn(),
+        getScriptBySlug: jest.fn(),
+        updateScript: jest.fn(),
+        deleteScript: jest.fn(),
+        createScript: jest.fn()
+    }
 };
 
 describe('ScriptStore', () => {
@@ -64,11 +67,11 @@ describe('ScriptStore', () => {
                 { id: 1, title: 'Script 1', content: 'Content 1' },
                 { id: 2, title: 'Script 2', content: 'Content 2' }
             ];
-            mockApi.getAllScriptsByUser.mockResolvedValue(mockScripts);
+            mockApi.scripts.getAllScriptsByUser.mockResolvedValue(mockScripts);
 
             const result = await scriptStore.loadScripts(userId);
 
-            expect(mockApi.getAllScriptsByUser).toHaveBeenCalledWith(userId);
+            expect(mockApi.scripts.getAllScriptsByUser).toHaveBeenCalledWith(userId);
             expect(result).toHaveLength(mockScripts.length);
             expect(result[0]).toMatchObject({
                 id: mockScripts[0].id,
@@ -82,7 +85,7 @@ describe('ScriptStore', () => {
         it('should handle loading errors', async () => {
             const userId = 1;
             const error = new Error('Failed to load scripts');
-            mockApi.getAllScriptsByUser.mockRejectedValue(error);
+            mockApi.scripts.getAllScriptsByUser.mockRejectedValue(error);
 
             const result = await scriptStore.loadScripts(userId);
             expect(result).toEqual([]);
@@ -96,13 +99,13 @@ describe('ScriptStore', () => {
 
             const result = await scriptStore.loadScripts(userId);
             expect(result).toEqual(cachedScripts);
-            expect(mockApi.getAllScriptsByUser).not.toHaveBeenCalled();
+            expect(mockApi.scripts.getAllScriptsByUser).not.toHaveBeenCalled();
         });
 
         it('should return empty array for invalid user ID', async () => {
             const result = await scriptStore.loadScripts(null);
             expect(result).toEqual([]);
-            expect(mockApi.getAllScriptsByUser).not.toHaveBeenCalled();
+            expect(mockApi.scripts.getAllScriptsByUser).not.toHaveBeenCalled();
         });
     });
 
@@ -110,11 +113,11 @@ describe('ScriptStore', () => {
         it('should load a specific script', async () => {
             const scriptId = 1;
             const mockScript = { id: scriptId, title: 'Test Script', content: 'Test Content', version_number: 1 };
-            mockApi.getScript.mockResolvedValue(mockScript);
+            mockApi.scripts.getScript.mockResolvedValue(mockScript);
 
             const result = await scriptStore.loadScript(scriptId);
 
-            expect(mockApi.getScript).toHaveBeenCalledWith(String(scriptId));
+            expect(mockApi.scripts.getScript).toHaveBeenCalledWith(String(scriptId));
             expect(result).toBeTruthy();
             expect(result).toMatchObject({
                 id: mockScript.id,
@@ -127,7 +130,7 @@ describe('ScriptStore', () => {
         it('should handle loading errors', async () => {
             const scriptId = 1;
             const error = new Error('Script not found');
-            mockApi.getScript.mockRejectedValue(error);
+            mockApi.scripts.getScript.mockRejectedValue(error);
 
             const result = await scriptStore.loadScript(scriptId);
             expect(result).toBeNull();
@@ -148,11 +151,11 @@ describe('ScriptStore', () => {
                 version_number: 2
             };
             const updatedScript = { id: scriptId, ...updateData };
-            mockApi.updateScript.mockResolvedValue(updatedScript);
+            mockApi.scripts.updateScript.mockResolvedValue(updatedScript);
 
             const result = await scriptStore.updateScript(scriptId, updateData);
 
-            expect(mockApi.updateScript).toHaveBeenCalledWith(scriptId, expect.any(Object));
+            expect(mockApi.scripts.updateScript).toHaveBeenCalledWith(scriptId, expect.any(Object));
             expect(result).toBeTruthy();
         });
 
@@ -160,7 +163,7 @@ describe('ScriptStore', () => {
             const scriptId = 1;
             const updateData = { title: 'Updated Script', content: 'Content', version_number: 2 };
             const error = new Error('Failed to update script');
-            mockApi.updateScript.mockRejectedValue(error);
+            mockApi.scripts.updateScript.mockRejectedValue(error);
 
             const result = await scriptStore.updateScript(scriptId, updateData);
             expect(result).toBeNull();
@@ -183,17 +186,17 @@ describe('ScriptStore', () => {
     describe('deleteScript', () => {
         it('should delete a script', async () => {
             const scriptId = 1;
-            mockApi.deleteScript.mockResolvedValue(true);
+            mockApi.scripts.deleteScript.mockResolvedValue(true);
 
             await scriptStore.deleteScript(scriptId);
 
-            expect(mockApi.deleteScript).toHaveBeenCalledWith(scriptId);
+            expect(mockApi.scripts.deleteScript).toHaveBeenCalledWith(scriptId);
         });
 
         it('should handle deletion errors', async () => {
             const scriptId = 1;
             const error = new Error('Failed to delete script');
-            mockApi.deleteScript.mockRejectedValue(error);
+            mockApi.scripts.deleteScript.mockRejectedValue(error);
 
             await expect(scriptStore.deleteScript(scriptId)).resolves.not.toThrow();
         });
@@ -201,7 +204,7 @@ describe('ScriptStore', () => {
         it('should not delete if already loading', async () => {
             scriptStore.isLoading = true;
             await scriptStore.deleteScript(1);
-            expect(mockApi.deleteScript).not.toHaveBeenCalled();
+            expect(mockApi.scripts.deleteScript).not.toHaveBeenCalled();
         });
     });
 
