@@ -11,6 +11,9 @@
     top: 0;
     left: 0;
     z-index: 2;
+    background: white;
+    width: calc(100% - 40px);
+    justify-content: space-between;
 }
 
 .chatbot-container {
@@ -80,7 +83,7 @@
 }
 
 .chat-action-btn:hover i {
-    color: black !important;
+    color: white !important;
 }
 
 .chat-action-btn {

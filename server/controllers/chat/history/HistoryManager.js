@@ -1,4 +1,5 @@
 import chatMessageRepository from '../../../repositories/chatMessageRepository.js';
+import { ChatMessageSerializer } from '../../../serializers/chatMessageSerializer.js';
 
 export class HistoryManager {
   constructor(userId, scriptId = null) {
@@ -41,7 +42,7 @@ export class HistoryManager {
           userId: this.userId,
           scriptId: targetScriptId
         });
-        return;
+        return [];
       }
 
       const promptTokens = Number(aiUsage?.promptTokens ?? aiUsage?.prompt_tokens ?? 0);
@@ -58,7 +59,7 @@ export class HistoryManager {
         costUsd
       });
 
-      await chatMessageRepository.create({
+      const saved = await chatMessageRepository.create({
         userId: this.userId,
         scriptId: targetScriptId,
         role: 'assistant',
@@ -72,9 +73,12 @@ export class HistoryManager {
         totalTokens,
         costUsd
       });
+
+      return ChatMessageSerializer.flattenRows([saved]);
     } catch (error) {
       // Log but don't fail the operation
       console.error('Failed to save chat history:', error);
+      return [];
     }
   }
 
@@ -90,37 +94,8 @@ export class HistoryManager {
         limit
       });
       const rows = await chatMessageRepository.listByUser(this.userId, targetScriptId, limit, 0);
-      return rows.flatMap((row) => {
-        const list = [];
-        if (row.role === 'assistant') {
-          if (row?.metadata?.userPrompt) {
-            list.push({
-              id: `user_${row.id}`,
-              content: row.metadata.userPrompt,
-              type: 'user',
-              timestamp: row.createdAt,
-              scriptId: row.scriptId
-            });
-          }
-          list.push({
-            id: `assistant_${row.id}`,
-            content: row.content,
-            type: 'assistant',
-            timestamp: row.createdAt,
-            scriptId: row.scriptId
-          });
-          return list;
-        }
-
-        list.push({
-          id: `user_${row.id}`,
-          content: row.content,
-          type: 'user',
-          timestamp: row.createdAt,
-          scriptId: row.scriptId
-        });
-        return list;
-      });
+      const orderedRows = rows.slice().reverse();
+      return ChatMessageSerializer.flattenRows(orderedRows);
     } catch (error) {
       console.error('Failed to fetch chat history:', error);
       return [];
@@ -137,37 +112,8 @@ export class HistoryManager {
         scriptId
       });
       const rows = await chatMessageRepository.listByUser(this.userId, scriptId, 30, 0);
-      return rows.flatMap((row) => {
-        const list = [];
-        if (row.role === 'assistant') {
-          if (row?.metadata?.userPrompt) {
-            list.push({
-              id: `user_${row.id}`,
-              content: row.metadata.userPrompt,
-              type: 'user',
-              timestamp: row.createdAt,
-              scriptId: row.scriptId
-            });
-          }
-          list.push({
-            id: `assistant_${row.id}`,
-            content: row.content,
-            type: 'assistant',
-            timestamp: row.createdAt,
-            scriptId: row.scriptId
-          });
-          return list;
-        }
-
-        list.push({
-          id: `user_${row.id}`,
-          content: row.content,
-          type: 'user',
-          timestamp: row.createdAt,
-          scriptId: row.scriptId
-        });
-        return list;
-      });
+      const orderedRows = rows.slice().reverse();
+      return ChatMessageSerializer.flattenRows(orderedRows);
     } catch (error) {
       console.error('Failed to fetch script chat history:', error);
       return [];

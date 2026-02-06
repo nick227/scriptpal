@@ -66,21 +66,14 @@ const chatMessageRepository = {
       insert,
       prisma.$queryRaw`SELECT LAST_INSERT_ID() AS id`
     ]);
-    const row = Array.isArray(rows) ? rows[0] : rows;
-
-    return {
-      id: row?.id ?? null,
-      userId,
-      scriptId: normalizedScriptId,
-      role,
-      content,
-      intent,
-      metadata,
-      promptTokens: normalizedPromptTokens,
-      completionTokens: normalizedCompletionTokens,
-      totalTokens: normalizedTotalTokens,
-      costUsd: normalizedCostUsd
-    };
+    const insertedId = Array.isArray(rows) ? rows[0]?.id : rows?.id ?? null;
+    if (!insertedId) {
+      throw new Error('Unable to determine inserted chat message ID');
+    }
+    const saved = await prisma.chatMessage.findUnique({
+      where: { id: insertedId }
+    });
+    return saved;
   },
 
   clearByUserAndScript: async(userId, scriptId) => {

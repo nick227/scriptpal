@@ -1,6 +1,7 @@
 import { SYSTEM_PROMPTS_MAP } from '../../../../../shared/systemPrompts.js';
 import { MESSAGE_TYPES } from '../../../constants.js';
 import { EventManager } from '../../../core/EventManager.js';
+import { extractRenderableContent } from '../core/ResponseExtractor.js';
 
 const STATUS_LINE_STEP = 10;
 const IDEAS_LINE_THRESHOLD = 150;
@@ -196,6 +197,9 @@ export class SystemPromptOrchestrator {
     }
 
     async renderResponse (response, promptId, scriptId) {
+        if (this.chatManager?.isProcessing) {
+            return;
+        }
         if (!response) {
             return;
         }
@@ -211,19 +215,34 @@ export class SystemPromptOrchestrator {
                 }
             };
 
-        await chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
+        const content = extractRenderableContent(decoratedResponse);
+        if (!content) {
+            return;
+        }
 
-        const content = chatManager.extractMessageContent(decoratedResponse);
+        if (!scriptId) {
+            await chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
+            return;
+        }
 
-        if (content && chatHistoryManager) {
-            await chatHistoryManager.addMessage({
-                content,
+        try {
+            const response = await this.api.addChatMessage(scriptId, {
                 type: MESSAGE_TYPES.ASSISTANT,
+                content,
                 metadata: {
                     promptType: promptId,
                     scriptId
                 }
             });
+            const rows = Array.isArray(response?.messages) ? response.messages : [];
+            if (rows.length > 0) {
+                await chatManager.appendServerMessages(rows);
+            } else {
+                await chatManager.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
+            }
+        } catch (error) {
+            console.error('[SystemPromptOrchestrator] Failed to persist prompt response:', error);
+            await chatManager.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
         }
     }
 

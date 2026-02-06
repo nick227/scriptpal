@@ -14,7 +14,7 @@ export class EditorCoordinator {
     /**
      * @param options
      */
-    constructor(options) {
+    constructor (options) {
         this.container = options.container;
         this.stateManager = options.stateManager;
         this.pageManager = options.pageManager;
@@ -37,8 +37,6 @@ export class EditorCoordinator {
         this.autocomplete = null;
 
         this._contentUpdateTimeout = null;
-        this._contentPersistTimeout = null;
-        this._persistDelay = 300;
         this._opQueue = Promise.resolve();
         this._pendingFocus = null;
         this._domHandlerEditIntentHandler = null;
@@ -839,12 +837,7 @@ export class EditorCoordinator {
             this.callbacks.onChange(content);
         }
 
-        if (this._contentPersistTimeout) {
-            clearTimeout(this._contentPersistTimeout);
-        }
-        this._contentPersistTimeout = setTimeout(() => {
-            this.emit(EDITOR_EVENTS.CONTENT_PERSIST, content);
-        }, this._persistDelay);
+        this.emit(EDITOR_EVENTS.CONTENT_PERSIST, content);
     }
 
     /**
@@ -996,11 +989,6 @@ export class EditorCoordinator {
             clearTimeout(this._contentUpdateTimeout);
             this._contentUpdateTimeout = null;
         }
-        if (this._contentPersistTimeout) {
-            clearTimeout(this._contentPersistTimeout);
-            this._contentPersistTimeout = null;
-        }
-
         this.container = null;
         this.editorArea = null;
         this.stateManager = null;

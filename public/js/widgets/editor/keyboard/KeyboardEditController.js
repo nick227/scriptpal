@@ -66,16 +66,12 @@ export class KeyboardEditController {
         }
 
         return this.enqueue(async () => {
-            const newLine = await this.contentManager.insertLineAfter(lineId, {
+            await this.contentManager.insertLineAfter(lineId, {
                 format: newFormat,
                 content: afterText,
                 updateCurrentContent: beforeText,
                 focus: true
             });
-
-            if (newLine) {
-                this._triggerAutoSave();
-            }
         });
     }
 
@@ -276,23 +272,6 @@ export class KeyboardEditController {
         }
 
         return false;
-    }
-
-    /**
-     * Trigger auto-save after edits.
-     */
-    _triggerAutoSave () {
-        if (!this.saveService ||
-            typeof this.saveService.handleLineChange !== 'function' ||
-            !this.contentManager ||
-            typeof this.contentManager.getContent !== 'function') {
-            return;
-        }
-
-        const content = this.contentManager.getContent();
-        if (content) {
-            this.saveService.handleLineChange(content);
-        }
     }
 
     /**

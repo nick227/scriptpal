@@ -77,14 +77,16 @@ export class ConversationCoordinator {
 
       const response = await router.route(intentResult, preparedContext, prompt);
 
-      this.historyManager.saveInteraction(prompt, response, this.scriptId, intent)
-        .catch(error => console.error('Chat history save failed:', error));
+      const savedHistory = (await this.historyManager.saveInteraction(prompt, response, this.scriptId, intent)) || [];
 
       console.log('\n=== Operation Complete ===');
       const responseIntentResult = intent === INTENT_TYPES.SCRIPT_CONVERSATION
         ? { ...intentResult, intent: APPEND_SCRIPT_INTENT }
         : intentResult;
-      return this.formatResponse(response, responseIntentResult);
+      return {
+        ...this.formatResponse(response, responseIntentResult),
+        history: savedHistory
+      };
 
     } catch (error) {
       console.error('Message processing failed:', error);

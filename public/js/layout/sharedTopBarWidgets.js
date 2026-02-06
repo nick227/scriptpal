@@ -1,7 +1,8 @@
 import { UI_ELEMENTS } from '../constants.js';
-import { getTopBarElements } from './sharedLayout.js';
 import { AuthWidget } from '../widgets/auth/AuthWidget.js';
 import { TokenWatchWidget } from '../widgets/ui/TokenWatchWidget.js';
+
+import { getTopBarElements } from './sharedLayout.js';
 
 export const initAuthWidget = async (api, user, stateManager, eventManager, topBarElements = null) => {
     const sharedElements = topBarElements || getTopBarElements();

@@ -11,6 +11,7 @@ import { buildNextFiveLinesChainConfig } from './chain/config.js';
 import { buildValidatedChatResponse } from './response/validation.js';
 import { loadScriptOrThrow } from '../script-services/scriptRequestUtils.js';
 import { buildPromptContext } from '../script/context-builder.service.js';
+import { ChatMessageSerializer } from '../../serializers/chatMessageSerializer.js';
 
 const NEXT_FIVE_LINES_PROMPT = getPromptById('next-five-lines');
 
@@ -247,7 +248,7 @@ function handleChatError(error) {
 }
 
 const chatController = {
-  getChatMessages: async(req, res) => {
+  getChatMessages: async (req, res) => {
     try {
       if (!req.userId) {
         console.warn('[ChatController] getChatMessages request without userId');
@@ -279,49 +280,7 @@ const chatController = {
       console.log('[ChatController] getChatMessages', { userId, scriptId });
       const rows = await chatMessageRepository.listByUser(userId, scriptId, limit, offset);
       const orderedRows = rows.slice().reverse();
-      const messages = orderedRows.flatMap((row) => {
-        const list = [];
-        if (row.role === 'assistant') {
-          if (row?.metadata?.userPrompt) {
-            list.push({
-              id: `user_${row.id}`,
-              content: row.metadata.userPrompt,
-              type: 'user',
-              timestamp: row.createdAt,
-              scriptId: row.scriptId
-            });
-          }
-
-          let content = row.content;
-          try {
-             const parsed = JSON.parse(content);
-             if (parsed && typeof parsed === 'object' && parsed.response) {
-                 content = parsed.response;
-             }
-          } catch (e) {
-             // If parsing fails, use original content string
-          }
-
-          list.push({
-            id: `assistant_${row.id}`,
-            content: content,
-            type: 'assistant',
-            timestamp: row.createdAt,
-            scriptId: row.scriptId
-          });
-          return list;
-        }
-
-        list.push({
-          id: `user_${row.id}`,
-          content: row.content,
-          type: 'user',
-          timestamp: row.createdAt,
-          scriptId: row.scriptId
-        });
-        return list;
-      });
-
+      const messages = ChatMessageSerializer.flattenRows(orderedRows);
       res.status(200).json(messages);
     } catch (error) {
       console.error('Error getting chat messages:', error);
@@ -332,7 +291,7 @@ const chatController = {
     }
   },
 
-  addChatMessage: async(req, res) => {
+  addChatMessage: async (req, res) => {
     try {
       const { userId, body } = req;
       if (!userId) {
@@ -357,7 +316,7 @@ const chatController = {
 
       const role = message.type === 'assistant' ? 'assistant' : 'user';
       const content = message.content || '';
-      const result = await chatMessageRepository.create({
+      const savedRow = await chatMessageRepository.create({
         userId,
         scriptId: parsedScriptId,
         role,
@@ -365,7 +324,14 @@ const chatController = {
         metadata: null
       });
 
-      res.status(201).json({ id: result.id, ...message });
+      if (!savedRow) {
+        return res.status(500).json({
+          error: 'Failed to persist chat message'
+        });
+      }
+
+      const messages = ChatMessageSerializer.toMessages(savedRow);
+      return res.status(201).json({ messages });
     } catch (error) {
       console.error('Error adding chat message:', error);
       res.status(500).json({
@@ -375,7 +341,7 @@ const chatController = {
     }
   },
 
-  clearChatMessages: async(req, res) => {
+  clearChatMessages: async (req, res) => {
     try {
       const scriptId = parseInt(req.params.scriptId, 10);
       if (!req.userId) {
@@ -401,7 +367,7 @@ const chatController = {
     }
   },
 
-  startChat: async(req, res) => {
+  startChat: async (req, res) => {
     try {
       // 1. Validate inputs
       if (!req.body.prompt) {
@@ -449,8 +415,28 @@ const chatController = {
           baseContext,
           ownedScript
         });
-        return res.status(200).json(payload);
+
+        let history = [];
+
+        if (Number.isInteger(scriptId)) {
+          const rows = await chatMessageRepository.listByUser(
+            req.userId,
+            scriptId,
+            2,
+            0
+          );
+
+          history = ChatMessageSerializer.flattenRows(
+            rows.slice().reverse()
+          );
+        }
+
+        return res.status(200).json({
+          ...payload,
+          history
+        });
       }
+
 
       // 2. Create and execute chat
       console.log('[ChatController] startChat', {
@@ -459,10 +445,30 @@ const chatController = {
         requestId: chatRequestId
       });
       const chat = new ConversationCoordinator(req.userId, scriptId);
-      const result = await chat.processMessage(req.body.prompt, context);
+      const result = await chat.processMessage(
+        req.body.prompt,
+        context
+      );
 
-      // 3. Return standardized response
-      res.status(200).json(result);
+      let history = [];
+
+      if (Number.isInteger(scriptId)) {
+        const rows = await chatMessageRepository.listByUser(
+          req.userId,
+          scriptId,
+          2,
+          0
+        );
+
+        history = ChatMessageSerializer.flattenRows(
+          rows.slice().reverse()
+        );
+      }
+
+      res.status(200).json({
+        ...result,
+        history
+      });
 
     } catch (error) {
       console.error('Chat controller error:', error);

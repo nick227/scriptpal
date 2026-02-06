@@ -7,6 +7,11 @@ import { RendererFactory } from '../../../renderers.js';
 import { ScriptContextManager } from '../../editor/context/ScriptContextManager.js';
 
 import { ChatHistoryManager } from './ChatHistoryManager.js';
+import { validateSendConditions, validateHistoryConditions } from './ChatValidationService.js';
+import {
+    extractFormattedScriptFromResponse,
+    extractRenderableContent
+} from './ResponseExtractor.js';
 import { ScriptOperationsHandler } from './ScriptOperationsHandler.js';
 
 const createDefaultRenderer = () => {
@@ -53,6 +58,7 @@ export class ChatManager extends BaseManager {
         this.isProcessing = false;
         this.currentScriptId = null;
         this.appendQueue = new Map();
+        this._boundHandleScriptChange = this.handleScriptChange.bind(this);
 
         this.scriptOperationsHandler = new ScriptOperationsHandler({
             getScriptOrchestrator: () => this.scriptOrchestrator,
@@ -106,7 +112,7 @@ export class ChatManager extends BaseManager {
     initialize (elements) {
         super.initialize(elements);
         this.setRenderer(RendererFactory.createMessageRenderer(elements.messagesContainer, this));
-        this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this.handleScriptChange.bind(this));
+        this.stateManager.subscribe(StateManager.KEYS.CURRENT_SCRIPT, this._boundHandleScriptChange);
         const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
         if (!currentScript) {
             this.renderWelcomeMessage();
@@ -232,32 +238,23 @@ export class ChatManager extends BaseManager {
      * @returns {Promise<string|null>} - The processed content or null if failed
      */
     async processAndRenderMessage (messageData, type) {
-        if (!messageData) {
-            console.warn('[ChatManager] No message data provided');
-            return '';
+        const content = extractRenderableContent(messageData);
+        if (!content) {
+            if (messageData != null) {
+                console.warn('[ChatManager] No content in message data:', messageData);
+            }
+            return messageData == null ? '' : null;
         }
 
         try {
-            // Strict: only accept strings. API responses are extracted upstream.
-            const content = typeof messageData === 'string'
-                ? messageData
-                : (messageData?.message || messageData?.content || '');
-
-            if (!content) {
-                console.warn('[ChatManager] No content in message data:', messageData);
-                return null;
-            }
-
-            const normalizedMessage = this.normalizeMessage({ content }, type);
-
-            await this.safeRenderMessage(normalizedMessage.content, normalizedMessage.type);
+            await this.safeRenderMessage(content, type);
 
             debugLog('[ChatManager] Message processed successfully:', {
                 type,
-                contentLength: normalizedMessage.content.length
+                contentLength: content.length
             });
 
-            return normalizedMessage.content;
+            return content;
         } catch (error) {
             console.error('[ChatManager] Failed to process and render message:', error);
             this.handleError(error, 'processAndRenderMessage');
@@ -310,8 +307,14 @@ export class ChatManager extends BaseManager {
     async handleSend (message) {
         this.ensureRenderer();
 
-        if (!this.validateSendConditions(message)) {
-            console.warn('[ChatManager] Message validation failed:', message);
+        const sendValidation = validateSendConditions({
+            message,
+            renderer: this.renderer,
+            api: this.api,
+            isProcessing: this.isProcessing
+        });
+        if (!sendValidation.ok) {
+            console.warn('[ChatManager] Message validation failed:', sendValidation.reason, message);
             return null;
         }
 
@@ -319,22 +322,13 @@ export class ChatManager extends BaseManager {
             this.eventManager.publish(EventManager.EVENTS.CHAT.TYPING_INDICATOR_SHOW, {});
             await this.startMessageProcessing();
 
-            // Process and render user message
-            await this.processAndRenderMessage(message, MESSAGE_TYPES.USER);
-
-            // Save user message to chat history
-            await this.chatHistoryManager.addMessage({
-                content: message,
-                type: MESSAGE_TYPES.USER
-            });
-
-            this.eventManager.publish(EventManager.EVENTS.CHAT.MESSAGE_SENT, { message });
-
             // Get and process API response with timeout
+            const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
+            const currentScriptId = currentScript?.id ?? null;
             console.log('[ChatManager] Sending AI request', {
                 prompt: message,
-                scriptId: this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT_ID),
-                scriptTitle: this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT)?.title
+                scriptId: currentScriptId,
+                scriptTitle: currentScript?.title
             });
             const data = await this.getApiResponseWithTimeout(message);
             if (!data) {
@@ -349,28 +343,21 @@ export class ChatManager extends BaseManager {
             });
             console.log('[ChatManager] Raw AI response', data);
 
-            // Process question buttons
-            this.processQuestionButtons(data.response);
+            const historyRows = data?.history ?? data?.messages ?? [];
 
-            // Extract response content and metadata
-            const responseContent = this.extractResponseContent(data);
-            if (!responseContent) {
-                console.warn('[ChatManager] No content found in response');
-                return null;
+            if (Array.isArray(historyRows) && historyRows.length > 0) {
+                this.processQuestionButtons(data.response);
+                await this.appendServerMessages(historyRows);
+            } else {
+                const content = extractRenderableContent(data.response);
+                if (!content) {
+                    await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
+                    return null;
+                }
+                await this.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
             }
 
-            // Process and render assistant response
-            await this.processAndRenderMessage(responseContent, MESSAGE_TYPES.ASSISTANT);
-
-            // Save assistant response to chat history
-            await this.chatHistoryManager.addMessage({
-                content: responseContent,
-                type: MESSAGE_TYPES.ASSISTANT,
-                metadata: {
-                    intent: data.intent,
-                    hasButtons: this.hasQuestionButtons(data.response)
-                }
-            });
+            this.eventManager.publish(EventManager.EVENTS.CHAT.MESSAGE_SENT, { message });
 
             // Handle script operations based on intent
             await this.handleScriptOperations(data);
@@ -440,7 +427,7 @@ export class ChatManager extends BaseManager {
 
         let operationData = data;
         if (intent === 'NEXT_FIVE_LINES') {
-            const formattedScript = this.extractFormattedScriptFromResponse(data.response);
+            const formattedScript = extractFormattedScriptFromResponse(data.response);
             if (!formattedScript) {
                 this.emitScriptBlockedEmpty({
                     intent,
@@ -509,12 +496,16 @@ export class ChatManager extends BaseManager {
      * @param {Array} messages - The messages to load
      */
     async loadChatHistory (messages, options = {}) {
-        if (!this.validateHistoryConditions(messages)) {
+        const historyValidation = validateHistoryConditions({
+            messages,
+            renderer: this.renderer
+        });
+        if (!historyValidation.ok) {
+            console.warn('[ChatManager] History validation failed:', historyValidation.reason);
             return;
         }
 
         try {
-            await this.startMessageProcessing();
             const { skipClear = false } = options;
             if (!skipClear) {
                 this.renderer.clear();
@@ -522,16 +513,13 @@ export class ChatManager extends BaseManager {
 
             for (const message of messages) {
                 const type = this.determineMessageType(message);
-                // Extract content from DB message shape (uses deprecated helpers for legacy data)
-                const content = this.extractMessageContent(message);
+                const content = message?.content ?? message?.message ?? '';
                 if (content) {
                     await this.processAndRenderMessage(content, type);
                 }
             }
         } catch (error) {
             this.handleError(error, 'loadChatHistory');
-        } finally {
-            await this.endMessageProcessing();
         }
     }
 
@@ -576,6 +564,7 @@ export class ChatManager extends BaseManager {
 
             if (result) {
                 this.renderer.clear();
+                await this.loadCurrentScriptHistory();
             }
 
             return result;
@@ -586,168 +575,19 @@ export class ChatManager extends BaseManager {
     }
 
     /**
-     *
-     * @param message
+     * Determine message type from server row. Expects server to return role.
+     * Long term: drop type; use role only.
+     * @param {object} message - Server row with role or type
+     * @returns {string}
      */
     determineMessageType (message) {
-        if (message.type) {
-            return message.type;
-        }
         if (message.role) {
             return message.role === 'assistant' ? MESSAGE_TYPES.ASSISTANT : MESSAGE_TYPES.USER;
         }
+        if (message.type) {
+            return message.type;
+        }
         return MESSAGE_TYPES.USER;
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // DEPRECATED LEGACY HELPERS
-    // Used only for hydrating old chat history records from database.
-    // DO NOT use for new API response handling - use extractResponseContent().
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * @deprecated Legacy chat history compatibility only.
-     * Use extractResponseContent() for API responses.
-     */
-    parseMessageData (data) {
-        if (typeof data === 'string') {
-            try {
-                return JSON.parse(data);
-            } catch (_error) {
-                return data;
-            }
-        }
-        return data;
-    }
-
-    /**
-     * @deprecated Legacy chat history compatibility only.
-     * Use extractResponseContent() for API responses.
-     */
-    extractMessageContent (data) {
-        if (typeof data === 'string') {
-            const parsed = this._tryParseJsonString(data);
-            if (parsed) {
-                return this.extractMessageContent(parsed);
-            }
-            return data.trim();
-        }
-
-        if (!data) {
-            return '';
-        }
-
-        if (typeof data === 'object') {
-            // Canonical v2 fields first
-            if (data.message && typeof data.message === 'string') {
-                return data.message.trim();
-            }
-            if (data.content && typeof data.content === 'string') {
-                return data.content.trim();
-            }
-            // Legacy fallbacks for old DB records
-            if (data.response && typeof data.response === 'string') {
-                return data.response.trim();
-            }
-            if (data.assistantResponse && typeof data.assistantResponse === 'string') {
-                return data.assistantResponse.trim();
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * @deprecated Internal helper for legacy extraction.
-     */
-    _tryParseJsonString (value) {
-        if (!value || typeof value !== 'string') {
-            return null;
-        }
-        const trimmed = value.trim();
-        if (!trimmed || (trimmed[0] !== '{' && trimmed[0] !== '[')) {
-            return null;
-        }
-        try {
-            const parsed = JSON.parse(trimmed);
-            return parsed && typeof parsed === 'object' ? parsed : null;
-        } catch (_error) {
-            return null;
-        }
-    }
-
-    normalizeMessage (messageData, type) {
-        const data = (messageData && typeof messageData === 'object') ? messageData : { content: messageData };
-        const role = data.role || data.type || type || MESSAGE_TYPES.USER;
-
-        return {
-            id: data.id || this.generateMessageId(),
-            role,
-            type: role,
-            content: data.content || '',
-            timestamp: data.timestamp || new Date().toISOString(),
-            status: data.status,
-            metadata: data.metadata || {},
-            intent: data.intent || (data.metadata && data.metadata.intent)
-        };
-    }
-
-    /**
-     * Extract chat message from API response.
-     * CANONICAL SHAPE (v2): data.response.message
-     */
-    extractResponseContent (data) {
-    if (!data?.response) {
-        return null;
-    }
-
-    let message = null;
-    if (typeof data.response === 'string') {
-        message = data.response;
-    } else if (data.response) {
-        message = this._findResponseMessage(data.response);
-    }
-
-    if (!message) {
-        return null;
-    }
-
-    return this._extractJsonAssistantMessage(message);
-}
-
-    _findResponseMessage (payload) {
-        if (!payload) {
-            return null;
-        }
-
-        if (typeof payload === 'string') {
-            return payload;
-        }
-
-        if (typeof payload.message === 'string' && payload.message.trim()) {
-            return payload.message;
-        }
-
-        if (typeof payload.assistantResponse === 'string' && payload.assistantResponse.trim()) {
-            return payload.assistantResponse;
-        }
-
-        if (payload.response && payload.response !== payload) {
-            return this._findResponseMessage(payload.response);
-        }
-
-        return null;
-    }
-
-    /**
-     * Extract script content from API response.
-     * CANONICAL SHAPE (v2): response.script
-     */
-    extractFormattedScriptFromResponse (response) {
-        if (!response || typeof response !== 'object') {
-            return '';
-        }
-        return response.script || '';
     }
 
     emitScriptBlockedEmpty (details = {}) {
@@ -761,102 +601,23 @@ export class ChatManager extends BaseManager {
     }
 
     /**
-     * Extract assistant text from raw JSON responses when the payload is returned as a string.
-     * @param {string} rawMessage
-     * @returns {string}
+     * Append a batch of server-provided messages without clearing the renderer.
+     * @param {Array} messages
      */
-    _extractJsonAssistantMessage (rawMessage) {
-        if (!rawMessage || typeof rawMessage !== 'string') {
-            return rawMessage;
+    async appendServerMessages (messages = []) {
+        if (!Array.isArray(messages) || messages.length === 0) return;
+
+        const historyValidation = validateHistoryConditions({
+            messages,
+            renderer: this.renderer
+        });
+        if (!historyValidation.ok) {
+            console.warn('[ChatManager] History validation failed:', historyValidation.reason);
+            return;
         }
 
-        const trimmed = rawMessage.trim();
-        if (!trimmed.startsWith('{')) {
-            return rawMessage;
-        }
-
-        try {
-            const parsed = JSON.parse(trimmed);
-            if (parsed && typeof parsed === 'object') {
-                if (typeof parsed.assistantResponse === 'string' && parsed.assistantResponse.trim()) {
-                    return parsed.assistantResponse.trim();
-                }
-                if (typeof parsed.message === 'string' && parsed.message.trim()) {
-                    return parsed.message.trim();
-                }
-                if (typeof parsed.formattedScript === 'string' && parsed.formattedScript.trim()) {
-                    return parsed.formattedScript.trim();
-                }
-            }
-        } catch (error) {
-            console.warn('[ChatManager] Failed to parse JSON response message:', error);
-        }
-
-        return rawMessage;
-    }
-
-    /**
-     * ==============================================
-     * Validation and State Management
-     * ==============================================
-     * Methods for validating conditions and managing state
-     * @param {string} message - The message to validate
-     * @returns {boolean} - True if validation passes
-     */
-    validateSendConditions (message) {
-        if (!this.renderer) {
-            console.error('[ChatManager] No renderer available');
-            return false;
-        }
-
-        if (!this.renderer.container) {
-            console.error('[ChatManager] No renderer container available');
-            return false;
-        }
-
-        if (!message || typeof message !== 'string') {
-            console.error('[ChatManager] Invalid message format:', typeof message);
-            return false;
-        }
-
-        const trimmedMessage = message.trim();
-        if (!trimmedMessage) {
-            console.warn('[ChatManager] Empty message provided');
-            return false;
-        }
-
-        if (trimmedMessage.length > 10000) {
-            console.warn('[ChatManager] Message too long:', trimmedMessage.length);
-            return false;
-        }
-
-        if (this.isProcessing) {
-            console.warn('[ChatManager] Message processing already in progress');
-            return false;
-        }
-
-        if (!this.api || typeof this.api.getChatResponse !== 'function') {
-            console.error('[ChatManager] API not available or invalid');
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     *
-     * @param messages
-     */
-    validateHistoryConditions (messages) {
-        if (!Array.isArray(messages)) {
-            console.warn('[ChatManager] Messages is not an array:', messages);
-            return false;
-        }
-        if (!this.renderer || !this.renderer.container) {
-            console.error('[ChatManager] No renderer or container available');
-            return false;
-        }
-        return true;
+        await this.loadChatHistory(messages, { skipClear: true });
+        this.chatHistoryManager.appendHistory(messages);
     }
 
     /**
@@ -893,14 +654,6 @@ export class ChatManager extends BaseManager {
             console.error('Failed to render message:', error);
             this.handleError(error, 'renderMessage');
         }
-    }
-
-    /**
-     * Generate a unique message ID
-     * @returns {string}
-     */
-    generateMessageId () {
-        return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
     /**
@@ -1010,6 +763,11 @@ export class ChatManager extends BaseManager {
         if (this.scriptContextManager) {
             this.scriptContextManager.destroy();
             this.scriptContextManager = null;
+        }
+
+        if (this.stateManager && this._boundHandleScriptChange) {
+            this.stateManager.unsubscribe(StateManager.KEYS.CURRENT_SCRIPT, this._boundHandleScriptChange);
+            this._boundHandleScriptChange = null;
         }
 
         super.destroy();

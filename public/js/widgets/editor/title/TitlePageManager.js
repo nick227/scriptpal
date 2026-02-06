@@ -113,7 +113,19 @@ export class TitlePageManager {
         this.dateDisplay = this.titlePage.querySelector('.date-display');
         this.toggleTitlePage = this.titlePage.querySelector('.toggle-title-page');
         this.mediaContainer = this.titlePage.querySelector('.title-media-container');
+        this.isTitlePageCollapsed = this.checkLocalStorage('isTitlePageCollapsed', false);
+        if (this.isTitlePageCollapsed) {
+            this.toggleTitlePageVisibility();
+        }
         this.updateCollapsedState();
+    }
+
+    /**
+     *
+     */
+    checkLocalStorage (key, defaultValue) {
+        const value = localStorage.getItem(key);
+        return value ? JSON.parse(value) : defaultValue;
     }
 
     async initializeMediaPicker () {
@@ -200,6 +212,7 @@ export class TitlePageManager {
         this.titlePage.classList.toggle('title-page--collapsed', this.isTitlePageCollapsed);
         this.updateToggleLabel();
         this.updateHiddenTitleText();
+        localStorage.setItem('isTitlePageCollapsed', this.isTitlePageCollapsed);
     }
 
     /**
@@ -386,6 +399,7 @@ export class TitlePageManager {
                 description: this.titlePageData.description,
                 visibility: this.titlePageData.visibility
             }, 'title-page');
+            this.scriptStore.flushPatch(this.scriptId);
         }, this.persistDelay);
     }
 

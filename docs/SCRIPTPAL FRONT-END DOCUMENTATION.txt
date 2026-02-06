@@ -75,7 +75,7 @@ The script editor can import scripts from a text file.
         │   ├── AICommandManager.js
         │   ├── Autocomplete.js
         │   ├── autosave
-        │   │   └── EditorAutosave.js
+        │   │   └── EditorAutosave.js x
         │   ├── ChapterManager.js
         │   ├── chapters
         │   │   └── ChapterManager.js
@@ -86,7 +86,7 @@ The script editor can import scripts from a text file.
         │   │   ├── DOMManager.js
         │   │   ├── EditorContent.js
         │   │   └── EventHandler.js
-        │   ├── EditorAutosave.js
+        │   ├── EditorAutosave.js x
         │   ├── EditorContent.js
         │   ├── EditorController.js
         │   ├── EditorToolbar.js

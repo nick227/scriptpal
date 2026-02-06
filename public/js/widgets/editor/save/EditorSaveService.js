@@ -1,7 +1,7 @@
 import { EDITOR_EVENTS } from '../constants.js';
 
 /**
- * EditorSaveService - Simplified debounce + queue wrapper for persistence
+ * EditorSaveService - Controls timing; immediate flush on CONTENT_PERSIST. ScriptStore is transport only.
  */
 export class EditorSaveService {
     constructor (options = {}) {
@@ -12,12 +12,7 @@ export class EditorSaveService {
         this.content = options.content;
         this.toolbar = options.toolbar;
         this.scriptStore = options.scriptStore;
-
-        this.debounceDelay = 5000; //ms
-        this.minAutoSaveInterval = 10000; //ms
-        this.saveTimer = null;
         this.lastNormalizedContent = '';
-        this.lastAutoSaveAt = 0;
 
         this.handleContentChange = this.handleContentChange.bind(this);
         this.handleFocusOut = this.handleFocusOut.bind(this);
@@ -35,66 +30,40 @@ export class EditorSaveService {
         window.addEventListener('pagehide', this.handlePageExit);
     }
 
-    handleContentChange (content) {
-        const normalizedContent = this.scriptStore.normalizeContent(content);
-        if (normalizedContent === this.lastNormalizedContent) {
-            return;
-        }
-        this.lastNormalizedContent = normalizedContent;
-        const now = Date.now();
-        const elapsed = this.lastAutoSaveAt ? now - this.lastAutoSaveAt : this.minAutoSaveInterval;
-        const delay = elapsed < this.minAutoSaveInterval
-            ? Math.max(this.debounceDelay, this.minAutoSaveInterval - elapsed)
-            : this.debounceDelay;
-        this.scheduleSave('auto', delay);
+    /** Immediate flush only. No debounce, timers, or cooldowns — adding delay here causes regressions. */
+    handleContentChange () {
+        this.flushSave('auto');
     }
 
-    handleLineChange (content) {
-        this.handleContentChange(content);
+    handleLineChange () {
+        this.handleContentChange();
     }
 
-    scheduleSave (reason = 'auto', delay = this.debounceDelay) {
-        if (this.saveTimer) {
-            clearTimeout(this.saveTimer);
-        }
-
-        this.saveTimer = setTimeout(() => {
-            this.flushSave(reason);
-        }, delay);
-    }
-
-    async flushSave (reason = 'auto', options = {}) {
-        if (this.saveTimer) {
-            clearTimeout(this.saveTimer);
-            this.saveTimer = null;
-        }
-
+    flushSave (reason = 'auto') {
         const scriptId = this.scriptStore.getCurrentScriptId();
         if (!scriptId) {
             return false;
         }
 
-        const contentValue = this.scriptStore.normalizeContent(this.content.getContent());
+        const contentValue = this.content.getContent();
+        const normalized = this.scriptStore.normalizeContent(contentValue);
+
+        if (normalized === this.lastNormalizedContent) {
+            return false;
+        }
+
         const currentScript = this.scriptStore.getCurrentScript();
         if (currentScript) {
             const currentContent = this.scriptStore.normalizeContent(currentScript.content);
-            if (currentContent === contentValue) {
+            if (currentContent === normalized) {
                 return false;
             }
         }
-        this.lastNormalizedContent = contentValue;
 
-        this.scriptStore.queuePatch(scriptId, {
-            content: contentValue
-        }, 'editor');
+        this.lastNormalizedContent = normalized;
 
-        if (reason === 'auto') {
-            this.lastAutoSaveAt = Date.now();
-        }
-
-        if (options.immediate) {
-            this.scriptStore.flushPatch(scriptId);
-        }
+        this.scriptStore.queuePatch(scriptId, { content: normalized }, 'editor');
+        this.scriptStore.flushPatch(scriptId);
 
         return true;
     }
@@ -108,15 +77,10 @@ export class EditorSaveService {
     }
 
     handlePageExit () {
-        this.flushSave('exit', { immediate: true });
+        this.flushSave('exit');
     }
 
     destroy () {
-        if (this.saveTimer) {
-            clearTimeout(this.saveTimer);
-            this.saveTimer = null;
-        }
-
         this.content.off(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.off(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
         window.removeEventListener('beforeunload', this.handlePageExit);

@@ -52,12 +52,7 @@ export class ScriptStore extends BaseManager {
         this.isLoading = false;
         this.formatter = new ScriptFormatter();
         this.patchQueue = new Map();
-        this.patchTimers = new Map();
         this.activePatches = new Set();
-        this.patchFlushDelay = 10000; // milliseconds
-        this.patchRescheduleCooldown = 8000; // milliseconds between flushes
-        this.maxPatchRetryDelay = 30000; // milliseconds
-        this.lastSuccessfulFlush = new Map();
         this.visibilityFilter = 'all';
         this.authEventUnsubscribers = [];
         this._bindAuthEvents();
@@ -409,49 +404,10 @@ export class ScriptStore extends BaseManager {
         this.patchQueue.set(scriptId, existing);
         this.applyPatchLocally(scriptId, existing.patch);
         this.emitSaveState(scriptId, 'SAVE_DIRTY', { reason });
-        this.schedulePatchFlush(scriptId);
     }
 
     /**
-     * Schedule the flush timer for a script patch
-     * @param {number|string} scriptId
-     */
-    schedulePatchFlush (scriptId, delay = this.patchFlushDelay) {
-        const now = Date.now();
-        const lastSuccess = this.lastSuccessfulFlush.get(scriptId) || 0;
-        const cooldownRemaining = lastSuccess && now - lastSuccess < this.patchRescheduleCooldown
-            ? this.patchRescheduleCooldown - (now - lastSuccess)
-            : 0;
-
-        if (cooldownRemaining > 0 && this.patchTimers.has(scriptId)) {
-            return;
-        }
-
-        this.clearPatchTimer(scriptId);
-        const nextDelay = cooldownRemaining > 0
-            ? Math.max(delay, cooldownRemaining)
-            : delay;
-
-        const timer = setTimeout(() => {
-            this.flushPatch(scriptId);
-        }, nextDelay);
-        this.patchTimers.set(scriptId, timer);
-    }
-
-    /**
-     * Clear the flush timer for the script
-     * @param {number|string} scriptId
-     */
-    clearPatchTimer (scriptId) {
-        const timer = this.patchTimers.get(scriptId);
-        if (timer) {
-            clearTimeout(timer);
-            this.patchTimers.delete(scriptId);
-        }
-    }
-
-    /**
-     * Flush pending patch for a script
+     * Flush pending patch for a script. Callers must invoke this after queuePatch; ScriptStore does not schedule.
      * @param {number|string} scriptId
      */
     async flushPatch (scriptId) {
@@ -460,7 +416,12 @@ export class ScriptStore extends BaseManager {
             return;
         }
 
-        this.clearPatchTimer(scriptId);
+        console.debug('[ScriptStore] flushPatch', {
+            scriptId,
+            hasContent: Boolean(entry.patch?.content),
+            contentLength: entry.patch?.content?.length
+        });
+
         const currentScript = this.getCurrentScript();
 
         // Race condition protection: skip if script switched away
@@ -503,8 +464,6 @@ export class ScriptStore extends BaseManager {
 
         try {
             await this.updateScript(scriptId, payload);
-            this.lastSuccessfulFlush.set(scriptId, Date.now());
-            entry.retryDelay = null;
             this.emitSaveState(scriptId, 'SAVE_SAVED', { reason: entry.reason });
             this.patchQueue.delete(scriptId);
         } catch (error) {
@@ -512,14 +471,8 @@ export class ScriptStore extends BaseManager {
                 reason: entry.reason,
                 error: error && error.message ? error.message : error
             });
-            if (this.isRateLimitError(error)) {
-                entry.retryDelay = this.getNextPatchRetryDelay(entry.retryDelay);
-            }
         } finally {
             this.activePatches.delete(scriptId);
-            if (this.patchQueue.has(scriptId)) {
-                this.schedulePatchFlush(scriptId, entry.retryDelay || this.patchFlushDelay);
-            }
         }
     }
 
@@ -657,11 +610,6 @@ export class ScriptStore extends BaseManager {
         }
         const message = String(error.message || '').toLowerCase();
         return message.includes('too many requests');
-    }
-
-    getNextPatchRetryDelay (currentDelay) {
-        const baseDelay = currentDelay && currentDelay > 0 ? currentDelay : this.patchFlushDelay;
-        return Math.min(baseDelay * 2, this.maxPatchRetryDelay);
     }
 
     /**
@@ -994,16 +942,11 @@ export class ScriptStore extends BaseManager {
     }
 
     /**
-     * Clear pending patch timers/state
+     * Clear pending patch state (queue and active set). ScriptStore does not use timers.
      */
     clearAllPatchState () {
-        for (const timer of this.patchTimers.values()) {
-            clearTimeout(timer);
-        }
-        this.patchTimers.clear();
         this.patchQueue.clear();
         this.activePatches.clear();
-        this.lastSuccessfulFlush.clear();
     }
 
     /**

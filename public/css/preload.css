@@ -1,0 +1,49 @@
+body > * {
+    opacity: 0;
+    animation: fadeIn 1s ease-in-out forwards !important;
+    animation-delay: 1.5s !important;
+}
+
+body:before {
+    content: 'Screenplaye';
+    font-family: 'Inter', sans-serif;
+    display: block;
+    position: fixed;
+    opacity: 1 !important;
+    top: 45%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    height: 100%;
+    color: blue;
+    font-size: 2rem;
+    font-weight: bold;
+    width: 480px;
+    height: 100px;
+    background: beige;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeOut 0.1s ease-in-out forwards;
+    animation-delay: 2s;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+        display: none;
+    }
+}

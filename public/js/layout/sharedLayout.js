@@ -6,7 +6,6 @@ const SHARED_TOPBAR_HTML = `
         <nav class="site-nav">
             <a href="/public/" class="site-nav__link">All</a>
             <a href="/mine/" class="site-nav__link">Mine</a>
-            <a href="/brainstorm/" class="site-nav__link">Brainstorm</a>
         </nav>
         <div class="token-watch-widget hidden" aria-live="polite">
             <span class="token-watch__tokens" aria-label="token usage">x tokens</span>

@@ -8,6 +8,7 @@
 @import 'components/chat-modern.css';
 @import 'components/navbar.css';
 @import 'components/editor.css';
+@import 'components/script-view.css';
 @import 'components/editor-mobile.css';
 @import 'components/uploader.css';
 @import 'components/spinner.css';
@@ -20,7 +21,6 @@
 @import 'components/authentication.css';
 @import 'components/site-header.css';
 @import 'components/public-scripts.css';
-@import 'components/brainstorm.css';
 @import 'components/mini-chat-widget.css';
 
 /* Imports */
