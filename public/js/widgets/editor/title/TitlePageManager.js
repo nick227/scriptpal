@@ -114,9 +114,6 @@ export class TitlePageManager {
         this.toggleTitlePage = this.titlePage.querySelector('.toggle-title-page');
         this.mediaContainer = this.titlePage.querySelector('.title-media-container');
         this.isTitlePageCollapsed = this.checkLocalStorage('isTitlePageCollapsed', false);
-        if (this.isTitlePageCollapsed) {
-            this.toggleTitlePageVisibility();
-        }
         this.updateCollapsedState();
     }
 

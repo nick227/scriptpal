@@ -1,7 +1,9 @@
 import { EDITOR_EVENTS } from '../constants.js';
 
+const AUTO_SAVE_DEBOUNCE_MS = 800;
+
 /**
- * EditorSaveService - Controls timing; immediate flush on CONTENT_PERSIST. ScriptStore is transport only.
+ * EditorSaveService - Debounced auto-save on CONTENT_PERSIST; immediate flush on focus-out, manual save, exit.
  */
 export class EditorSaveService {
     constructor (options = {}) {
@@ -13,6 +15,7 @@ export class EditorSaveService {
         this.toolbar = options.toolbar;
         this.scriptStore = options.scriptStore;
         this.lastNormalizedContent = '';
+        this.autoSaveTimer = null;
 
         this.handleContentChange = this.handleContentChange.bind(this);
         this.handleFocusOut = this.handleFocusOut.bind(this);
@@ -30,9 +33,19 @@ export class EditorSaveService {
         window.addEventListener('pagehide', this.handlePageExit);
     }
 
-    /** Immediate flush only. No debounce, timers, or cooldowns — adding delay here causes regressions. */
     handleContentChange () {
-        this.flushSave('auto');
+        this.cancelAutoSave();
+        this.autoSaveTimer = setTimeout(() => {
+            this.autoSaveTimer = null;
+            this.flushSave('auto');
+        }, AUTO_SAVE_DEBOUNCE_MS);
+    }
+
+    cancelAutoSave () {
+        if (this.autoSaveTimer) {
+            clearTimeout(this.autoSaveTimer);
+            this.autoSaveTimer = null;
+        }
     }
 
     handleLineChange () {
@@ -69,18 +82,22 @@ export class EditorSaveService {
     }
 
     handleFocusOut () {
+        this.cancelAutoSave();
         this.flushSave('focus');
     }
 
     async handleManualSave () {
+        this.cancelAutoSave();
         return this.flushSave('manual');
     }
 
     handlePageExit () {
+        this.cancelAutoSave();
         this.flushSave('exit');
     }
 
     destroy () {
+        this.cancelAutoSave();
         this.content.off(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.off(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
         window.removeEventListener('beforeunload', this.handlePageExit);

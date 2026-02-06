@@ -2,7 +2,7 @@ import { BaseWidget } from '../BaseWidget.js';
 import { StateManager } from '../../core/StateManager.js';
 import { EventManager } from '../../core/EventManager.js';
 
-const POLL_INTERVAL = 30000;
+const POLL_INTERVAL = 60000;
 
 export class TokenWatchWidget extends BaseWidget {
     constructor (elements = {}, api, stateManager, eventManager) {

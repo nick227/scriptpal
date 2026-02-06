@@ -4,8 +4,8 @@
  */
 
 import { EventManager } from '../../core/EventManager.js';
-import { loadJsonFromStorage, saveJsonToStorage } from '../../services/persistence/PersistenceManager.js';
 import { debugLog } from '../../core/logger.js';
+import { loadJsonFromStorage, saveJsonToStorage } from '../../services/persistence/PersistenceManager.js';
 
 /**
  * FullscreenManager class for managing fullscreen mode

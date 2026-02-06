@@ -23,24 +23,34 @@ import { ThemeStore } from './stores/ThemeStore.js';
 window.scriptPalApp = null;
 
 /**
- * Initialize ScriptPal with clean architecture
+ * Initialize ScriptPal with clean architecture.
+ * @param {object} [preAuth] - When provided (from appBootstrap), reuses single API/user and skips duplicate session check.
  */
-async function initScriptPal () {
+export async function init (preAuth) {
     try {
         renderSharedTopBar();
         const sharedElements = getTopBarElements();
 
-        // Create app instance
         window.scriptPalApp = new App();
-
-        // Initialize the app
         await window.scriptPalApp.init();
 
-        const api = new ScriptPalAPI();
-        const user = new ScriptPalUser(api);
         const stateManager = new StateManager();
         const eventManager = new EventManager();
         const registry = new ServiceRegistry();
+
+        let api;
+        let user;
+        let isAuthenticated;
+
+        if (preAuth?.authenticated && preAuth?.user) {
+            api = preAuth.user.api;
+            user = preAuth.user;
+            isAuthenticated = true;
+        } else {
+            api = new ScriptPalAPI();
+            user = new ScriptPalUser(api);
+            isAuthenticated = false;
+        }
 
         const { authWidget } = await initSharedTopBarWidgets(
             api,
@@ -59,7 +69,10 @@ async function initScriptPal () {
         const persistenceManager = new PersistenceManager({ api, stateManager, eventManager });
 
         await persistenceManager.ready;
-        const isAuthenticated = await user.checkSession();
+
+        if (!isAuthenticated) {
+            isAuthenticated = await user.checkSession();
+        }
 
         if (authWidget) {
             if (isAuthenticated) {
@@ -165,11 +178,4 @@ function showError (message) {
         </div>
     `;
     document.body.appendChild(errorDiv);
-}
-
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initScriptPal);
-} else {
-    initScriptPal();
 }
