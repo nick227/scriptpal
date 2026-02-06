@@ -66,7 +66,14 @@ const chatMessageRepository = {
       insert,
       prisma.$queryRaw`SELECT LAST_INSERT_ID() AS id`
     ]);
-    const insertedId = Array.isArray(rows) ? rows[0]?.id : rows?.id ?? null;
+    const rawInsertedId = Array.isArray(rows) ? rows[0]?.id : rows?.id ?? null;
+    if (rawInsertedId === null || rawInsertedId === undefined) {
+      throw new Error('Unable to determine inserted chat message ID');
+    }
+    const insertedId = Number(rawInsertedId);
+    if (Number.isNaN(insertedId)) {
+      throw new Error('Unable to parse inserted chat message ID');
+    }
     if (!insertedId) {
       throw new Error('Unable to determine inserted chat message ID');
     }
