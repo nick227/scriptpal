@@ -1,5 +1,7 @@
 import { VALID_FORMAT_VALUES } from '../../constants.js';
 
+const XML_TAG_REGEX = /<([\w-]+)>([\s\S]*?)<\/\1>/;
+
 // Error types for better error handling
 const EditErrors = {
   INVALID_INPUT: 'INVALID_INPUT',
@@ -75,11 +77,12 @@ export class ScriptEditHelper {
      * @private
      */
   static processCommand(cmd, lines) {
-    const { command, lineNumber, value } = cmd;
+    const { command, value } = cmd;
+    const lineNumber = Number.isFinite(cmd.lineNumber) ? Number(cmd.lineNumber) : NaN;
+    const maxLine = command === 'ADD' ? lines.length + 1 : lines.length;
 
-    // Validate line number bounds
-    if (lineNumber < 1 || lineNumber > lines.length + 1) {
-      throw new Error(`${EditErrors.INVALID_LINE_NUMBER}: Line number ${lineNumber} is out of bounds`);
+    if (Number.isNaN(lineNumber) || lineNumber < 1 || lineNumber > maxLine) {
+      throw new Error(`${EditErrors.INVALID_LINE_NUMBER}: Line number ${cmd.lineNumber} is out of bounds`);
     }
 
     // Validate XML format for ADD/EDIT commands
@@ -96,7 +99,8 @@ export class ScriptEditHelper {
         this.editLineAt(lines, lineNumber, tag, content);
         break;
       case 'ADD':
-        this.addLineAfter(lines, lineNumber, tag, content);
+        const insertIndex = Math.max(0, Math.min(lines.length, Math.floor(lineNumber)));
+        this.addLineAfter(lines, insertIndex, tag, content);
         break;
       default:
         throw new Error(`${EditErrors.UNKNOWN_COMMAND}: Unknown command type ${command}`);
@@ -113,7 +117,7 @@ export class ScriptEditHelper {
      * @private
      */
   static parseXmlValue(value) {
-    const match = value.match(/<([\w-]+)>([^<]+)<\/\1>/);
+    const match = value.match(XML_TAG_REGEX);
     if (!match) {
       throw new Error(`${EditErrors.INVALID_XML_FORMAT}: Value must be in format <tag>content</tag>`);
     }
@@ -151,21 +155,26 @@ export class ScriptEditHelper {
 
   static parseStructuredLines(parsed) {
     const rawLines = Array.isArray(parsed?.lines) ? parsed.lines : Array.isArray(parsed) ? parsed : [];
-    return rawLines.map(line => ({
-      raw: '',
-      tag: line?.format || null,
-      content: typeof line?.content === 'string'
+    return rawLines.map(line => {
+      const format = line?.format || null;
+      const content = typeof line?.content === 'string'
         ? line.content
         : typeof line?.text === 'string'
           ? line.text
-          : '',
-      id: line?.id || null
-    }));
+          : '';
+      const raw = line?.raw || (format ? `<${format}>${content}</${format}>` : '');
+      return {
+        raw,
+        tag: format,
+        content,
+        id: line?.id || null
+      };
+    });
   }
 
   static parseScriptToLines(content) {
     return content.split('\n').map(line => {
-      const match = line.match(/<([\w-]+)>([^<]+)<\/\1>/);
+      const match = line.match(XML_TAG_REGEX);
       if (!match) return { raw: line, tag: null, content: null, id: null };
 
       const [, tag, text] = match;
@@ -207,7 +216,7 @@ export class ScriptEditHelper {
       version: 2,
       lines: lines.map(line => ({
         id: line.id || `line_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        format: line.tag || 'action',
+        format: line.tag || line.format || 'action',
         content: line.content || ''
       }))
     });

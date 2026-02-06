@@ -5,6 +5,7 @@ import scriptCommentRepository from '../repositories/scriptCommentRepository.js'
 import scriptVersionRepository from '../repositories/scriptVersionRepository.js';
 import { generateUniqueSlug } from '../lib/slug.js';
 import { generatePublicId } from '../lib/id.js';
+import scriptSlugRepository from '../repositories/scriptSlugRepository.js';
 
 const toScriptWithVersion = (script, version) => {
   if (!script) return null;

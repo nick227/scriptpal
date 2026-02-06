@@ -14,7 +14,7 @@ export class EditorCoordinator {
     /**
      * @param options
      */
-    constructor (options) {
+    constructor(options) {
         this.container = options.container;
         this.stateManager = options.stateManager;
         this.pageManager = options.pageManager;
@@ -62,7 +62,7 @@ export class EditorCoordinator {
      * @param eventType
      * @param handler
      */
-    on (eventType, handler) {
+    on(eventType, handler) {
         return this.events.subscribe(eventType, handler);
     }
 
@@ -71,7 +71,7 @@ export class EditorCoordinator {
      * @param eventType
      * @param handler
      */
-    off (eventType, handler) {
+    off(eventType, handler) {
         this.events.unsubscribe(eventType, handler);
     }
 
@@ -80,21 +80,21 @@ export class EditorCoordinator {
      * @param eventType
      * @param data
      */
-    emit (eventType, data) {
+    emit(eventType, data) {
         this.events.publish(eventType, data);
     }
 
     /**
      *
      */
-    removeAllListeners () {
+    removeAllListeners() {
         this.events.clear();
     }
 
     /**
      *
      */
-    async initialize () {
+    async initialize() {
         try {
             await this.initializeCriticalPhase();
             await this.initializeEventPhase();
@@ -109,7 +109,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    async initializeCriticalPhase () {
+    async initializeCriticalPhase() {
         // Phase 1: Validate dependencies + DOM
         if (!this.domHandler) {
             throw new Error('EditorCoordinator: domHandler is required');
@@ -145,7 +145,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    async initializeEventPhase () {
+    async initializeEventPhase() {
         // Phase 3: Input routing
         this.inputController.setCallbacks({
             onCursorMove: (position) => {
@@ -207,7 +207,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    deferOptionalFeatures () {
+    deferOptionalFeatures() {
         setTimeout(() => {
             if (this.autocomplete && typeof this.autocomplete.setEditorArea === 'function') {
                 this.autocomplete.setEditorArea(this.editorArea);
@@ -227,7 +227,7 @@ export class EditorCoordinator {
      * @param root0.source
      * @param root0.focus
      */
-    async updateContent (content, { isEdit = false, preserveState = false, source = null, focus = false } = {}) {
+    async updateContent(content, { isEdit = false, preserveState = false, source = null, focus = false } = {}) {
         try {
             if (content === null || content === undefined) {
                 console.warn('[EditorCoordinator] Invalid content provided');
@@ -268,21 +268,21 @@ export class EditorCoordinator {
     /**
      *
      */
-    getContent () {
+    getContent() {
         return this.documentService.getContent();
     }
 
     /**
      *
      */
-    getPlainText () {
+    getPlainText() {
         return this.documentService.getPlainText();
     }
 
     /**
      *
      */
-    getLines () {
+    getLines() {
         return this.documentService.getLines();
     }
 
@@ -290,7 +290,7 @@ export class EditorCoordinator {
      *
      * @param lineId
      */
-    getLineById (lineId) {
+    getLineById(lineId) {
         return this.documentService.getLineById(lineId);
     }
 
@@ -298,7 +298,7 @@ export class EditorCoordinator {
      *
      * @param lineId
      */
-    getLineContentById (lineId) {
+    getLineContentById(lineId) {
         return this.documentService.getLineContentById(lineId);
     }
 
@@ -306,7 +306,7 @@ export class EditorCoordinator {
      *
      * @param lineId
      */
-    isLineEmptyById (lineId) {
+    isLineEmptyById(lineId) {
         return this.documentService.isLineEmptyById(lineId);
     }
 
@@ -314,35 +314,35 @@ export class EditorCoordinator {
      *
      * @param lineId
      */
-    getLineIndex (lineId) {
+    getLineIndex(lineId) {
         return this.documentService.getLineIndex(lineId);
     }
 
     /**
      *
      */
-    getLineCount () {
+    getLineCount() {
         return this.documentService.getLineCount();
     }
 
     /**
      *
      */
-    getWordCount () {
+    getWordCount() {
         return this.documentService.getWordCount();
     }
 
     /**
      *
      */
-    getCharacterCount () {
+    getCharacterCount() {
         return this.documentService.getCharacterCount();
     }
 
     /**
      *
      */
-    getChapterCount () {
+    getChapterCount() {
         return this.documentService.getChapterCount();
     }
 
@@ -352,7 +352,7 @@ export class EditorCoordinator {
      * @param options
      * @returns {Promise<object>}
      */
-    async applyCommands (commands = [], options = {}) {
+    async applyCommands(commands = [], options = {}) {
         // Phase 1: Interpret input
         if (!Array.isArray(commands) || commands.length === 0) {
             return { success: false, reason: 'no_commands' };
@@ -392,7 +392,7 @@ export class EditorCoordinator {
      * @param {object} options
      * @returns {Promise<object>}
      */
-    async appendLines (lines = [], options = {}) {
+    async appendLines(lines = [], options = {}) {
         return this._enqueueOperation(async () => {
             const startIndex = this.documentService.getLineCount();
             const commands = lines
@@ -425,7 +425,7 @@ export class EditorCoordinator {
      * Set format for the current line
      * @param format
      */
-    setCurrentLineFormat (format) {
+    setCurrentLineFormat(format) {
         const selectedLine = this.domHandler.container.querySelector('.script-line.selected');
         const currentLine = selectedLine || this.domHandler.getCurrentLine();
         if (!currentLine || !this.lineFormatter.isValidFormat(format)) {
@@ -443,7 +443,7 @@ export class EditorCoordinator {
      *
      * @param direction
      */
-    cycleFormat (direction = 1) {
+    cycleFormat(direction = 1) {
         const currentLine = this.domHandler.getCurrentLine();
         if (!currentLine) return;
         const lineId = currentLine.dataset.lineId || this.ensureLineId(currentLine);
@@ -457,7 +457,7 @@ export class EditorCoordinator {
      * @param root0.format
      * @param root0.direction
      */
-    applyFormat (lineId, { format, direction } = {}) {
+    applyFormat(lineId, { format, direction } = {}) {
         if (!lineId) {
             return null;
         }
@@ -476,7 +476,7 @@ export class EditorCoordinator {
      *
      * @param command
      */
-    applyFormatCommand (command) {
+    applyFormatCommand(command) {
         if (!command || command.type !== 'setFormat') {
             return null;
         }
@@ -500,7 +500,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    refreshSpeakerSuggestions () {
+    refreshSpeakerSuggestions() {
         if (!this.stateManager) {
             return;
         }
@@ -527,7 +527,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    clearSelection () {
+    clearSelection() {
         const selection = window.getSelection();
         selection.removeAllRanges();
     }
@@ -536,7 +536,7 @@ export class EditorCoordinator {
      *
      * @param saveService
      */
-    setSaveService (saveService) {
+    setSaveService(saveService) {
         this.inputController.setSaveService(saveService);
     }
 
@@ -544,7 +544,7 @@ export class EditorCoordinator {
      *
      * @param history
      */
-    setHistory (history) {
+    setHistory(history) {
         this.inputController.setHistory(history);
     }
 
@@ -552,27 +552,25 @@ export class EditorCoordinator {
      *
      * @param lineElement
      */
-    syncLineContentFromDOM (lineElement) {
+    syncLineContentFromDOM(lineElement) {
         if (!lineElement || !lineElement.classList.contains('script-line')) {
             return;
         }
 
         const lineId = this.ensureLineId(lineElement);
-        if (!lineId) {
-            return;
-        }
+        if (!lineId) return;
 
         const content = lineElement.textContent || '';
-        const format = lineElement.getAttribute('data-format') || 'action';
         const existing = this.documentService.getLineById(lineId);
-        if (existing && existing.content === content && existing.format === format) {
+
+        if (existing && existing.content === content) {
             return;
         }
 
         const command = this.documentService.createEditCommandById(lineId, {
-            format,
             content
         });
+
         if (command) {
             this.applyCommands([command], { source: 'input', skipRender: true });
         }
@@ -582,7 +580,7 @@ export class EditorCoordinator {
      *
      * @param lineElement
      */
-    ensureLineId (lineElement) {
+    ensureLineId(lineElement) {
         if (lineElement.dataset.lineId) {
             return lineElement.dataset.lineId;
         }
@@ -614,16 +612,23 @@ export class EditorCoordinator {
      * @param lineId
      * @param options
      */
-    async insertLineAfter (lineId, options = {}) {
+    async insertLineAfter(lineId, options = {}) {
         return this._enqueueOperation(async () => {
             const { format = 'action', content = '', updateCurrentContent, focus = true } = options;
+            const updatePayload = updateCurrentContent !== undefined
+                ? (updateCurrentContent && typeof updateCurrentContent === 'object'
+                    ? updateCurrentContent
+                    : { content: updateCurrentContent })
+                : null;
             const wasLastLine = this.documentService.getLineIndex(lineId) === this.documentService.getLineCount() - 1;
             const insertCommand = this.documentService.createAddCommandAfterLine(lineId, { format, content });
             const commands = [];
             if (updateCurrentContent !== undefined) {
-                const editCommand = this.documentService.createEditCommandById(lineId, {
-                    content: updateCurrentContent
-                });
+                const editPayload = {
+                    ...(updatePayload?.format !== undefined ? { format: updatePayload.format } : {}),
+                    ...(updatePayload?.content !== undefined ? { content: updatePayload.content } : {})
+                };
+                const editCommand = this.documentService.createEditCommandById(lineId, editPayload);
                 if (editCommand) {
                     commands.push(editCommand);
                 }
@@ -645,7 +650,8 @@ export class EditorCoordinator {
             const canIncremental = wasLastLine && requiredPages === currentPages;
 
             if (updateCurrentContent !== undefined) {
-                this.renderController.updateLineById(lineId, { content: updateCurrentContent });
+                const renderContent = updatePayload?.content ?? updateCurrentContent;
+                this.renderController.updateLineById(lineId, { content: renderContent });
             }
 
             if (canIncremental && newLine) {
@@ -677,7 +683,7 @@ export class EditorCoordinator {
      * @param lineIds
      * @param options
      */
-    async deleteLinesById (lineIds = [], options = {}) {
+    async deleteLinesById(lineIds = [], options = {}) {
         return this._enqueueOperation(async () => {
             if (!Array.isArray(lineIds) || lineIds.length === 0) {
                 return null;
@@ -731,7 +737,7 @@ export class EditorCoordinator {
      * @param fromLineId
      * @param options
      */
-    async mergeLinesById (toLineId, fromLineId, options = {}) {
+    async mergeLinesById(toLineId, fromLineId, options = {}) {
         return this._enqueueOperation(async () => {
             if (!toLineId || !fromLineId) {
                 return null;
@@ -769,7 +775,7 @@ export class EditorCoordinator {
      * @param lineId
      * @param updates
      */
-    updateLineById (lineId, updates = {}) {
+    updateLineById(lineId, updates = {}) {
         const command = this.documentService.createEditCommandById(lineId, updates);
         if (!command) {
             return null;
@@ -785,7 +791,7 @@ export class EditorCoordinator {
      * @param updates
      * @param focusOptions
      */
-    updateLineByIdWithFocus (lineId, updates = {}, focusOptions = {}) {
+    updateLineByIdWithFocus(lineId, updates = {}, focusOptions = {}) {
         const command = this.updateLineById(lineId, updates);
         if (!command) {
             return null;
@@ -801,7 +807,7 @@ export class EditorCoordinator {
      *
      * @param lineText
      */
-    getLineFormat (lineText) {
+    getLineFormat(lineText) {
         const match = lineText.match(/<([\w-]+)>([\s\S]*)<\/\1>/);
         if (!match) {
             return 'action';
@@ -812,7 +818,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    _getRequiredPageCount () {
+    _getRequiredPageCount() {
         return Math.ceil(this.documentService.getLineCount() / this.pageManager.maxLinesPerPage);
     }
 
@@ -821,7 +827,7 @@ export class EditorCoordinator {
      * @param root0
      * @param root0.source
      */
-    _emitContentChange ({ source } = {}) {
+    _emitContentChange({ source } = {}) {
         const serializeStart = performance.now();
         const content = this.getContent();
         const serializeDuration = performance.now() - serializeStart;
@@ -845,7 +851,7 @@ export class EditorCoordinator {
      *
      * @param payload
      */
-    _handleEditIntent (payload) {
+    _handleEditIntent(payload) {
         const { type } = payload;
 
         if (type === 'SPLIT_LINE') {
@@ -858,12 +864,14 @@ export class EditorCoordinator {
             const cursorPosition = selection.startOffset;
             const beforeText = line.content.substring(0, cursorPosition);
             const afterText = line.content.substring(cursorPosition);
-            const nextFormat = this.lineFormatter.getNextFormatInFlow(line.format, 1);
+            const nextFormat = this.lineFormatter.getDefaultNextFormat
+                ? this.lineFormatter.getDefaultNextFormat(line.format)
+                : line.format;
 
             return this.insertLineAfter(lineId, {
                 format: nextFormat,
                 content: afterText,
-                updateCurrentContent: beforeText,
+                updateCurrentContent: { content: beforeText },
                 focus: true
             });
         }
@@ -912,7 +920,7 @@ export class EditorCoordinator {
      * @param type
      * @param duration
      */
-    _recordPerf (type, duration) {
+    _recordPerf(type, duration) {
         if (type === 'render') {
             this.perfStats.renderCount += 1;
             this.perfStats.renderTotalMs += duration;
@@ -926,7 +934,7 @@ export class EditorCoordinator {
      *
      * @param operation
      */
-    _enqueueOperation (operation) {
+    _enqueueOperation(operation) {
         this._opQueue = this._opQueue.then(operation)
             .catch((error) => {
                 console.error('[EditorCoordinator] Operation failed:', error);
@@ -940,7 +948,7 @@ export class EditorCoordinator {
      * @param lineId
      * @param options
      */
-    _setFocusIntent (lineId, options = {}) {
+    _setFocusIntent(lineId, options = {}) {
         if (!lineId) {
             return;
         }
@@ -953,7 +961,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    _applyFocusIntent () {
+    _applyFocusIntent() {
         if (!this._pendingFocus) {
             return null;
         }
@@ -965,7 +973,7 @@ export class EditorCoordinator {
     /**
      *
      */
-    destroy () {
+    destroy() {
         if (this.domHandler && this._domHandlerEditIntentHandler) {
             this.domHandler.off('editIntent', this._domHandlerEditIntentHandler);
             this._domHandlerEditIntentHandler = null;

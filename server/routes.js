@@ -73,31 +73,32 @@ const routes = [
     handler: publicScriptController.list
   },
   {
-    path: '/public/scripts/slug/:slug',
-    method: 'get',
-    handler: publicScriptController.getBySlug
-  },
-  {
     path: '/public/scripts/public/:publicId',
     method: 'get',
     handler: publicScriptController.getByPublicId
   },
   {
-    path: '/public/scripts/:id',
+    path: '/public/scripts/slug/:slug',
     method: 'get',
-    handler: publicScriptController.get
+    handler: publicScriptController.getBySlug
   },
   {
-    path: '/public/scripts/:id/comments',
-    method: 'get',
-    handler: publicScriptCommentController.list,
-  },
-  {
-    path: '/public/scripts/:id/comments',
-    method: 'post',
-    handler: publicScriptCommentController.create,
-    middleware: [validateSession]
-  },
+  path: '/public/scripts/:id/comments',
+  method: 'get',
+  handler: publicScriptCommentController.list
+},
+{
+  path: '/public/scripts/:id/comments',
+  method: 'post',
+  handler: publicScriptCommentController.create,
+  middleware: [validateSession]
+},
+{
+  path: '/public/scripts/:id',
+  method: 'get',
+  handler: publicScriptController.get
+},
+
 
   // Protected routes (require auth)
   {

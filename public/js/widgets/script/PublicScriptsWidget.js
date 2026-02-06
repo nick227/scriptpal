@@ -138,7 +138,6 @@ export class PublicScriptsWidget {
             : publicId
                 ? `/public/${publicId}`
                 : `public-script.html?id=${encodeURIComponent(script.id || '')}`;
-        titleLink.target = '_blank';
         titleLink.rel = 'noopener noreferrer';
 
         const meta = document.createElement('div');

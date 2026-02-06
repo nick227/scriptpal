@@ -126,7 +126,8 @@ export class EditorDocumentService {
         if (!line) {
             return null;
         }
-        const format = resolveLineFormat(updates.format, { content: updates.content }) || line.format;
+        const resolvedFormat = resolveLineFormat(updates.format, { content: updates.content });
+        const format = updates.format !== undefined ? resolvedFormat : line.format;
         const content = updates.content !== undefined ? updates.content : line.content;
         return {
             command: 'EDIT',

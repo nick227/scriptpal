@@ -9,7 +9,7 @@ import { KeyboardSelectionController } from './KeyboardSelectionController.js';
  * Routes events to appropriate controllers.
  */
 export class KeyboardManager {
-    constructor (options) {
+    constructor(options) {
         this.stateManager = options.stateManager;
         this.pageManager = options.pageManager;
         this.contentManager = options.contentManager;
@@ -61,7 +61,7 @@ export class KeyboardManager {
         };
     }
 
-    initialize (editorArea) {
+    initialize(editorArea) {
         if (!editorArea) {
             console.error('[KeyboardManager] No editor area provided');
             return;
@@ -78,7 +78,7 @@ export class KeyboardManager {
         this._debugLog('[KeyboardManager] Initialized');
     }
 
-    destroy () {
+    destroy() {
         if (this.editorArea) {
             this.editorArea.removeEventListener('keydown', this._boundHandlers.keydown);
             this.editorArea.removeEventListener('click', this._boundHandlers.click);
@@ -94,7 +94,7 @@ export class KeyboardManager {
     // Event Handlers
     // ==============================================
 
-    _handleClick (event) {
+    _handleClick(event) {
         const scriptLine = event.target.closest('.script-line');
 
         if (!scriptLine) {
@@ -117,7 +117,7 @@ export class KeyboardManager {
         }
     }
 
-    _handleKeyDown (event) {
+    _handleKeyDown(event) {
         if (event.isComposing || this._isComposing) {
             return;
         }
@@ -152,7 +152,7 @@ export class KeyboardManager {
     // Priority 1: Global Shortcuts
     // ==============================================
 
-    _handleGlobalShortcuts (event) {
+    _handleGlobalShortcuts(event) {
         if (event.ctrlKey && event.key === 's') {
             event.preventDefault();
             event.stopPropagation();
@@ -168,7 +168,7 @@ export class KeyboardManager {
     // Priority 2: Autocomplete
     // ==============================================
 
-    _handleAutocomplete (event, scriptLine) {
+    _handleAutocomplete(event, scriptLine) {
         if (!this.autocomplete?.hasActiveSuggestion(scriptLine)) {
             return false;
         }
@@ -196,7 +196,7 @@ export class KeyboardManager {
     // Priority 3: Navigation & Edits
     // ==============================================
 
-    _handleNavigation (event, scriptLine) {
+    _handleNavigation(event, scriptLine) {
         // Ctrl+Arrow: Format cycling
         if (event.ctrlKey && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
             event.preventDefault();
@@ -242,7 +242,7 @@ export class KeyboardManager {
         }
     }
 
-    _handleArrowUpDown (event, scriptLine) {
+    _handleArrowUpDown(event, scriptLine) {
         event.preventDefault();
         this.selectionController.clear();
 
@@ -256,7 +256,7 @@ export class KeyboardManager {
         return true;
     }
 
-    _handleArrowLeftRight (event, scriptLine) {
+    _handleArrowLeftRight(event, scriptLine) {
         const content = this._getLineContent(scriptLine);
         const offsets = this._getSelectionOffsets(scriptLine);
         if (!offsets) {
@@ -279,25 +279,20 @@ export class KeyboardManager {
         return false;
     }
 
-    _handleEnter (event, scriptLine) {
+    _handleEnter(event, scriptLine) {
         event.preventDefault();
         event.stopPropagation();
 
-        const content = this._getLineContent(scriptLine);
+        const content = scriptLine.textContent || '';     // DOM, not model
         const offsets = this._getSelectionOffsets(scriptLine);
         const cursorPos = offsets?.startOffset ?? content.length;
         const currentFormat = scriptLine.getAttribute('data-format');
 
-        this.editController.handleEnter(scriptLine, event, {
-            content,
-            cursorPos,
-            currentFormat
-        });
-
+        this.editController.handleEnter(scriptLine, event, { content, cursorPos, currentFormat });
         return true;
     }
 
-    _handleTab (event, scriptLine) {
+    _handleTab(event, scriptLine) {
         event.preventDefault();
 
         const targetLine = event.shiftKey
@@ -322,7 +317,7 @@ export class KeyboardManager {
         return true;
     }
 
-    _handleDelete (event, scriptLine) {
+    _handleDelete(event, scriptLine) {
         const selectedLines = this.selectionController.getSelectedLines();
         const hasRangeSelection = this.selectionController.hasRangeSelection();
 
@@ -385,7 +380,7 @@ export class KeyboardManager {
     // Priority 4: Formatting
     // ==============================================
 
-    _handleFormatting (event, scriptLine) {
+    _handleFormatting(event, scriptLine) {
         if (event.key === 'Tab' && !this.autocomplete?.currentSuggestion) {
             event.preventDefault();
             this.lineFormatter?.indent(scriptLine, event.shiftKey);
@@ -398,7 +393,7 @@ export class KeyboardManager {
     // Helpers
     // ==============================================
 
-    _getLineContent (scriptLine) {
+    _getLineContent(scriptLine) {
         if (!scriptLine || !this.contentManager) {
             return '';
         }
@@ -406,7 +401,7 @@ export class KeyboardManager {
         return lineId ? this.contentManager.getLineContentById(lineId) : '';
     }
 
-    _isLineEmpty (scriptLine) {
+    _isLineEmpty(scriptLine) {
         if (!scriptLine || !this.contentManager) {
             return true;
         }
@@ -414,7 +409,7 @@ export class KeyboardManager {
         return !lineId || this.contentManager.isLineEmptyById(lineId);
     }
 
-    _isCaretAtLineStart (scriptLine) {
+    _isCaretAtLineStart(scriptLine) {
         const selection = window.getSelection();
         if (!selection?.rangeCount || !selection.isCollapsed) {
             return false;
@@ -424,7 +419,7 @@ export class KeyboardManager {
         return offsets?.startOffset === 0 && offsets?.endOffset === 0;
     }
 
-    _getSelectionOffsets (scriptLine) {
+    _getSelectionOffsets(scriptLine) {
         const selection = window.getSelection();
         if (!selection?.rangeCount) {
             return null;
@@ -445,14 +440,14 @@ export class KeyboardManager {
         return { startOffset, endOffset };
     }
 
-    _getOffsetWithinLine (scriptLine, container, offset) {
+    _getOffsetWithinLine(scriptLine, container, offset) {
         const range = document.createRange();
         range.setStart(scriptLine, 0);
         range.setEnd(container, offset);
         return range.toString().length;
     }
 
-    _applyFormatCommand (scriptLine, format) {
+    _applyFormatCommand(scriptLine, format) {
         if (!scriptLine || !this.contentManager || !this.lineFormatter) {
             return null;
         }
@@ -460,7 +455,7 @@ export class KeyboardManager {
         return this.contentManager.applyFormat(lineId, { format });
     }
 
-    _focusLine (line) {
+    _focusLine(line) {
         if (!line) {
             return;
         }
@@ -483,7 +478,7 @@ export class KeyboardManager {
         }
     }
 
-    _captureSelection (line) {
+    _captureSelection(line) {
         const selection = window.getSelection();
         if (!selection?.rangeCount) {
             return null;
@@ -502,7 +497,7 @@ export class KeyboardManager {
         };
     }
 
-    _restoreSelection (line, selectionState) {
+    _restoreSelection(line, selectionState) {
         if (!line) {
             return;
         }
@@ -529,43 +524,43 @@ export class KeyboardManager {
     // Public API (for compatibility)
     // ==============================================
 
-    getSelectedLines () {
+    getSelectedLines() {
         return this.selectionController.getSelectedLines();
     }
 
-    hasSelection () {
+    hasSelection() {
         return this.selectionController.hasSelection();
     }
 
-    getSelectionCount () {
+    getSelectionCount() {
         return this.selectionController.getSelectionCount();
     }
 
-    clearSelection () {
+    clearSelection() {
         this.selectionController.clear();
     }
 
-    getCurrentFormat () {
+    getCurrentFormat() {
         return 'dialog';
     }
 
-    setFormat () {
+    setFormat() {
         // No-op - format handled by EditorToolbar
     }
 
-    canTransitionTo (format) {
+    canTransitionTo(format) {
         return this.formatFlow.includes(format);
     }
 
-    getAvailableFormats () {
+    getAvailableFormats() {
         return [...this.formatFlow];
     }
 
-    getFSMStats () {
+    getFSMStats() {
         return { currentFormat: 'dialog', availableFormats: this.formatFlow };
     }
 
-    resetFSM () {
+    resetFSM() {
         // No-op
     }
 }
