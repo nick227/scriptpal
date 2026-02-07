@@ -15,12 +15,43 @@ export class ScriptService {
     }
 
     /**
-     * Get script by ID
+     * Get script by ID (optionally at a specific version)
      * @param {string} id - Script ID
+     * @param {number} [versionNumber] - If set, return script at this version
      * @returns {Promise<object>} Script object
      */
-    async getScript(id) {
-        return this.http.request(`${API_ENDPOINTS.SCRIPT}/${id}`, { method: 'GET' });
+    async getScript(id, versionNumber = null) {
+        const url = versionNumber != null
+            ? `${API_ENDPOINTS.SCRIPT}/${id}?version=${versionNumber}`
+            : `${API_ENDPOINTS.SCRIPT}/${id}`;
+        return this.http.request(url, { method: 'GET' });
+    }
+
+    /**
+     * List versions for a script (versionNumber, createdAt)
+     * @param {string} scriptId - Script ID
+     * @returns {Promise<Array<{versionNumber: number, createdAt: string}>>}
+     */
+    async getScriptVersions(scriptId) {
+        if (!scriptId) {
+            throw new ValidationError('SCRIPT_ID_REQUIRED');
+        }
+        return this.http.request(`${API_ENDPOINTS.SCRIPT}/${scriptId}/versions`, { method: 'GET' });
+    }
+
+    /**
+     * Restore a script to a previous version (creates new version with that content)
+     * @param {string} scriptId - Script ID
+     * @param {number} versionNumber - Version to restore from
+     * @returns {Promise<object>} Updated script (new latest version)
+     */
+    async restoreVersion(scriptId, versionNumber) {
+        if (!scriptId || versionNumber == null) {
+            throw new ValidationError('INVALID_DATA', { message: 'Script ID and version number required' });
+        }
+        return this.http.request(`${API_ENDPOINTS.SCRIPT}/${scriptId}/versions/${versionNumber}/restore`, {
+            method: 'POST'
+        });
     }
 
     /**

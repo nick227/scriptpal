@@ -52,7 +52,11 @@ export const STATE_KEYS = Object.freeze({
     IS_FROM_EDIT: 'isFromEdit',
     CAN_UNDO: 'canUndo',
     CAN_REDO: 'canRedo',
-    IS_DIRTY: 'isDirty'
+    IS_DIRTY: 'isDirty',
+
+    // Version preview (editorMode: 'edit' | 'version-preview')
+    EDITOR_MODE: 'editorMode',
+    EDITOR_PREVIEW_VERSION: 'editorPreviewVersion'
 });
 
 /**
@@ -95,7 +99,9 @@ export const STATE_SCHEMAS = Object.freeze({
     [STATE_KEYS.IS_FROM_EDIT]: { type: 'boolean', default: false },
     [STATE_KEYS.CAN_UNDO]: { type: 'boolean', default: false },
     [STATE_KEYS.CAN_REDO]: { type: 'boolean', default: false },
-    [STATE_KEYS.IS_DIRTY]: { type: 'boolean', default: false }
+    [STATE_KEYS.IS_DIRTY]: { type: 'boolean', default: false },
+    [STATE_KEYS.EDITOR_MODE]: { type: 'string', default: 'edit' },
+    [STATE_KEYS.EDITOR_PREVIEW_VERSION]: { type: 'number', default: null, nullable: true }
 });
 
 /**
@@ -185,6 +191,14 @@ export class StateManager {
             this.state.set(key, value);
             this.notifyListeners(key, value, oldValue);
         }
+    }
+
+    /**
+     * True when editor should not allow mutations (version-preview, future: collaboration read-only, public view).
+     * Use for keyboard handlers, applyCommands, setCurrentLineFormat, insertLineAfter, deleteLinesById, flushSave.
+     */
+    isEditorReadOnly () {
+        return this.getState(STATE_KEYS.EDITOR_MODE) === 'version-preview';
     }
 
     /**

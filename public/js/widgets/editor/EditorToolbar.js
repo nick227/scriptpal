@@ -1,6 +1,7 @@
 import { VALID_FORMATS, FORMAT_DISPLAY_NAMES } from '../../constants/formats.js';
 import { BaseWidget } from '../BaseWidget.js';
 import { ScriptImportWidget } from '../uploader/ScriptImportWidget.js';
+import { StateManager } from '../../core/StateManager.js';
 import { debugLog } from '../../core/logger.js';
 
 /**
@@ -26,6 +27,7 @@ export class EditorToolbar extends BaseWidget {
 
         this.container = options.container;
         this.stateManager = options.stateManager;
+        this.appStateManager = options.appStateManager || null;
         this.pageManager = options.pageManager;
         this.editorArea = null;
 
@@ -47,6 +49,17 @@ export class EditorToolbar extends BaseWidget {
         this.chapterBreakCreateButton = null;
         this.pageBreakCreateButton = null;
 
+        this.api = options.api || null;
+        this.scriptStore = options.scriptStore || null;
+        this.versions = [];
+        this.currentVersionNumber = null;
+        this.latestVersionNumber = null;
+        this.versionDropdownSelect = null;
+        this.versionDropdownLabel = null;
+        this.versionPreviewBar = null;
+        this.versionRestoreButton = null;
+        this.versionCancelButton = null;
+
         // Initialize handlers
         this._handlers = {
             formatSelected: null,
@@ -55,7 +68,10 @@ export class EditorToolbar extends BaseWidget {
             chapterBreakCreate: null,
             pageBreakCreate: null,
             save: null,
-            import: null
+            import: null,
+            versionPreviewRequested: null,
+            versionRestoreRequested: null,
+            versionPreviewCancelRequested: null
         };
 
         // Bind event handlers
@@ -108,8 +124,13 @@ export class EditorToolbar extends BaseWidget {
 
             // Initialize all toolbar components in correct order
             this.createFormatButtons();
+            // disable possible remove
+            // this.createUndoRedoButtons();
+            this.createVersionDropdown();
+            this.createVersionPreviewBar();
+            this.setEditorMode('edit');
 
-            // this.createPageNumButtons();
+            this.createPageNumButtons();
 
             this.setupEventListeners();
 
@@ -218,6 +239,66 @@ export class EditorToolbar extends BaseWidget {
         this.toolbar.appendChild(saveButton);
         this.toolbar.appendChild(importButton);
         this.toolbar.appendChild(fileInput);
+    }
+
+    createVersionDropdown () {
+        const wrapper = this.createElement('div', 'toolbar-version-dropdown');
+        this.versionDropdownLabel = this.createElement('span', 'version-dropdown-label', 'Version');
+        const select = this.createElement('select', 'version-dropdown-select');
+        select.title = 'Script version';
+        select.disabled = true;
+        wrapper.appendChild(this.versionDropdownLabel);
+        wrapper.appendChild(select);
+        this.toolbar.appendChild(wrapper);
+        this.versionDropdownSelect = select;
+        this._suppressVersionDropdownChange = false;
+        select.addEventListener('change', () => {
+            if (this._suppressVersionDropdownChange) return;
+            const versionNumber = Number(select.value);
+            if (Number.isNaN(versionNumber)) return;
+            if (versionNumber === this.latestVersionNumber && this._handlers.versionPreviewCancelRequested) {
+                this._handlers.versionPreviewCancelRequested();
+                return;
+            }
+            if (versionNumber !== this.latestVersionNumber && this._handlers.versionPreviewRequested) {
+                this._handlers.versionPreviewRequested({ versionNumber });
+            }
+        });
+    }
+
+    createVersionPreviewBar () {
+        const bar = this.createElement('div', 'version-preview-bar');
+        bar.hidden = true;
+        const lockIcon = this.createElement('span', 'version-preview-bar__lock');
+        lockIcon.setAttribute('aria-hidden', 'true');
+        lockIcon.textContent = '\u{1F512}';
+        lockIcon.title = 'View only';
+        const line1 = this.createElement('p', 'version-preview-bar__line1');
+        const line2 = this.createElement('p', 'version-preview-bar__line2');
+        const actions = this.createElement('div', 'version-preview-bar__actions');
+        const restoreBtn = this.createElement('button', 'format-button version-restore-button');
+        restoreBtn.textContent = 'Make this the current version';
+        restoreBtn.type = 'button';
+        const cancelBtn = this.createElement('button', 'format-button version-cancel-button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.type = 'button';
+        const hint = this.createElement('span', 'version-preview-bar__hint');
+        hint.textContent = 'A new version will be created.';
+        bar.appendChild(lockIcon);
+        bar.appendChild(line1);
+        bar.appendChild(line2);
+        actions.appendChild(restoreBtn);
+        actions.appendChild(cancelBtn);
+        actions.appendChild(hint);
+        bar.appendChild(actions);
+        this.toolbar.appendChild(bar);
+        this.versionPreviewBar = bar;
+        this.versionPreviewBarLine1 = line1;
+        this.versionPreviewBarLine2 = line2;
+        this.versionRestoreButton = restoreBtn;
+        this.versionCancelButton = cancelBtn;
+        this.versionPreviewBar.hidden = true;
+        // Bar buttons handled by handleToolbarClick (delegated); only active when in preview
     }
 
     /**
@@ -403,9 +484,102 @@ export class EditorToolbar extends BaseWidget {
             this._handleChapterBreakCreateClick();
         } else if (button.classList.contains('page-break-create-button')) {
             this._handlePageBreakCreateClick();
+        } else if (button.classList.contains('version-restore-button')) {
+            e.preventDefault();
+            e.stopPropagation();
+            const modeSource = this.appStateManager || this.stateManager;
+            if (modeSource?.getState(StateManager.KEYS.EDITOR_MODE) !== 'version-preview') return;
+            if (this._handlers.versionRestoreRequested) this._handlers.versionRestoreRequested();
+        } else if (button.classList.contains('version-cancel-button')) {
+            e.preventDefault();
+            e.stopPropagation();
+            const modeSource = this.appStateManager || this.stateManager;
+            if (modeSource?.getState(StateManager.KEYS.EDITOR_MODE) !== 'version-preview') return;
+            if (this._handlers.versionPreviewCancelRequested) this._handlers.versionPreviewCancelRequested();
         } else if (button.dataset.format) {
             this._handleFormatClick(button.dataset.format);
         }
+    }
+
+    setVersions (versions = []) {
+        this.versions = versions;
+        this.latestVersionNumber = versions[0]?.versionNumber ?? null;
+        if (!this.versionDropdownSelect) return;
+        this.versionDropdownSelect.innerHTML = '';
+        versions.forEach((v, i) => {
+            const opt = document.createElement('option');
+            opt.value = String(v.versionNumber);
+            const dateStr = v.createdAt ? new Date(v.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+            const currentLabel = i === 0 ? ' (Current)' : '';
+            opt.textContent = `v${v.versionNumber}${dateStr ? ` – ${dateStr}` : ''}${currentLabel}`;
+            this.versionDropdownSelect.appendChild(opt);
+        });
+        if (this.currentVersionNumber != null) {
+            this._suppressVersionDropdownChange = true;
+            this.versionDropdownSelect.value = String(this.currentVersionNumber);
+            this._suppressVersionDropdownChange = false;
+        }
+        this.versionDropdownLabel.textContent = this.currentVersionNumber != null ? `v${this.currentVersionNumber} ▾` : 'Version';
+        const modeSource = this.appStateManager || this.stateManager;
+        const inPreview = modeSource?.getState(StateManager.KEYS.EDITOR_MODE) === 'version-preview';
+        this.versionDropdownSelect.disabled = versions.length === 0 || inPreview;
+    }
+
+    setCurrentVersion (versionNumber) {
+        this.currentVersionNumber = versionNumber;
+        if (this.versionDropdownLabel) {
+            this.versionDropdownLabel.textContent = versionNumber != null ? `v${versionNumber} ▾` : 'Version';
+        }
+        if (this.versionDropdownSelect && this.versions.length > 0) {
+            this._suppressVersionDropdownChange = true;
+            this.versionDropdownSelect.value = String(versionNumber ?? this.latestVersionNumber ?? '');
+            this._suppressVersionDropdownChange = false;
+        }
+    }
+
+    setEditorMode (mode, previewVersionNumber = null) {
+        const isPreview = mode === 'version-preview';
+        if (this.versionPreviewBar) {
+            this.versionPreviewBar.hidden = !isPreview;
+            if (isPreview && previewVersionNumber != null && this.versionPreviewBarLine1) {
+                this.versionPreviewBarLine1.textContent = `You are viewing version ${previewVersionNumber}.`;
+                if (this.versionPreviewBarLine2) {
+                    this.versionPreviewBarLine2.textContent = 'Make this the current version, or Cancel to return to the latest.';
+                }
+            }
+        }
+        if (this.versionDropdownSelect) {
+            this.versionDropdownSelect.disabled = isPreview;
+        }
+        if (this.saveButton) {
+            this.saveButton.disabled = isPreview;
+            this.saveButton.title = isPreview ? 'Restore this version to edit and save.' : 'Save Script (Ctrl+S)';
+        }
+        if (this.formatButtons && this.formatButtons.size) {
+            this.formatButtons.forEach((btn) => { btn.disabled = isPreview; });
+        }
+    }
+
+    setRestoreLoading (loading) {
+        if (this.versionRestoreButton) {
+            this.versionRestoreButton.disabled = loading;
+            this.versionRestoreButton.textContent = loading ? 'Restoring…' : 'Make this the current version';
+        }
+        if (this.versionCancelButton) {
+            this.versionCancelButton.disabled = loading;
+        }
+    }
+
+    onVersionPreviewRequested (callback) {
+        this._handlers.versionPreviewRequested = typeof callback === 'function' ? callback : null;
+    }
+
+    onVersionRestoreRequested (callback) {
+        this._handlers.versionRestoreRequested = typeof callback === 'function' ? callback : null;
+    }
+
+    onVersionPreviewCancelRequested (callback) {
+        this._handlers.versionPreviewCancelRequested = typeof callback === 'function' ? callback : null;
     }
 
     /**

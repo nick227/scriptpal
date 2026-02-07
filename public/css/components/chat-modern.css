@@ -38,18 +38,16 @@
 
 .chatbot-container.minimized {
     height: 75px !important;
-    width: 205px !important;
+    width: 75px !important;
     border-radius: 22px !important;
     z-index: 1000 !important;
     position: fixed !important;
     display: flex;
     justify-content: flex-end !important;
     align-items: flex-end !important;
-    bottom: 20px;
-    right: 20px;
+    top: 15px;
+    right: 10px;
     background: transparent !important;
-    transition: all 0.3s ease !important;
-    overflow: hidden !important;
     z-index: 1000 !important;
 }
 
@@ -58,8 +56,6 @@
 .chatbot-container.minimized .chat-header {
     padding: 0;
     margin: 0;
-    height: 75px;
-    width: 175px;
     border: none;
     display: flex;
     justify-content: center !important;

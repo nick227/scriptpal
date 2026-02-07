@@ -21,6 +21,14 @@ const scriptVersionRepository = {
     });
   },
 
+  listSummaryByScriptId: async(scriptId) => {
+    return await prisma.scriptVersion.findMany({
+      where: { scriptId },
+      orderBy: { versionNumber: 'desc' },
+      select: { versionNumber: true, createdAt: true }
+    });
+  },
+
   create: async({ scriptId, versionNumber, content }) => {
     return await prisma.scriptVersion.create({
       data: {

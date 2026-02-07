@@ -204,6 +204,18 @@ const routes = [
     middleware: [validateSession]
   },
   {
+    path: '/script/:id/versions/:versionNumber/restore',
+    method: 'post',
+    handler: scriptController.restoreVersion,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.id) })]
+  },
+  {
+    path: '/script/:id/versions',
+    method: 'get',
+    handler: scriptController.listVersions,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.id) })]
+  },
+  {
     path: '/script/:id',
     method: 'get',
     handler: scriptController.getScript,

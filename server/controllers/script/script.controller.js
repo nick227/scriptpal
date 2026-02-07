@@ -39,7 +39,8 @@ const isValidStructuredContent = (parsed) => {
 const scriptController = {
   getScript: async(req, res) => {
     try {
-      const script = await scriptModel.getScript(req.params.id);
+      const versionParam = req.query.version != null ? Number(req.query.version) : null;
+      const script = await scriptModel.getScript(req.params.id, versionParam);
       if (!script) {
         return res.status(404).json({ error: 'Script not found' });
       }
@@ -58,6 +59,50 @@ const scriptController = {
       res.json(decorated);
     } catch (error) {
       console.error('Error getting script:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  listVersions: async(req, res) => {
+    try {
+      const versions = await scriptModel.listVersions(req.params.id, req.userId);
+      if (versions === null) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+      return res.json(versions);
+    } catch (error) {
+      console.error('Error listing script versions:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  restoreVersion: async(req, res) => {
+    try {
+      const scriptId = Number(req.params.id);
+      const versionNumber = Number(req.params.versionNumber);
+      const result = await scriptModel.restoreVersion(scriptId, versionNumber, req.userId);
+      if (!result) {
+        return res.status(404).json({ error: 'Script or version not found' });
+      }
+      const { script, fromVersion, toVersion } = result;
+      if (script.userId !== req.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (fromVersion != null && toVersion != null) {
+        console.log('[ScriptController] script_version_restored', { scriptId, fromVersion, toVersion });
+      }
+      if (!shouldIncludeMedia(req)) {
+        return res.json(script);
+      }
+      const decorated = await attachMediaToOwner({
+        ownerId: script.id,
+        ownerType: 'script',
+        userId: req.userId,
+        owner: script
+      });
+      res.json(decorated);
+    } catch (error) {
+      console.error('Error restoring script version:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -126,48 +171,46 @@ const scriptController = {
       }
 
       // Allow explicit empty content (used for metadata-only updates)
-      if (content === undefined || content === null) {
-        console.warn('Update rejected: missing content');
-        return res.status(400).json({ error: 'Content is required' });
-      }
-
-      if (typeof content !== 'string') {
+      const hasContent = content !== undefined && content !== null;
+      if (hasContent && typeof content !== 'string') {
         console.warn('Update rejected: content must be a string');
         return res.status(400).json({ error: 'Content must be a string' });
       }
 
-      const trimmedContent = content.trim();
-      if (trimmedContent.length > 0) {
-        const parsed = tryParseJson(trimmedContent);
-        if (parsed) {
-          if (!isValidStructuredContent(parsed)) {
-            console.warn('Update rejected: invalid structured content');
-            return res.status(400).json({ error: 'Content must contain valid script lines' });
-          }
-        } else if (trimmedContent.includes('</')) {
-          const tagPattern = /<([\w-]+)>.*?<\/\1>/g;
-          const matches = trimmedContent.match(tagPattern);
+      if (hasContent) {
+        const trimmedContent = content.trim();
+        if (trimmedContent.length > 0) {
+          const parsed = tryParseJson(trimmedContent);
+          if (parsed) {
+            if (!isValidStructuredContent(parsed)) {
+              console.warn('Update rejected: invalid structured content');
+              return res.status(400).json({ error: 'Content must contain valid script lines' });
+            }
+          } else if (trimmedContent.includes('</')) {
+            const tagPattern = /<([\w-]+)>.*?<\/\1>/g;
+            const matches = trimmedContent.match(tagPattern);
 
-          if (!matches) {
-            console.warn('Update rejected: invalid XML format');
-            return res.status(400).json({ error: 'Content must contain valid script elements' });
-          }
+            if (!matches) {
+              console.warn('Update rejected: invalid XML format');
+              return res.status(400).json({ error: 'Content must contain valid script elements' });
+            }
 
-          const invalidTags = matches
-            .map(match => match.match(/<([\w-]+)>/)[1])
-            .filter(tag => !VALID_FORMATS.has(tag));
+            const invalidTags = matches
+              .map(match => match.match(/<([\w-]+)>/)[1])
+              .filter(tag => !VALID_FORMATS.has(tag));
 
-          if (invalidTags.length > 0) {
-            console.warn('Update rejected: invalid tags:', invalidTags);
+            if (invalidTags.length > 0) {
+              console.warn('Update rejected: invalid tags:', invalidTags);
+              return res.status(400).json({
+                error: `Invalid script elements: ${invalidTags.join(', ')}.`
+              });
+            }
+          } else {
+            console.warn('Update rejected: content must be structured');
             return res.status(400).json({
-              error: `Invalid script elements: ${invalidTags.join(', ')}.`
+              error: 'Content must be structured JSON or tagged script format'
             });
           }
-        } else {
-          console.warn('Update rejected: content must be structured');
-          return res.status(400).json({
-            error: 'Content must be structured JSON or tagged script format'
-          });
         }
       }
 
@@ -188,9 +231,12 @@ const scriptController = {
         title,
         author,
         description,
-        content,
         status
       };
+
+      if (hasContent) {
+        updatePayload.content = content;
+      }
       if (sanitizedVisibility) {
         updatePayload.visibility = sanitizedVisibility;
       }

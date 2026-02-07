@@ -1,4 +1,5 @@
 import { EDITOR_EVENTS } from '../constants.js';
+import { StateManager } from '../../../core/StateManager.js';
 
 const AUTO_SAVE_DEBOUNCE_MS = 800;
 
@@ -10,10 +11,12 @@ export class EditorSaveService {
         if (!options.content) throw new Error('Content manager is required');
         if (!options.toolbar) throw new Error('Toolbar is required');
         if (!options.scriptStore) throw new Error('ScriptStore is required');
+        if (!options.stateManager) throw new Error('StateManager is required for EditorSaveService');
 
         this.content = options.content;
         this.toolbar = options.toolbar;
         this.scriptStore = options.scriptStore;
+        this.stateManager = options.stateManager;
         this.lastNormalizedContent = '';
         this.autoSaveTimer = null;
 
@@ -53,13 +56,39 @@ export class EditorSaveService {
     }
 
     flushSave (reason = 'auto') {
+        const readOnly = typeof this.stateManager.isEditorReadOnly === 'function'
+            ? this.stateManager.isEditorReadOnly()
+            : this.stateManager.getState(StateManager.KEYS.EDITOR_MODE) === 'version-preview';
+        if (readOnly) {
+            console.warn('[EditorSaveService] Save blocked (read-only mode)');
+            return false;
+        }
+
+        if (!this.content || !this.content.hasLoadedInitialContent || !this.content.hasLoadedInitialContent()) {
+            console.warn('[EditorSaveService] Save skipped: content not loaded yet');
+            return false;
+        }
+
         const scriptId = this.scriptStore.getCurrentScriptId();
         if (!scriptId) {
             return false;
         }
 
+        if (!this.scriptStore.hasLoadedCurrentScript()) {
+            return false;
+        }
+
         const contentValue = this.content.getContent();
         const normalized = this.scriptStore.normalizeContent(contentValue);
+
+        if (typeof normalized !== 'string' || normalized.length < 200) {
+            console.warn('[EditorSaveService] Skipping save: suspiciously small content', normalized?.length ?? 0);
+            return false;
+        }
+        if (!normalized.includes('"lines"')) {
+            console.warn('[EditorSaveService] Skipping save: not storage JSON');
+            return false;
+        }
 
         if (normalized === this.lastNormalizedContent) {
             return false;
@@ -93,7 +122,13 @@ export class EditorSaveService {
 
     handlePageExit () {
         this.cancelAutoSave();
-        this.flushSave('exit');
+        const ready = this.content && this.content.hasLoadedInitialContent && this.content.hasLoadedInitialContent();
+        const scriptReady = this.scriptStore && this.scriptStore.hasLoadedCurrentScript();
+        if (ready && scriptReady) {
+            this.flushSave('exit');
+        } else {
+            console.warn('[EditorSaveService] Exit save skipped: content or script not ready');
+        }
     }
 
     destroy () {
@@ -105,5 +140,6 @@ export class EditorSaveService {
         this.content = null;
         this.toolbar = null;
         this.scriptStore = null;
+        this.stateManager = null;
     }
 }

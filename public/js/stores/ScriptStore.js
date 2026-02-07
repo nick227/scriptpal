@@ -54,6 +54,8 @@ export class ScriptStore extends BaseManager {
         this.patchQueue = new Map();
         this.activePatches = new Set();
         this.visibilityFilter = 'all';
+        /** @type {boolean} True only after applyLoadedScript; cleared when current script is cleared. */
+        this._currentScriptLoaded = false;
         this.authEventUnsubscribers = [];
         this._bindAuthEvents();
     }
@@ -298,6 +300,7 @@ export class ScriptStore extends BaseManager {
             source: options.source || 'selection',
             preserveState: options.preserveState
         });
+        this._currentScriptLoaded = true;
 
         const index = this.scripts.findIndex(s => String(s.id) === String(standardized.id));
         if (index === -1) {
@@ -454,10 +457,12 @@ export class ScriptStore extends BaseManager {
             title: entry.patch.title ?? currentScript.title,
             author: entry.patch.author ?? currentScript.author,
             description: entry.patch.description ?? currentScript.description,
-            content: entry.patch.content ?? currentScript.content ?? '',
             versionNumber: entry.patch.versionNumber ?? currentScript.versionNumber ?? 1,
             visibility: entry.patch.visibility ?? currentScript.visibility ?? 'private'
         };
+        if (entry.patch.content !== undefined) {
+            payload.content = entry.patch.content;
+        }
 
         this.activePatches.add(scriptId);
         this.emitSaveState(scriptId, 'SAVE_SAVING', { reason: entry.reason });
@@ -517,7 +522,7 @@ export class ScriptStore extends BaseManager {
      * @param {object} scriptData
      */
     async updateScript (id, scriptData) {
-        if (!id || !scriptData || scriptData.content === null || scriptData.content === undefined) {
+        if (!id || !scriptData) {
             console.warn('[ScriptStore] Invalid update data');
             return null;
         }
@@ -529,35 +534,41 @@ export class ScriptStore extends BaseManager {
         const previousSlug = this.getCurrentScript()?.slug;
 
         try {
-            const rawContent = this.normalizeContent(scriptData.content);
-            const trimmedContent = typeof rawContent === 'string'
-                ? rawContent.trim()
-                : '';
-            let formattedContent = rawContent;
+            const hasContent = scriptData.content !== undefined && scriptData.content !== null;
+            let formattedContent = '';
             let formatInvalid = false;
 
-            if (trimmedContent.length > 0) {
-                if (!this.isStructuredContent(trimmedContent)) {
-                    formattedContent = this.formatter.format(rawContent);
-                    if (!this.formatter.validateFormat(formattedContent)) {
-                        // Flag as invalid instead of throwing - allows sync to continue
-                        formatInvalid = true;
-                        console.warn('[ScriptStore] Script format validation failed, flagging for review', { id });
-                        this.eventManager.publish(EventManager.EVENTS.SCRIPT.FORMAT_INVALID, {
-                            scriptId: id,
-                            reason: 'Format validation failed'
-                        });
+            if (hasContent) {
+                const rawContent = this.normalizeContent(scriptData.content);
+                const trimmedContent = typeof rawContent === 'string'
+                    ? rawContent.trim()
+                    : '';
+                formattedContent = rawContent;
+
+                if (trimmedContent.length > 0) {
+                    if (!this.isStructuredContent(trimmedContent)) {
+                        formattedContent = this.formatter.format(rawContent);
+                        if (!this.formatter.validateFormat(formattedContent)) {
+                            formatInvalid = true;
+                            console.warn('[ScriptStore] Script format validation failed, flagging for review', { id });
+                            this.eventManager.publish(EventManager.EVENTS.SCRIPT.FORMAT_INVALID, {
+                                scriptId: id,
+                                reason: 'Format validation failed'
+                            });
+                        }
                     }
+                } else {
+                    formattedContent = '';
                 }
-            } else {
-                formattedContent = '';
             }
 
             const updateData = {
                 title: scriptData.title || 'Unknown Title',
-                content: formattedContent,
                 versionNumber: versionNumber
             };
+            if (hasContent) {
+                updateData.content = formattedContent;
+            }
             if (scriptData.author !== undefined) {
                 updateData.author = scriptData.author;
             }
@@ -585,6 +596,7 @@ export class ScriptStore extends BaseManager {
 
             if (String(this.currentScriptId) === String(id)) {
                 this.setCurrentScript(standardized, { source: 'update' });
+                this._currentScriptLoaded = true;
             }
 
             this.eventManager.publish(EventManager.EVENTS.SCRIPT.UPDATED, {
@@ -660,6 +672,7 @@ export class ScriptStore extends BaseManager {
         const standardized = this.standardizeScript(newScript);
         this.updateScriptInCache(standardized);
         this.setCurrentScript(standardized, { source: 'create' });
+        this._currentScriptLoaded = true;
 
         this.eventManager.publish(EventManager.EVENTS.SCRIPT.CREATED, {
             script: standardized
@@ -788,9 +801,14 @@ export class ScriptStore extends BaseManager {
             });
         } else {
             this.currentScriptId = null;
+            this._currentScriptLoaded = false;
             this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT_ID, null);
             this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT, null);
         }
+    }
+
+    hasLoadedCurrentScript () {
+        return Boolean(this._currentScriptLoaded);
     }
 
     /**
@@ -933,6 +951,7 @@ export class ScriptStore extends BaseManager {
      */
     clearState () {
         this.scripts = [];
+        this._currentScriptLoaded = false;
         this.setCurrentScript(null);
         this.updateScriptsState();
         this.clearAllPatchState();

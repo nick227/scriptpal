@@ -506,3 +506,79 @@
 .script-not-found-banner button:hover {
     background: var(--color-primary-dark, #4338ca);
 }
+
+/* Version dropdown */
+.toolbar-version-dropdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.toolbar-version-dropdown .version-dropdown-label {
+    font-size: 0.9rem;
+    color: var(--color-text-muted, #999);
+}
+
+.toolbar-version-dropdown .version-dropdown-select {
+    min-width: 120px;
+    padding: 2px 6px;
+    font-size: 0.85rem;
+    background: var(--button-hover, #363a3f);
+    border: 1px solid var(--toolbar-border, #363a3f);
+    color: #eee;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.toolbar-version-dropdown .version-dropdown-select:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Version preview bar: only visible when in version-preview mode (never on load) */
+.version-preview-bar[hidden] {
+    display: none !important;
+}
+
+.version-preview-bar {
+    position: fixed;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    margin: 4px 8px;
+    background: var(--color-accent, #c3e3eb);
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.version-preview-bar p {
+    margin: 0;
+}
+
+.version-preview-bar__actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.version-preview-bar .version-restore-button,
+.version-preview-bar .version-cancel-button {
+    padding: 4px 12px;
+    font-size: 0.85rem;
+}
+
+.version-preview-bar__lock {
+    font-size: 1rem;
+    line-height: 1;
+    margin-right: 2px;
+}
+
+.version-preview-bar__hint {
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #666);
+    align-self: center;
+}

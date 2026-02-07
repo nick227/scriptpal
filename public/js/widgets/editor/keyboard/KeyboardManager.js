@@ -11,6 +11,7 @@ import { KeyboardSelectionController } from './KeyboardSelectionController.js';
 export class KeyboardManager {
     constructor(options) {
         this.stateManager = options.stateManager;
+        this.appStateManager = options.appStateManager || null;
         this.pageManager = options.pageManager;
         this.contentManager = options.contentManager;
         this.lineFormatter = options.lineFormatter;
@@ -44,6 +45,7 @@ export class KeyboardManager {
         });
 
         this.editController = new KeyboardEditController({
+            stateManager: this.stateManager,
             contentManager: this.contentManager,
             pageManager: this.pageManager,
             lineFormatter: this.lineFormatter,
@@ -381,6 +383,9 @@ export class KeyboardManager {
     // ==============================================
 
     _handleFormatting(event, scriptLine) {
+        if (this.appStateManager?.isEditorReadOnly?.()) {
+            return false;
+        }
         if (event.key === 'Tab' && !this.autocomplete?.currentSuggestion) {
             event.preventDefault();
             this.lineFormatter?.indent(scriptLine, event.shiftKey);

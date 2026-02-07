@@ -20,19 +20,39 @@ const toScriptWithVersion = (script, version) => {
   };
 };
 
+/** Normalize content for equality (trim; if JSON, parse+stringify to ignore key order/whitespace). Same idea as save path. */
+const normalizeContentForCompare = (content) => {
+  if (content == null) return '';
+  const s = String(content).trim();
+  if (!s) return '';
+  if (s.charAt(0) === '{') {
+    try {
+      return JSON.stringify(JSON.parse(s));
+    } catch {
+      return s;
+    }
+  }
+  return s;
+};
+
 const scriptModel = {
   getScript: async(id, versionNumber = null) => {
-    const script = await scriptRepository.getById(id);
+    const scriptId = Number(id);
+    if (!Number.isFinite(scriptId)) {
+      return null;
+    }
+    const script = await scriptRepository.getById(scriptId);
     if (!script) return null;
 
     if (versionNumber !== null && versionNumber !== undefined) {
-      const version = await scriptVersionRepository.getByScriptIdAndVersion(id, versionNumber);
+      const version = await scriptVersionRepository.getByScriptIdAndVersion(scriptId, versionNumber);
+      if (!version) return null;
       return toScriptWithVersion(script, version);
     }
 
-    const version = await scriptVersionRepository.getLatestByScriptId(id);
+    const version = await scriptVersionRepository.getLatestByScriptId(scriptId);
     console.log('[ScriptModel] getScript', {
-      scriptId: id,
+      scriptId,
       visibility: script.visibility,
       requestedVersion: versionNumber,
       latestVersion: version?.versionNumber
@@ -115,6 +135,10 @@ const scriptModel = {
 
       const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
 
+      const resolvedContent = script.content !== undefined && script.content !== null
+        ? script.content
+        : latestVersion?.content ?? '';
+
       const requestedVisibility = script.visibility === 'public'
         ? 'public'
         : script.visibility === 'private'
@@ -179,7 +203,7 @@ const scriptModel = {
         data: {
           scriptId: currentScript.id,
           versionNumber: nextVersionNumber,
-          content: script.content
+          content: resolvedContent
         }
       });
 
@@ -348,6 +372,65 @@ const scriptModel = {
     const commentCount = await scriptCommentRepository.countByScript(script.id);
     script.commentCount = commentCount;
     return toScriptWithVersion(script, version);
+  },
+
+  listVersions: async(scriptId, userId) => {
+    const script = await scriptRepository.getById(Number(scriptId));
+    if (!script || script.userId !== userId) return null;
+    const rows = await scriptVersionRepository.listSummaryByScriptId(script.id);
+    return rows.map((v) => ({ versionNumber: v.versionNumber, createdAt: v.createdAt }));
+  },
+
+  restoreVersion: async(scriptId, versionNumber, userId) => {
+    const script = await scriptRepository.getById(Number(scriptId));
+    if (!script || script.userId !== userId) return null;
+
+    const result = await prisma.$transaction(async(tx) => {
+      const target = await tx.scriptVersion.findFirst({
+        where: { scriptId: script.id, versionNumber }
+      });
+      if (!target) return null;
+
+      const latest = await tx.scriptVersion.findFirst({
+        where: { scriptId: script.id },
+        orderBy: { versionNumber: 'desc' }
+      });
+      if (!latest) return null;
+
+      const contentSame = normalizeContentForCompare(target.content) === normalizeContentForCompare(latest.content);
+      if (contentSame) {
+        return { version: latest, fromVersion: versionNumber, toVersion: latest.versionNumber };
+      }
+
+      const nextVersionNumber = latest.versionNumber + 1;
+      const newVersion = await tx.scriptVersion.create({
+        data: {
+          scriptId: script.id,
+          versionNumber: nextVersionNumber,
+          content: target.content
+        }
+      });
+
+      await tx.scriptCommand.create({
+        data: {
+          scriptId: script.id,
+          type: 'restore_version',
+          payload: { fromVersion: versionNumber, toVersion: nextVersionNumber },
+          author: 'user'
+        }
+      });
+
+      return { version: newVersion, fromVersion: versionNumber, toVersion: nextVersionNumber };
+    });
+
+    if (!result) return null;
+
+    const scriptWithVersion = toScriptWithVersion(script, result.version);
+    return {
+      script: scriptWithVersion,
+      fromVersion: result.fromVersion,
+      toVersion: result.toVersion
+    };
   }
 };
 

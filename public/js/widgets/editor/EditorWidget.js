@@ -1,5 +1,7 @@
 import { UI_ELEMENTS } from '../../constants.js';
 import { EventManager } from '../../core/EventManager.js';
+import { StateManager } from '../../core/StateManager.js';
+import { debugLog } from '../../core/logger.js';
 
 import { AICommandManager } from './ai/AICommandManager.js';
 import { AILineInsertionManager } from './ai/AILineInsertionManager.js';
@@ -153,6 +155,7 @@ export class EditorWidget {
                     const pageManager = this.getComponent('pageManager');
                     const lineFormatter = this.getComponent('lineFormatter');
                     const domHandler = this.getComponent('domHandler');
+                    const appStateManager = this.getComponent('globalStateManager') || this.stateManager;
 
                     if (!stateManager || !pageManager || !lineFormatter || !domHandler) {
                         throw new Error('Required dependencies not available for content');
@@ -163,7 +166,8 @@ export class EditorWidget {
                         stateManager: stateManager,
                         pageManager: pageManager,
                         lineFormatter: lineFormatter,
-                        domHandler: domHandler
+                        domHandler: domHandler,
+                        appStateManager: appStateManager
                     });
                     await content.initialize();
                     return content;
@@ -176,6 +180,7 @@ export class EditorWidget {
                 init: async () => {
                     const stateManager = this.getComponent('stateManager');
                     const pageManager = this.getComponent('pageManager');
+                    const appStateManager = this.getComponent('globalStateManager') || this.stateManager;
 
                     if (!stateManager || !pageManager) {
                         throw new Error('Required dependencies not available for toolbar');
@@ -184,7 +189,10 @@ export class EditorWidget {
                     const toolbar = new EditorToolbar({
                         container: this.toolbarContainer,
                         stateManager: stateManager,
-                        pageManager: pageManager
+                        pageManager: pageManager,
+                        api: this.api,
+                        scriptStore: this.scriptStore,
+                        appStateManager: appStateManager
                     });
                     await toolbar.initialize();
                     return toolbar;
@@ -197,16 +205,20 @@ export class EditorWidget {
                 init: async () => {
                     const content = this.getComponent('content');
                     const toolbar = this.getComponent('toolbar');
+                    const appStateManager = this.getComponent('globalStateManager') || this.stateManager;
 
                     if (!content || !toolbar) {
                         throw new Error('Required dependencies not available for saveService');
                     }
-
+                    if (!appStateManager) {
+                        throw new Error('Required dependencies not available for saveService');
+                    }
                     return new EditorSaveService({
                         content: content,
                         toolbar: toolbar,
                         api: this.api,
-                        scriptStore: this.scriptStore
+                        scriptStore: this.scriptStore,
+                        stateManager: appStateManager
                     });
                 },
                 deps: ['content', 'toolbar']
@@ -489,7 +501,127 @@ export class EditorWidget {
             }
         }
 
-        // Set up other component relationships as needed
+        this.setupVersionHandlers();
+        // Re-assert edit mode and hide version-preview bar after all wiring (never show bar on load).
+        const appState = this.stateManager;
+        if (appState && typeof appState.setState === 'function') {
+            appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+            appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+        }
+        if (toolbar && typeof toolbar.setEditorMode === 'function') {
+            toolbar.setEditorMode('edit');
+        }
+    }
+
+    setupVersionHandlers () {
+        const toolbar = this.getComponent('toolbar');
+        const content = this.getComponent('content');
+        const appState = this.stateManager;
+        if (!toolbar || !content || !appState || !this.scriptStore || !this.api?.scripts) return;
+
+        toolbar.onVersionPreviewRequested(async ({ versionNumber }) => {
+            const scriptId = this.scriptStore.getCurrentScriptId();
+            if (!scriptId) return;
+            if (appState.getState(StateManager.KEYS.EDITOR_MODE) === 'version-preview') return;
+            try {
+                appState.setState(StateManager.KEYS.EDITOR_MODE, 'version-preview');
+                appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, versionNumber);
+                toolbar.setEditorMode('version-preview', versionNumber);
+                const script = await this.api.scripts.getScript(String(scriptId), versionNumber);
+                if (script?.content == null) {
+                    appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+                    appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+                    toolbar.setEditorMode('edit');
+                    toolbar.setCurrentVersion(this.scriptStore.getCurrentScript()?.versionNumber);
+                    return;
+                }
+                await content.updateContent(script.content, { source: 'version_preview', focus: false });
+                if (this.scriptStore.getCurrentScript()?.versionNumber === versionNumber) {
+                    console.warn('[VersionPreview] Previewing same version as latest — unexpected state', { scriptId, versionNumber });
+                }
+                debugLog('[VersionPreview] Enter', { scriptId, versionNumber });
+            } catch (err) {
+                console.error('[EditorWidget] Version preview failed', err);
+                appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+                appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+                toolbar.setEditorMode('edit');
+                toolbar.setCurrentVersion(this.scriptStore.getCurrentScript()?.versionNumber);
+                if (this.eventManager) {
+                    this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, {
+                        error: err?.message || 'Could not load version',
+                        type: 'version_preview',
+                        recoverable: true
+                    });
+                }
+            }
+        });
+
+        toolbar.onVersionRestoreRequested(async () => {
+            const scriptId = this.scriptStore.getCurrentScriptId();
+            const previewVersion = appState.getState(StateManager.KEYS.EDITOR_PREVIEW_VERSION);
+            if (!scriptId || previewVersion == null) return;
+            if (appState.getState(StateManager.KEYS.EDITOR_MODE) !== 'version-preview') return;
+            toolbar.setRestoreLoading(true);
+            try {
+                const response = await this.api.scripts.restoreVersion(String(scriptId), previewVersion);
+                appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+                appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+                this.scriptStore.updateScriptInCache(response);
+                this.scriptStore.setCurrentScript(response, { source: 'update' });
+                await content.updateContent(response.content, { source: 'version_restore', focus: false });
+                toolbar.setEditorMode('edit');
+                const versions = await this.api.scripts.getScriptVersions(String(scriptId));
+                if (Array.isArray(versions)) {
+                    toolbar.setVersions(versions);
+                    toolbar.setCurrentVersion(response.versionNumber);
+                }
+                debugLog('[VersionPreview] Restore', { from: previewVersion, to: response.versionNumber });
+            } catch (err) {
+                console.error('[EditorWidget] Restore version failed', err);
+                if (this.eventManager) {
+                    this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, {
+                        error: err?.message || 'Restore failed',
+                        type: 'version_restore',
+                        recoverable: true
+                    });
+                }
+            } finally {
+                toolbar.setRestoreLoading(false);
+            }
+        });
+
+        toolbar.onVersionPreviewCancelRequested(async () => {
+            const scriptId = this.scriptStore.getCurrentScriptId();
+            if (!scriptId) return;
+            try {
+                await this.scriptStore.loadScript(scriptId, { forceFresh: true });
+                const latest = this.scriptStore.getCurrentScript();
+                if (latest?.content != null) {
+                    await content.updateContent(latest.content, { source: 'version_cancel', focus: false });
+                }
+                appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+                appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+                toolbar.setEditorMode('edit');
+                toolbar.setCurrentVersion(latest?.versionNumber);
+                debugLog('[VersionPreview] Cancel');
+            } catch (err) {
+                console.error('[EditorWidget] Cancel preview failed', err);
+                appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+                appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+                toolbar.setEditorMode('edit');
+                const knownLatest = this.scriptStore.getCurrentScript()?.versionNumber;
+                if (knownLatest != null) {
+                    toolbar.setCurrentVersion(knownLatest);
+                }
+                if (this.eventManager) {
+                    this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, {
+                        error: 'Could not refresh latest version. Try again.',
+                        type: 'version_preview_cancel',
+                        recoverable: true
+                    });
+                }
+            }
+        });
     }
 
     /**
@@ -623,6 +755,16 @@ export class EditorWidget {
      * @param scriptStore
      */
     async loadInitialContent (scriptStore) {
+        // Never show version-preview bar on load: default to latest, hide bar.
+        const appState = this.stateManager;
+        const toolbar = this.getComponent('toolbar');
+        if (appState && typeof appState.setState === 'function') {
+            appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+            appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+        }
+        if (toolbar && typeof toolbar.setEditorMode === 'function') {
+            toolbar.setEditorMode('edit');
+        }
 
         const content = this.getComponent('content');
         const stateManager = this.getComponent('stateManager');
@@ -686,6 +828,12 @@ export class EditorWidget {
             this.user = user;
             this.scriptStore = scriptStore;
             this.stateManager = stateManager;
+
+            // Version preview state lives on app StateManager; ensure we never load in preview mode.
+            if (stateManager && typeof stateManager.setState === 'function') {
+                stateManager.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+                stateManager.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+            }
 
             // Validate required elements
             if (!this.validateElements()) {
@@ -891,6 +1039,17 @@ export class EditorWidget {
             throw new Error('Content component not found');
         }
 
+        // Never load into version-preview: use app state and hide preview bar before any async work.
+        const toolbar = this.getComponent('toolbar');
+        const appState = this.stateManager;
+        if (appState && typeof appState.setState === 'function') {
+            appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+            appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+        }
+        if (toolbar && typeof toolbar.setEditorMode === 'function') {
+            toolbar.setEditorMode('edit');
+        }
+
         const history = resetHistory ? this.getComponent('history') : null;
         if (history && typeof history.clear === 'function') {
             history.clear();
@@ -911,7 +1070,36 @@ export class EditorWidget {
             history.saveState(history.stateManager.getCurrentState(), true);
         }
 
+        await this.refreshVersionDropdown(script);
         return true;
+    }
+
+    async refreshVersionDropdown (script) {
+        const toolbar = this.getComponent('toolbar');
+        const appState = this.stateManager;
+        if (appState && typeof appState.setState === 'function') {
+            appState.setState(StateManager.KEYS.EDITOR_MODE, 'edit');
+            appState.setState(StateManager.KEYS.EDITOR_PREVIEW_VERSION, null);
+        }
+        if (toolbar && typeof toolbar.setEditorMode === 'function') {
+            toolbar.setEditorMode('edit');
+        }
+        if (!script?.id || !this.api?.scripts?.getScriptVersions) {
+            if (toolbar && !script?.id) {
+                toolbar.setVersions([]);
+                toolbar.setCurrentVersion(null);
+            }
+            return;
+        }
+        try {
+            const versions = await this.api.scripts.getScriptVersions(String(script.id));
+            if (toolbar && Array.isArray(versions)) {
+                toolbar.setVersions(versions);
+                toolbar.setCurrentVersion(script.versionNumber);
+            }
+        } catch (err) {
+            console.warn('[EditorWidget] Failed to fetch script versions', err);
+        }
     }
 
     /**

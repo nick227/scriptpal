@@ -15,6 +15,7 @@ export class KeyboardEditController {
      * @param {function} [options.debugLog]
      */
     constructor (options) {
+        this.stateManager = options.stateManager || null;
         this.contentManager = options.contentManager;
         this.pageManager = options.pageManager;
         this.lineFormatter = options.lineFormatter;
@@ -45,6 +46,7 @@ export class KeyboardEditController {
      * @param {object} context - { content, cursorPos, currentFormat }
      */
     async handleEnter (scriptLine, event, context) {
+        if (this.stateManager?.isEditorReadOnly?.()) return;
         const { content, cursorPos, currentFormat } = context;
 
         let newFormat;
@@ -83,6 +85,7 @@ export class KeyboardEditController {
      * @returns {boolean} - Whether deletion was handled
      */
     handleInlineDeletion (event, scriptLine, context) {
+        if (this.stateManager?.isEditorReadOnly?.()) return true;
         const { content, startOffset, endOffset } = context;
         const hasSelection = startOffset !== endOffset;
 
@@ -123,6 +126,7 @@ export class KeyboardEditController {
      * @param {string} direction - 'previous' or 'next'
      */
     handleEmptyLineDelete (scriptLine, direction) {
+        if (this.stateManager?.isEditorReadOnly?.()) return;
         const targetLine = direction === 'previous'
             ? this.pageManager.getPreviousLine(scriptLine)
             : this.pageManager.getNextLine(scriptLine);
@@ -146,6 +150,7 @@ export class KeyboardEditController {
      * @param {HTMLElement} scriptLine
      */
     async mergeLineWithPrevious (scriptLine) {
+        if (this.stateManager?.isEditorReadOnly?.()) return;
         const previousLine = this.pageManager.getPreviousLine(scriptLine);
         if (!previousLine || !this.contentManager) {
             return;
@@ -167,6 +172,7 @@ export class KeyboardEditController {
      * @param {function} clearSelectionFn - Callback to clear selection state
      */
     async deleteSelectedLines (selectedLines, clearSelectionFn) {
+        if (this.stateManager?.isEditorReadOnly?.()) return;
         if (!selectedLines || selectedLines.length === 0) {
             return;
         }

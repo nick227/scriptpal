@@ -31,7 +31,7 @@ const scriptRepository = {
 
   getById: async(id) => {
     return await prisma.script.findUnique({
-      where: { id },
+      where: { id: Number(id) },
       select: scriptSelect
     });
   },

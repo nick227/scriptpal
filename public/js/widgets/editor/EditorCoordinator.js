@@ -1,4 +1,5 @@
 import { EventManager } from '../../core/EventManager.js';
+import { StateManager } from '../../core/StateManager.js';
 import { debugLog } from '../../core/logger.js';
 
 import { AutocompleteManager } from './AutocompleteManager.js';
@@ -17,6 +18,7 @@ export class EditorCoordinator {
     constructor (options) {
         this.container = options.container;
         this.stateManager = options.stateManager;
+        this.appStateManager = options.appStateManager || null;
         this.pageManager = options.pageManager;
         this.lineFormatter = options.lineFormatter;
         this.domHandler = options.domHandler;
@@ -27,6 +29,7 @@ export class EditorCoordinator {
         });
         this.inputController = new EditorInputController({
             stateManager: this.stateManager,
+            appStateManager: this.appStateManager,
             pageManager: this.pageManager,
             lineFormatter: this.lineFormatter,
             domHandler: this.domHandler,
@@ -40,6 +43,7 @@ export class EditorCoordinator {
         this._opQueue = Promise.resolve();
         this._pendingFocus = null;
         this._domHandlerEditIntentHandler = null;
+        this._hasLoadedInitialContent = false;
 
         this.callbacks = {
             onChange: options.onChange,
@@ -226,6 +230,9 @@ export class EditorCoordinator {
      * @param root0.focus
      */
     async updateContent(content, { isEdit = false, preserveState = false, source = null, focus = false } = {}) {
+        const contentLength = typeof content === 'string' ? content.length : (content ? 0 : 0);
+        console.trace('[EditorCoordinator] updateContent called', { contentLength, source });
+
         try {
             if (content === null || content === undefined) {
                 console.warn('[EditorCoordinator] Invalid content provided');
@@ -256,11 +263,16 @@ export class EditorCoordinator {
             await new Promise(resolve => setTimeout(resolve, 100));
             this._emitContentChange({ source });
             this.refreshSpeakerSuggestions();
+            this._hasLoadedInitialContent = true;
             return true;
         } catch (error) {
             console.error('[EditorCoordinator] Error updating content:', error);
             return false;
         }
+    }
+
+    hasLoadedInitialContent () {
+        return this._hasLoadedInitialContent;
     }
 
     /**
@@ -351,6 +363,11 @@ export class EditorCoordinator {
      * @returns {Promise<object>}
      */
     async applyCommands(commands = [], options = {}) {
+        const modeSource = this.appStateManager || this.stateManager;
+        if (modeSource?.isEditorReadOnly?.()) {
+            return { success: false, reason: 'version_preview' };
+        }
+
         // Phase 1: Interpret input
         if (!Array.isArray(commands) || commands.length === 0) {
             return { success: false, reason: 'no_commands' };
@@ -424,6 +441,8 @@ export class EditorCoordinator {
      * @param format
      */
     setCurrentLineFormat(format) {
+        const modeSource = this.appStateManager || this.stateManager;
+        if (modeSource?.isEditorReadOnly?.()) return;
         const selectedLine = this.domHandler.container.querySelector('.script-line.selected');
         const currentLine = selectedLine || this.domHandler.getCurrentLine();
         if (!currentLine || !this.lineFormatter.isValidFormat(format)) {
@@ -612,6 +631,8 @@ export class EditorCoordinator {
      */
     async insertLineAfter(lineId, options = {}) {
         return this._enqueueOperation(async () => {
+            const modeSource = this.appStateManager || this.stateManager;
+            if (modeSource?.isEditorReadOnly?.()) return null;
             const { format = 'action', content = '', updateCurrentContent, focus = true } = options;
             const updatePayload = updateCurrentContent !== undefined
                 ? (updateCurrentContent && typeof updateCurrentContent === 'object'
@@ -683,6 +704,8 @@ export class EditorCoordinator {
      */
     async deleteLinesById(lineIds = [], options = {}) {
         return this._enqueueOperation(async () => {
+            const modeSource = this.appStateManager || this.stateManager;
+            if (modeSource?.isEditorReadOnly?.()) return null;
             if (!Array.isArray(lineIds) || lineIds.length === 0) {
                 return null;
             }
@@ -737,6 +760,8 @@ export class EditorCoordinator {
      */
     async mergeLinesById(toLineId, fromLineId, options = {}) {
         return this._enqueueOperation(async () => {
+            const modeSource = this.appStateManager || this.stateManager;
+            if (modeSource?.isEditorReadOnly?.()) return null;
             if (!toLineId || !fromLineId) {
                 return null;
             }

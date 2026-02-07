@@ -41,7 +41,6 @@ export class EditorDocumentService {
      */
     setContent (content = '') {
         this.document = ScriptDocument.fromContent(content || '');
-        this.ensureMinimumLine();
         return this.document;
     }
 
@@ -106,15 +105,6 @@ export class EditorDocumentService {
         return this.document
             ? this.document.lines.filter(line => line.format === 'chapter-break').length
             : 0;
-    }
-
-    ensureMinimumLine () {
-        if (!this.document) {
-            this.document = new ScriptDocument();
-        }
-        if (this.document.lines.length === 0) {
-            this.document.insertLineAt(0, { format: INITIAL_LINE_FORMAT, content: '' });
-        }
     }
 
     /**
@@ -344,8 +334,6 @@ export class EditorDocumentService {
                 results.push({ success: false, command: cmd, error: error.message });
             }
         }
-
-        this.ensureMinimumLine();
 
         return { success: true, results, inverseCommands };
     }

@@ -1,6 +1,7 @@
 /* Base Imports */
 
 @import 'base/variables.css';
+@import './preload.css';
 
 /* Component Imports */
 

@@ -7,6 +7,7 @@ import { KeyboardManager } from './keyboard/KeyboardManager.js';
 export class EditorInputController {
     constructor (options = {}) {
         this.stateManager = options.stateManager;
+        this.appStateManager = options.appStateManager || null;
         this.pageManager = options.pageManager;
         this.lineFormatter = options.lineFormatter;
         this.domHandler = options.domHandler;
@@ -17,6 +18,7 @@ export class EditorInputController {
 
         this.keyboardManager = new KeyboardManager({
             stateManager: this.stateManager,
+            appStateManager: this.appStateManager,
             pageManager: this.pageManager,
             contentManager: this.contentManager,
             lineFormatter: this.lineFormatter,
