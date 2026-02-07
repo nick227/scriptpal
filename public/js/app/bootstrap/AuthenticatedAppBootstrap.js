@@ -5,6 +5,7 @@ import { ChatIntegration } from '../../widgets/chat/integration/ChatIntegration.
 import { MediaUIBootstrap } from '../../widgets/media/MediaUIBootstrap.js';
 import { LocationUIBootstrap } from '../../widgets/location/LocationUIBootstrap.js';
 import { ScenesUIBootstrap } from '../../widgets/scene/ScenesUIBootstrap.js';
+import { OutlinesUIBootstrap } from '../../widgets/outline/OutlinesUIBootstrap.js';
 import { ScriptsUIBootstrap } from '../../widgets/script/ScriptsUIBootstrap.js';
 import { ThemesUIBootstrap } from '../../widgets/theme/ThemesUIBootstrap.js';
 import { SidePanelWidget } from '../../widgets/ui/SidePanelWidget.js';
@@ -35,6 +36,7 @@ export class AuthenticatedAppBootstrap {
         await this.initSidePanelWidget();
         await this.initScriptsUI();
         await this.initScenesUI();
+        await this.initOutlinesUI();
         await this.initCharactersUI();
         await this.initLocationUI();
         await this.initThemesUI();
@@ -70,6 +72,7 @@ export class AuthenticatedAppBootstrap {
             targetsMap: {
                 'user-scripts': UI_ELEMENTS.USER_SCRIPTS_PANEL,
                 'user-scenes': UI_ELEMENTS.USER_SCENES_PANEL,
+                'user-outlines': UI_ELEMENTS.USER_OUTLINES_PANEL,
                 'user-characters': UI_ELEMENTS.USER_CHARACTERS_PANEL,
                 'user-location': UI_ELEMENTS.USER_LOCATION_PANEL,
                 'user-themes': UI_ELEMENTS.USER_THEMES_PANEL,
@@ -100,6 +103,16 @@ export class AuthenticatedAppBootstrap {
             sceneStore: this.stores.scene
         });
         await scenesUI.initialize();
+    }
+
+    async initOutlinesUI () {
+        const outlinesUI = new OutlinesUIBootstrap({
+            api: this.api,
+            stateManager: this.stateManager,
+            eventManager: this.eventManager,
+            outlineStore: this.stores.outline
+        });
+        await outlinesUI.initialize();
     }
 
     async initCharactersUI () {

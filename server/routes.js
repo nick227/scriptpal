@@ -6,6 +6,8 @@ import personaController from './controllers/script/persona.controller.js';
 import systemPromptController from './controllers/chat/system-prompt.controller.js';
 import nextLinesController from './controllers/chat/next-lines.controller.js';
 import sceneController from './controllers/script/items/scene.controller.js';
+import outlineController from './controllers/script/items/outline.controller.js';
+import outlineIdeaController from './controllers/script/ideas/outline-idea.controller.js';
 import characterController from './controllers/script/items/character.controller.js';
 import characterIdeaController from './controllers/script/ideas/character-idea.controller.js';
 import locationController from './controllers/script/items/location.controller.js';
@@ -403,6 +405,43 @@ const routes = [
     idParam: 'sceneId',
     ideaSlug: 'scene-idea',
     handler: sceneController.generateSceneIdea
+  }),
+  // Outline routes
+  {
+    path: '/script/:scriptId/outlines',
+    method: 'get',
+    handler: outlineController.getScriptOutlines,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/outlines',
+    method: 'post',
+    handler: outlineController.createOutline,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/outlines/reorder',
+    method: 'put',
+    handler: outlineController.reorderOutlines,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/outlines/:outlineId',
+    method: 'put',
+    handler: outlineController.updateOutline,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  {
+    path: '/script/:scriptId/outlines/:outlineId',
+    method: 'delete',
+    handler: outlineController.deleteOutline,
+    middleware: [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })]
+  },
+  ...buildIdeaRoutes({
+    basePath: '/script/:scriptId/outlines',
+    idParam: 'outlineId',
+    ideaSlug: 'outline-idea',
+    handler: outlineIdeaController
   }),
   // Character routes
   {

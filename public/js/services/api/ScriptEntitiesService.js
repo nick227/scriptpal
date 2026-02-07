@@ -329,6 +329,58 @@ export class ScriptEntitiesService {
         });
     }
 
+    // ==================== OUTLINES ====================
+
+    async getOutlines(scriptId) {
+        this._requireScriptId(scriptId);
+        return this.http.request(this._buildPath(scriptId, 'outlines'), { method: 'GET' });
+    }
+
+    async createOutline(scriptId, outlineData) {
+        this._requireScriptId(scriptId);
+        return this.http.request(this._buildPath(scriptId, 'outlines'), {
+            method: 'POST',
+            data: outlineData
+        });
+    }
+
+    async updateOutline(scriptId, outlineId, outlineData) {
+        this._requireIds(scriptId, outlineId, 'outline');
+        return this.http.request(this._buildPath(scriptId, 'outlines', outlineId), {
+            method: 'PUT',
+            data: outlineData
+        });
+    }
+
+    async deleteOutline(scriptId, outlineId) {
+        this._requireIds(scriptId, outlineId, 'outline');
+        return this.http.request(this._buildPath(scriptId, 'outlines', outlineId), { method: 'DELETE' });
+    }
+
+    async reorderOutlines(scriptId, order) {
+        this._requireScriptId(scriptId);
+        return this.http.request(`${this._buildPath(scriptId, 'outlines')}/reorder`, {
+            method: 'PUT',
+            data: { order }
+        });
+    }
+
+    async generateOutlineIdea(scriptId, outlineId, payload = {}) {
+        this._requireIds(scriptId, outlineId, 'outline');
+        return this.http.request(`${this._buildPath(scriptId, 'outlines', outlineId)}/ai/outline-idea`, {
+            method: 'POST',
+            data: payload
+        });
+    }
+
+    async generateOutlineIdeaDraft(scriptId, payload = {}) {
+        this._requireScriptId(scriptId);
+        return this.http.request(`${this._buildPath(scriptId, 'outlines')}/ai/outline-idea`, {
+            method: 'POST',
+            data: payload
+        });
+    }
+
     // ==================== THEMES ====================
 
     /**

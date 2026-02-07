@@ -8,6 +8,7 @@ import { SceneIdeaChain } from './scene/SceneIdeaChain.js';
 import { CharacterIdeaChain } from './item/CharacterIdeaChain.js';
 import { LocationIdeaChain } from './item/LocationIdeaChain.js';
 import { ThemeIdeaChain } from './item/ThemeIdeaChain.js';
+import { OutlineIdeaChain } from './outline/OutlineIdeaChain.js';
 import { ScriptPageAppendChain } from './script/ScriptPageAppendChain.js';
 import { APPEND_SCRIPT_INTENT } from '../../script-services/AppendPageService.js';
 
@@ -22,6 +23,7 @@ try {
   chainRegistry.registerChain(INTENT_TYPES.CHARACTER_IDEA, CharacterIdeaChain);
   chainRegistry.registerChain(INTENT_TYPES.LOCATION_IDEA, LocationIdeaChain);
   chainRegistry.registerChain(INTENT_TYPES.THEME_IDEA, ThemeIdeaChain);
+  chainRegistry.registerChain(INTENT_TYPES.OUTLINE_IDEA, OutlineIdeaChain);
   chainRegistry.registerChain(APPEND_SCRIPT_INTENT, ScriptPageAppendChain);
 
   if (!chainRegistry.isInitialized()) {

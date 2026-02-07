@@ -357,6 +357,27 @@ RULES
     route: '/script/:scriptId/themes/ai/theme-idea',
     intent: INTENT_TYPES.THEME_IDEA
   }),
+  createPrompt({
+    id: 'outline-idea',
+    label: 'Outline Idea',
+    clientCopy: 'Generate an outline title and items.',
+    category: PROMPT_CATEGORIES.SERVICE,
+    route: '/script/:scriptId/outlines/ai/outline-idea',
+    enabled: false,
+    intent: INTENT_TYPES.OUTLINE_IDEA,
+    userPrompt: 'Generate an outline idea based on the script context.',
+    systemInstruction: `You are an outline ideation engine.
+
+OUTPUT FORMAT
+Return valid JSON only: { "title": "Optional title", "items": ["Opening image", "Inciting incident", "Midpoint reversal", "Climax"] }
+
+RULES
+- Title: short, specific (3-6 words)
+- items: array of strings, each a beat or outline point (3-8 items typical)
+- Each item: concise, actionable, screenplay/story beat oriented
+- No extra keys, no commentary outside JSON
+- ${JSON_ESCAPE_RULE}`
+  }),
   // ---------------------------------
   // BRAINSTORM PROMPTS (templated)
   // ---------------------------------

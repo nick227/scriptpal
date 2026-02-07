@@ -41,6 +41,7 @@ export const UI_ELEMENTS = {
     EDITOR_TOOLBAR: '.editor-toolbar',
     USER_SCRIPTS_PANEL: '.user-scripts',
     USER_SCENES_PANEL: '.user-scenes',
+    USER_OUTLINES_PANEL: '.user-outlines',
     USER_CHARACTERS_PANEL: '.user-characters',
     USER_LOCATION_PANEL: '.user-location',
     USER_THEMES_PANEL: '.user-themes',

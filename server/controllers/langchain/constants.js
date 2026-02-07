@@ -58,7 +58,8 @@ export const INTENT_DESCRIPTIONS = {
   SCENE_IDEA: 'Generate a scene title and description based on the script and scene context.',
   CHARACTER_IDEA: 'Generate a character title and description based on the script and character context.',
   LOCATION_IDEA: 'Generate a location item title and description based on the script and location context.',
-  THEME_IDEA: 'Generate a theme title and description based on the script and theme context.'
+  THEME_IDEA: 'Generate a theme title and description based on the script and theme context.',
+  OUTLINE_IDEA: 'Generate an outline title and items based on the script and outline context.'
 };
 
 //=============================================================================

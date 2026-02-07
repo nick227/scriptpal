@@ -16,6 +16,7 @@ import { CharacterStore } from './stores/CharacterStore.js';
 import { LocationStore } from './stores/LocationStore.js';
 import { MediaStore } from './stores/MediaStore.js';
 import { SceneStore } from './stores/SceneStore.js';
+import { OutlineStore } from './stores/OutlineStore.js';
 import { ScriptStore } from './stores/ScriptStore.js';
 import { ThemeStore } from './stores/ThemeStore.js';
 
@@ -65,6 +66,7 @@ export async function init (preAuth) {
         const locationStore = new LocationStore(api, stateManager, eventManager);
         const mediaStore = new MediaStore(api, stateManager, eventManager);
         const sceneStore = new SceneStore(api, stateManager, eventManager);
+        const outlineStore = new OutlineStore(api, stateManager, eventManager);
         const themeStore = new ThemeStore(api, stateManager, eventManager);
         const persistenceManager = new PersistenceManager({ api, stateManager, eventManager });
 
@@ -90,6 +92,7 @@ export async function init (preAuth) {
             stores: {
                 script: scriptStore,
                 scene: sceneStore,
+                outline: outlineStore,
                 character: characterStore,
                 location: locationStore,
                 media: mediaStore,
@@ -122,6 +125,7 @@ export async function init (preAuth) {
         window.scriptPalCharacterStore = characterStore;
         window.scriptPalLocationStore = locationStore;
         window.scriptPalSceneStore = sceneStore;
+        window.scriptPalOutlineStore = outlineStore;
         window.scriptPalThemeStore = themeStore;
         window.scriptPalMediaStore = mediaStore;
 

@@ -130,6 +130,7 @@ model Script {
   pages          ScriptPage[]
   personas       Persona[]
   scenes         Scene[]
+  outlines       Outline[]
   characters     Character[]
   locations      Location[]
   themes         Theme[]
@@ -302,6 +303,22 @@ model Location {
   @@index([scriptId])
   @@index([sortIndex])
   @@map("locations")
+}
+
+model Outline {
+  id        Int      @id @default(autoincrement())
+  scriptId  Int
+  title     String
+  items     Json     @default("[]")
+  sortIndex Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  script Script @relation(fields: [scriptId], references: [id])
+
+  @@index([scriptId])
+  @@index([sortIndex])
+  @@map("outlines")
 }
 
 model Theme {
