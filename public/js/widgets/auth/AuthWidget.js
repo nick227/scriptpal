@@ -75,8 +75,6 @@ export class AuthWidget extends BaseWidget {
                 this.elements.messagesContainer,
                 null // No chat dependency needed for auth messages
             );
-        } else {
-            console.warn('[AuthWidget] Messages container not available, auth messages disabled');
         }
 
         if (this.elements.formsContainer) {

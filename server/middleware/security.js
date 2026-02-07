@@ -54,24 +54,6 @@ export class SecurityMiddleware {
      */
   getHelmetConfig() {
     return helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ['\'self\''],
-          styleSrc: ['\'self\'', '\'unsafe-inline\'', 'https://cdnjs.cloudflare.com'],
-          scriptSrc: [
-            '\'self\'',
-            'https://cdnjs.cloudflare.com',
-            '\'sha256-YX4iJw93x5SU0ple+RI+95HNdNBZSA60gR8a5v7HfOA=\'',
-            '\'unsafe-eval\''
-          ],
-          imgSrc: ['\'self\'', 'data:', 'https:'],
-          connectSrc: ['\'self\''],
-          fontSrc: ['\'self\'', 'https://cdnjs.cloudflare.com'],
-          objectSrc: ['\'none\''],
-          mediaSrc: ['\'self\''],
-          frameSrc: ['\'none\'']
-        }
-      },
       crossOriginEmbedderPolicy: false,
       hsts: {
         maxAge: 31536000,
