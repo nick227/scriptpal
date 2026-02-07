@@ -189,7 +189,8 @@ export class BaseChain {
       const processedMessages = this.addCommonInstructions(messages);
 
       const lastMessage = messages[messages.length - 1];
-      const originalPrompt = lastMessage ? lastMessage.content : '';
+      const constructedPrompt = lastMessage ? lastMessage.content : '';
+      const userPromptToSave = metadata?.originalUserPrompt ?? metadata?.prompt ?? constructedPrompt;
 
       const allMessages = await Promise.race([
         this.buildMessageChain(processedMessages, ctx),
@@ -247,7 +248,8 @@ export class BaseChain {
         choice: result.data.choices?.[0]
       });
       const aiMessage = result.data.choices?.[0]?.message || {};
-      const responseContent = aiMessage.function_call
+      const isFunctionCall = Boolean(aiMessage.function_call);
+      const responseContent = isFunctionCall
         ? JSON.stringify(aiMessage.function_call.arguments || {})
         : (aiMessage.content || '');
       const usage = result.data.usage || {};
@@ -260,7 +262,7 @@ export class BaseChain {
       };
 
       let loggedUsage = false;
-      if (ctx?.userId) {
+      if (ctx?.userId && !isFunctionCall) {
         try {
           await chatMessageRepository.create({
             userId: ctx.userId,
@@ -269,7 +271,7 @@ export class BaseChain {
             content: responseContent,
             intent: ctx.intent ?? null,
             metadata: {
-              userPrompt: originalPrompt,
+              userPrompt: userPromptToSave,
               chainType: this.type
             },
             promptTokens: aiUsage.promptTokens,
@@ -291,6 +293,15 @@ export class BaseChain {
         const payload = this.createResponse(content, ctx, questions, { aiUsage });
         payload.aiMessage = aiMessage;
         payload.raw = result;
+        if (isFunctionCall && ctx?.userId) {
+          payload._persistContext = {
+            userId: ctx.userId,
+            scriptId: ctx.scriptId ?? null,
+            intent: ctx.intent ?? null,
+            userPrompt: userPromptToSave,
+            aiUsage
+          };
+        }
         return payload;
       };
 
@@ -301,7 +312,7 @@ export class BaseChain {
       try {
         const questions = await this.questionGenerator.generateQuestions(
           ctx,
-          originalPrompt,
+          constructedPrompt,
           responseContent
         );
         return buildChainResponse(responseContent, questions);
@@ -312,6 +323,38 @@ export class BaseChain {
       console.error('Chain execution error:', error);
       throw error;
     }
+  }
+
+  persistAssistantMessage(rawResponse, displayContent) {
+    const ctx = rawResponse?._persistContext;
+    if (!ctx?.userId || !displayContent) return;
+    const { userId, scriptId, intent, userPrompt, aiUsage } = ctx;
+    chatMessageRepository.create({
+      userId,
+      scriptId,
+      role: 'assistant',
+      content: typeof displayContent === 'string' ? displayContent : String(displayContent),
+      intent,
+      metadata: { userPrompt, chainType: this.type },
+      promptTokens: aiUsage?.promptTokens ?? 0,
+      completionTokens: aiUsage?.completionTokens ?? 0,
+      totalTokens: aiUsage?.totalTokens ?? 0,
+      costUsd: aiUsage?.costUsd ?? 0
+    }).catch((err) => console.error('[BaseChain] persistAssistantMessage failed', err));
+  }
+
+  /** Mark aiUsage as logged so HistoryManager.saveInteraction skips. Call after persistAssistantMessage. */
+  attachPersistedFlag(result, rawResponse) {
+    const aiUsage = rawResponse?.metadata?.aiUsage ?? rawResponse?._persistContext?.aiUsage;
+    if (aiUsage) {
+      aiUsage.loggedByBaseChain = true;
+      if (result.metadata) {
+        result.metadata.aiUsage = aiUsage;
+      } else {
+        result.aiUsage = aiUsage;
+      }
+    }
+    return result;
   }
 
   async buildMessageChain(currentMessages, context) {

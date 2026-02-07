@@ -213,6 +213,8 @@ export class ScriptFullChain extends BaseChain {
       ? payload.assistantResponse.trim()
       : '';
 
-    return this.formatResponse(script, context, validation, assistantResponse);
+    const canonical = this.formatResponse(script, context, validation, assistantResponse);
+    this.persistAssistantMessage(response, canonical.message);
+    return this.attachPersistedFlag(canonical, response);
   }
 }

@@ -204,7 +204,7 @@ export class SystemPromptOrchestrator {
             return;
         }
 
-        const { chatManager, chatHistoryManager } = this;
+        const { chatManager } = this;
         const decoratedResponse = typeof response === 'string'
             ? { response, metadata: { promptType: promptId } }
             : {
@@ -220,30 +220,7 @@ export class SystemPromptOrchestrator {
             return;
         }
 
-        if (!scriptId) {
-            await chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
-            return;
-        }
-
-        try {
-            const response = await this.api.addChatMessage(scriptId, {
-                type: MESSAGE_TYPES.ASSISTANT,
-                content,
-                metadata: {
-                    promptType: promptId,
-                    scriptId
-                }
-            });
-            const rows = Array.isArray(response?.messages) ? response.messages : [];
-            if (rows.length > 0) {
-                await chatManager.appendServerMessages(rows);
-            } else {
-                await chatManager.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
-            }
-        } catch (error) {
-            console.error('[SystemPromptOrchestrator] Failed to persist prompt response:', error);
-            await chatManager.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
-        }
+        await chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
     }
 
     computeFingerprint (context = {}) {

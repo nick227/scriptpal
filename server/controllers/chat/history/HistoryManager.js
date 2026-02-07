@@ -27,9 +27,10 @@ export class HistoryManager {
         return;
       }
 
-      const assistantContent = typeof assistantResponse === 'string'
+      const raw = typeof assistantResponse === 'string'
         ? assistantResponse
-        : JSON.stringify(assistantResponse);
+        : (assistantResponse?.message ?? assistantResponse?.response ?? JSON.stringify(assistantResponse));
+      const assistantContent = typeof raw === 'string' ? raw : JSON.stringify(raw);
 
       const aiUsage = typeof assistantResponse === 'object' && assistantResponse !== null
         ? assistantResponse.response?.metadata?.aiUsage ??

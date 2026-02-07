@@ -1,14 +1,16 @@
 /**
- * ResponseExtractor — Extract message content from API responses and legacy DB shapes.
- * Separate extractApiResponseContent (canonical) from extractLegacyDbContent (deprecated).
- * Do NOT use extractLegacyDbContent for new API paths.
+ * ResponseExtractor — Extract message content from API responses and history/DB shapes.
+ *
+ * USAGE:
+ * - extractApiResponseContent(data) — For POST /chat, POST /system-prompts responses (canonical data.response)
+ * - extractRenderableContent(messageData) — For processAndRenderMessage; handles strings, history messages, legacy shapes
+ * - extractLegacyDbContent(data) — For history hydration only; deprecated for new API paths
  */
 
 /**
- * Extract chat message from API response.
- * Canonical shape (v2): data.response.message
- * Use for new API responses only.
- * @param {object} data - API response data
+ * Extract chat message from API response. Canonical shape (v2): data.response.message
+ * Use for POST /chat and POST /system-prompts responses.
+ * @param {object} data - Full API response with response: { message, script, metadata }
  * @returns {string|null} Extracted content or null
  */
 export function extractApiResponseContent (data) {
@@ -70,7 +72,8 @@ export function extractLegacyDbContent (data) {
 
 /**
  * Extract renderable string content from message data (string or object).
- * Use for processAndRenderMessage — keeps extraction in ResponseExtractor.
+ * Use for processAndRenderMessage — handles history messages, strings, legacy DB shapes.
+ * For API responses, prefer extractApiResponseContent when you have the full response object.
  * @param {string|object|null} messageData - Raw message (string, or object with message/content/response)
  * @returns {string}
  */

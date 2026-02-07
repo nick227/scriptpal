@@ -73,6 +73,7 @@
     border-radius: 10px;
     border: 10px solid lightgray;
 }
+
 .side-panel-panel.is-minimized {
     display: none;
 }

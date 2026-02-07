@@ -1,5 +1,5 @@
 export const widgetHtml = `
-            <div class="chat-header">
+            <div class="chat-header"> <span class="chat-title">Script Assistant</span>
                     <button class="chat-action-btn" title="Minimize" data-action="minimize" aria-label="Minimize chat">
                         <i class="fas fa-minus"></i>
                     </button>

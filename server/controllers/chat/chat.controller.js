@@ -62,6 +62,7 @@ const SCRIPT_INTENT_HANDLERS = {
     });
 
     chainContext.chatRequestId = chatRequestId;
+    chainContext.originalUserPrompt = context.prompt;
 
     const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
     const response = await router.route(intentResult, chainContext, prompt);
@@ -97,6 +98,7 @@ const SCRIPT_INTENT_HANDLERS = {
     });
 
     chainContext.chatRequestId = chatRequestId;
+    chainContext.originalUserPrompt = context.prompt;
 
     const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
     const response = await router.route(intentResult, chainContext, NEXT_FIVE_LINES_PROMPT.userPrompt);
@@ -132,6 +134,7 @@ const SCRIPT_INTENT_HANDLERS = {
     });
 
     chainContext.chatRequestId = chatRequestId;
+    chainContext.originalUserPrompt = context.prompt;
 
     const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
     const response = await router.route(intentResult, chainContext, prompt);
@@ -316,12 +319,15 @@ const chatController = {
 
       const role = message.type === 'assistant' ? 'assistant' : 'user';
       const content = message.content || '';
+      const metadata = message.metadata && typeof message.metadata === 'object'
+        ? message.metadata
+        : null;
       const savedRow = await chatMessageRepository.create({
         userId,
         scriptId: parsedScriptId,
         role,
         content,
-        metadata: null
+        metadata
       });
 
       if (!savedRow) {
@@ -422,7 +428,7 @@ const chatController = {
           const rows = await chatMessageRepository.listByUser(
             req.userId,
             scriptId,
-            2,
+            10,
             0
           );
 
@@ -456,7 +462,7 @@ const chatController = {
         const rows = await chatMessageRepository.listByUser(
           req.userId,
           scriptId,
-          2,
+          10,
           0
         );
 

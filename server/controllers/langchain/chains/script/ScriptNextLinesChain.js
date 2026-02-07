@@ -335,6 +335,8 @@ export class ScriptNextLinesChain extends BaseChain {
 
     this.ensureCanonicalResponse(formattedResponse);
 
-    return formattedResponse;
+    this.persistAssistantMessage(response, chatMessage);
+
+    return this.attachPersistedFlag(formattedResponse, response);
   }
 }

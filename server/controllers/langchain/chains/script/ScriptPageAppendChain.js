@@ -270,7 +270,9 @@ Only introduce a <header> if the context clearly implies a scene change.`
 
       this.ensureCanonicalResponse(result);
 
-      return result;
+      this.persistAssistantMessage(response, message);
+
+      return this.attachPersistedFlag(result, response);
     }
 
     throw new Error(`append_page_failed: ${lastError}`);

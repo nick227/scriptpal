@@ -17,7 +17,6 @@
 }
 
 .chatbot-container {
-    --chat-bg: #f4f6fb;
     --chat-surface: #ffffff;
     --chat-muted: #6b7280;
     --chat-border: rgba(15, 23, 42, 0.08);
@@ -49,6 +48,11 @@
     right: 10px;
     background: transparent !important;
     z-index: 1000 !important;
+}
+
+
+.chatbot-container.minimized .chat-title {
+    display: none;
 }
 
 .chatbot-container.minimized .chat-action-btn,
@@ -120,7 +124,7 @@
 
 .chat-messages {
     flex: 1;
-    padding: 18px 16px 8px;
+    padding: 65px 8px;
     display: flex;
     flex-direction: column;
     gap: var(--chat-gap);
@@ -166,7 +170,7 @@
 }
 
 .message-content {
-    background: #f4f6fb;
+    background: var(--chat-bg);
     padding: 12px 14px;
     line-height: 1.5;
     width: calc(100% - 30px);

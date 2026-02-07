@@ -65,6 +65,7 @@ class SystemPromptController {
         scriptCollections,
         promptType,
         systemInstruction: definition.systemInstruction,
+        originalUserPrompt: context?.triggerPrompt ?? promptType ?? definition.userPrompt,
         ...context
       };
 

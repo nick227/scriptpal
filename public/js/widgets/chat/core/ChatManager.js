@@ -9,6 +9,7 @@ import { ScriptContextManager } from '../../editor/context/ScriptContextManager.
 import { getInstance } from './ChatHistoryManager.js';
 import { validateSendConditions, validateHistoryConditions } from './ChatValidationService.js';
 import {
+    extractApiResponseContent,
     extractFormattedScriptFromResponse,
     extractRenderableContent
 } from './ResponseExtractor.js';
@@ -371,7 +372,7 @@ export class ChatManager extends BaseManager {
                 this.processQuestionButtons(data.response);
                 await this.appendServerMessages(historyRows);
             } else {
-                const content = extractRenderableContent(data.response);
+                const content = extractApiResponseContent(data) ?? extractRenderableContent(data.response);
                 if (!content) {
                     await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
                     return null;
