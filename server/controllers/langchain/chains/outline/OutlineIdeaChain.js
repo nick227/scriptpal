@@ -1,7 +1,20 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, SCRIPT_CONTEXT_PREFIX } from '../../constants.js';
 import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
-import { formatItemBlock, formatItemList } from '../helpers/ItemListFormatter.js';
+import { formatItemList } from '../helpers/ItemListFormatter.js';
+
+const formatOutlineBlock = (outline) => {
+  if (!outline || typeof outline !== 'object') return 'None.';
+  const title = outline.title || 'Untitled Outline';
+  const items = Array.isArray(outline.items) ? outline.items : [];
+  const itemLines = items
+    .slice(0, 12)
+    .map((i) => `  • ${typeof i === 'string' ? i : (i?.text ?? '')}`)
+    .filter((s) => s.trim().length > 2);
+  const lines = [`Title: ${title}`];
+  if (itemLines.length) lines.push('Items:', ...itemLines);
+  return lines.join('\n');
+};
 
 const OUTLINE_IDEA_FUNCTIONS = [{
   name: 'provide_outline_idea',
@@ -61,7 +74,7 @@ export class OutlineIdeaChain extends BaseChain {
     const systemInstruction = context?.systemInstruction || DEFAULT_SYSTEM_INSTRUCTION;
     const scriptTitle = context?.scriptTitle || 'Untitled Script';
     const scriptDescription = context?.scriptDescription || '';
-    const currentOutline = formatItemBlock(context?.currentOutline, 'Outline');
+    const currentOutline = formatOutlineBlock(context?.currentOutline);
     const otherOutlines = formatItemList(context?.otherOutlines, 'Outline');
     const collectionBlock = formatScriptCollections(context?.scriptCollections);
     const scriptContext = context?.scriptContent

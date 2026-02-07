@@ -3,12 +3,17 @@ import { parseNumericId, parseSortIndex } from '../../../utils/idUtils.js';
 import { listScriptItems } from '../../../utils/queryUtils.js';
 
 const normalizeItems = (raw) => {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((entry) => {
-    if (typeof entry === 'string') return { text: entry };
-    if (entry && typeof entry.text === 'string') return { text: entry.text };
-    return { text: String(entry ?? '') };
-  }).filter((e) => e.text.trim());
+  if (Array.isArray(raw)) {
+    return raw.map((entry) => {
+      if (typeof entry === 'string') return { text: entry };
+      if (entry && typeof entry.text === 'string') return { text: entry.text };
+      return { text: String(entry ?? '') };
+    }).filter((e) => e.text.trim());
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.split('\n').map((s) => s.trim()).filter(Boolean).map((t) => ({ text: t }));
+  }
+  return [];
 };
 
 const outlineController = {
@@ -46,10 +51,7 @@ const outlineController = {
         nextSortIndex = count;
       }
 
-      const itemsArray = Array.isArray(items) ? items : [];
-      const normalizedItems = itemsArray.map((t) =>
-        typeof t === 'string' ? { text: t } : (t && typeof t.text === 'string' ? t : { text: String(t ?? '') })
-      ).filter((e) => e.text.trim());
+      const normalizedItems = normalizeItems(items);
 
       const outline = await prisma.outline.create({
         data: {
