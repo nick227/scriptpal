@@ -6,7 +6,7 @@
 - **Manual save parity**: `handleManualSave` is bound both to the toolbar save button and `Ctrl+S` through `toolbar.onSave(this.handleManualSave)` and `_handleGlobalShortcuts` respectively. Both funnels end in `flushSave('manual')`, so the path, telemetry, and patch queue are identical for keyboard and button saves.
 - **Autosave hooks beyond typing**:
   * `handleFocusOut` flushes immediately when the editor loses focus (`EDITOR_EVENTS.FOCUS_OUT`), ensuring work isn’t lost when the user tabs away.
-  * `handlePageExit` listens to both `beforeunload` and `pagehide`, calling `flushSave('exit', { immediate: true })` so we attempt to persist even when the tab closes.
+  * ~~`handlePageExit`~~ (removed) — server saves on unload were disabled; see `docs/autosave.md`.
 
 ## Flush details (`EditorSaveService.flushSave:39-70`)
 - **Dirty detection**: If there’s no selected script ID or the normalized content matches the currently saved script body, the flush short-circuits and returns `false` without hitting the network.
@@ -23,4 +23,4 @@
 ## Recommendations
 1. Continue relying on the single `flushSave` pipeline so `Ctrl+S` and the save button stay in sync; avoid introducing separate persistence layers that duplicate the patch queue.
 2. Keep the 5-second debounce for autosave to preserve performance, but ensure heavy import/AI rewrites manually call `flushSave('manual', { immediate: true })` after the transformation.
-3. Validate that `beforeunload`/`pagehide` handlers still fire in modern browsers to keep the “save on exit” guarantee intact, especially when switching to PWAs or electron wrappers.
+3. Save on exit removed; rely on debounce, focus-out, and manual save.

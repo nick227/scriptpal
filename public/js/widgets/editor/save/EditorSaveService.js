@@ -4,7 +4,8 @@ import { StateManager } from '../../../core/StateManager.js';
 const AUTO_SAVE_DEBOUNCE_MS = 800;
 
 /**
- * EditorSaveService - Debounced auto-save on CONTENT_PERSIST; immediate flush on focus-out, manual save, exit.
+ * EditorSaveService - Debounced auto-save on CONTENT_PERSIST; immediate flush on focus-out and manual save.
+ * Server saves on beforeunload/pagehide removed to avoid capturing stale/minimal content during teardown.
  */
 export class EditorSaveService {
     constructor (options = {}) {
@@ -23,7 +24,6 @@ export class EditorSaveService {
         this.handleContentChange = this.handleContentChange.bind(this);
         this.handleFocusOut = this.handleFocusOut.bind(this);
         this.handleManualSave = this.handleManualSave.bind(this);
-        this.handlePageExit = this.handlePageExit.bind(this);
 
         this.setupListeners();
     }
@@ -32,8 +32,6 @@ export class EditorSaveService {
         this.content.on(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.on(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
         this.toolbar.onSave(this.handleManualSave);
-        window.addEventListener('beforeunload', this.handlePageExit);
-        window.addEventListener('pagehide', this.handlePageExit);
     }
 
     handleContentChange () {
@@ -74,7 +72,7 @@ export class EditorSaveService {
             return false;
         }
 
-        if (!this.scriptStore.hasLoadedCurrentScript()) {
+        if (!this.scriptStore.hasLoadedCurrentScript() && !this.lastNormalizedContent) {
             return false;
         }
 
@@ -120,23 +118,10 @@ export class EditorSaveService {
         return this.flushSave('manual');
     }
 
-    handlePageExit () {
-        this.cancelAutoSave();
-        const ready = this.content && this.content.hasLoadedInitialContent && this.content.hasLoadedInitialContent();
-        const scriptReady = this.scriptStore && this.scriptStore.hasLoadedCurrentScript();
-        if (ready && scriptReady) {
-            this.flushSave('exit');
-        } else {
-            console.warn('[EditorSaveService] Exit save skipped: content or script not ready');
-        }
-    }
-
     destroy () {
         this.cancelAutoSave();
         this.content.off(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.off(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
-        window.removeEventListener('beforeunload', this.handlePageExit);
-        window.removeEventListener('pagehide', this.handlePageExit);
         this.content = null;
         this.toolbar = null;
         this.scriptStore = null;

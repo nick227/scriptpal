@@ -2,6 +2,8 @@
 
 Analysis of how the script editor UI handles auto-save: triggers, processes, and call chains.
 
+> **Update:** Server saves on `beforeunload`/`pagehide` have been removed. See `docs/autosave.md` for rationale and implemented changes.
+
 ---
 
 ## 1. Overview
@@ -54,10 +56,10 @@ So **triggers** for CONTENT_PERSIST are any code path that calls `_emitContentCh
 
 | Event / hook | Handler | Effect |
 |--------------|---------|--------|
-| `EDITOR_EVENTS.CONTENT_PERSIST` | `handleContentChange` | `flushSave('auto')` immediately. |
+| `EDITOR_EVENTS.CONTENT_PERSIST` | `handleContentChange` | `flushSave('auto')` (debounced 800ms). |
 | `EDITOR_EVENTS.FOCUS_OUT` | `handleFocusOut` | `flushSave('focus')`. |
 | Toolbar save button | `handleManualSave` | `flushSave('manual')`. |
-| `beforeunload` / `pagehide` | `handlePageExit` | `flushSave('exit')`. |
+| ~~`beforeunload` / `pagehide`~~ | *(removed)* | Server saves on unload disabled. |
 
 **Call chain (no timers):**
 
@@ -134,7 +136,7 @@ Keystroke / edit → EditorCoordinator._emitContentChange() → CONTENT_PERSIST 
 | Any content change (DOM sync, batch edits, etc.) | EditorCoordinator | `_emitContentChange` → `CONTENT_PERSIST` (immediate) | EditorSaveService.handleContentChange → flushSave → queuePatch + flushPatch |
 | Focus leaves script line | EditorCoordinator | `FOCUS_OUT` | EditorSaveService.handleFocusOut → flushSave('focus') |
 | Toolbar save / Ctrl+S | EditorToolbar / shortcuts | save handler | EditorSaveService.handleManualSave → flushSave('manual') |
-| beforeunload / pagehide | Window | handlePageExit | EditorSaveService.flushSave('exit') |
+| *(removed)* | — | — | Unload save disabled; see autosave.md |
 | Every 30 s | PersistenceManager | setInterval | saveCurrentState → handleScriptChange + handleUIStateChange → localStorage only |
 | Tab hidden | document | visibilitychange | PersistenceManager.handleVisibilityChange → saveCurrentState |
 

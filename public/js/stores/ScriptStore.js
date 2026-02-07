@@ -1,13 +1,12 @@
-import { ERROR_MESSAGES } from '../constants.js';
 import { BaseManager } from '../core/BaseManager.js';
 import { EventManager } from '../core/EventManager.js';
 import { debugLog } from '../core/logger.js';
 import { StateManager } from '../core/StateManager.js';
 import { ScriptFormatter } from '../services/format/ScriptFormatter.js';
 import { loadRawFromStorage, removeFromStorage } from '../services/persistence/PersistenceManager.js';
+import { buildMinePath, getMineSlugFromPathname } from '../services/script/slugPaths.js';
 
 import { resolveCacheState } from './storeLoadUtils.js';
-import { buildMinePath, getMineSlugFromPathname } from '../services/script/slugPaths.js';
 
 /** @type {Set<string>} Valid visibility values */
 const ALLOWED_VISIBILITIES = new Set(['private', 'public']);
@@ -95,6 +94,33 @@ export class ScriptStore extends BaseManager {
             return content.content;
         }
         return JSON.stringify(content);
+    }
+
+    /**
+     * Reject blank/meaningless content (e.g. many empty lines) that would overwrite good data.
+     * @param {string} content - Normalized JSON string
+     * @returns {boolean}
+     */
+    hasMeaningfulContent (content) {
+        if (typeof content !== 'string') return false;
+        try {
+            const parsed = JSON.parse(content);
+            const lines = Array.isArray(parsed?.lines) ? parsed.lines : [];
+            const counts = lines.reduce(
+                (acc, line) => {
+                    const text = String(line?.content ?? line?.text ?? '').replace(/\s+/g, '');
+                    if (text.length > 0) {
+                        acc.chars += text.length;
+                        acc.lines++;
+                    }
+                    return acc;
+                },
+                { chars: 0, lines: 0 }
+            );
+            return counts.chars >= 50 || counts.lines >= 3;
+        } catch {
+            return false;
+        }
     }
 
     isStructuredContent (content) {
@@ -241,7 +267,8 @@ export class ScriptStore extends BaseManager {
 
             const scriptId = String(id);
             const cached = this.scripts.find(script => String(script.id) === scriptId);
-            const hasCachedContent = cached && cached.content !== undefined && cached.content !== null;
+            const trimmed = typeof cached?.content === 'string' ? cached.content.trim() : '';
+            const hasCachedContent = cached && trimmed.length > 0;
             const ownerMatches = cached && this.currentUserId && String(cached.userId) === String(this.currentUserId);
             const shouldUseCache = hasCachedContent && ownerMatches && !options.forceFresh;
 
@@ -392,6 +419,18 @@ export class ScriptStore extends BaseManager {
 
         if (Object.keys(effectivePatch).length === 0) {
             return;
+        }
+
+        if (effectivePatch.content !== undefined) {
+            const normalized = this.normalizeContent(effectivePatch.content);
+            debugLog('[PATCH_QUEUE] content metrics', {
+                length: normalized?.length,
+                meaningful: this.hasMeaningfulContent(normalized)
+            });
+            if (!this.hasMeaningfulContent(normalized)) {
+                debugLog('[PATCH_QUEUE] rejected blank/meaningless content', { scriptId });
+                return;
+            }
         }
 
         const now = Date.now();
@@ -566,7 +605,7 @@ export class ScriptStore extends BaseManager {
                 title: scriptData.title || 'Unknown Title',
                 versionNumber: versionNumber
             };
-            if (hasContent) {
+            if (hasContent && formattedContent && String(formattedContent).trim().length > 0) {
                 updateData.content = formattedContent;
             }
             if (scriptData.author !== undefined) {
