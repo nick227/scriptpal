@@ -198,6 +198,9 @@ export class ScriptStore extends BaseManager {
             console.error('[ScriptStore] User ID required to load scripts');
             return [];
         }
+        if (this.isLoading) {
+            return this.scripts;
+        }
 
         this.clearScriptError();
 
@@ -261,6 +264,10 @@ export class ScriptStore extends BaseManager {
             console.warn('[ScriptStore] Invalid script ID');
             return null;
         }
+        if (this.isLoading) {
+            const cached = this.scripts.find(s => String(s.id) === String(id));
+            return cached ? this.applyLoadedScript(cached, options) : null;
+        }
 
         try {
             this.setLoading(true);
@@ -292,6 +299,10 @@ export class ScriptStore extends BaseManager {
         if (!slug) {
             console.warn('[ScriptStore] Invalid script slug');
             return null;
+        }
+        if (this.isLoading) {
+            const cached = this.scripts.find(s => s.slug === slug);
+            return cached ? this.applyLoadedScript(cached, options) : null;
         }
 
         this.clearScriptError();

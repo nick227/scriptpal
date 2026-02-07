@@ -37,7 +37,7 @@ const configSchema = Joi.object({
   SESSION_MAX_AGE: Joi.number().min(3600).default(86400), // 24 hours
   RATE_LIMIT_WINDOW: Joi.number().min(1000).default(900000), // 15 minutes
   RATE_LIMIT_MAX: Joi.number().min(1).default(100),
-  RATE_LIMIT_MAX_AUTH: Joi.number().min(1).optional(),
+  RATE_LIMIT_MAX_AUTH: Joi.number().min(1).default(300),
   RATE_LIMIT_MAX_ANON: Joi.number().min(1).optional(),
   TRUST_PROXY: Joi.boolean().default(true),
 

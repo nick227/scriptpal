@@ -2,8 +2,6 @@ import { BaseWidget } from '../BaseWidget.js';
 import { StateManager } from '../../core/StateManager.js';
 import { EventManager } from '../../core/EventManager.js';
 
-const POLL_INTERVAL = 60000;
-
 export class TokenWatchWidget extends BaseWidget {
     constructor (elements = {}, api, stateManager, eventManager) {
         super(elements);
@@ -26,7 +24,6 @@ export class TokenWatchWidget extends BaseWidget {
         this.container = elements.container;
         this.valueElement = this.container.querySelector('.token-watch__tokens');
         this.costElement = this.container.querySelector('.token-watch__cost');
-        this.pollHandle = null;
         this.isFetching = false;
     }
 
@@ -50,10 +47,8 @@ export class TokenWatchWidget extends BaseWidget {
         if (isAuthenticated) {
             this.showContainer();
             this.fetchAndRender();
-            this.schedulePoll();
         } else {
             this.hideContainer();
-            this.stopPoll();
             this.resetDisplay();
             this.stateManager.setState(StateManager.KEYS.TOKEN_USAGE, null);
         }
@@ -66,21 +61,6 @@ export class TokenWatchWidget extends BaseWidget {
 
     hideContainer () {
         this.container.style.display = 'none';
-    }
-
-    schedulePoll () {
-        this.stopPoll();
-        this.pollHandle = setTimeout(async () => {
-            await this.fetchAndRender();
-            this.schedulePoll();
-        }, POLL_INTERVAL);
-    }
-
-    stopPoll () {
-        if (this.pollHandle) {
-            clearTimeout(this.pollHandle);
-            this.pollHandle = null;
-        }
     }
 
     async fetchAndRender () {

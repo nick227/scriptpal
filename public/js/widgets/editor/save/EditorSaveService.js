@@ -1,7 +1,8 @@
 import { EDITOR_EVENTS } from '../constants.js';
 import { StateManager } from '../../../core/StateManager.js';
 
-const AUTO_SAVE_DEBOUNCE_MS = 800;
+const AUTO_SAVE_DEBOUNCE_MS = 1200;
+const AUTO_SAVE_MIN_INTERVAL_MS = 2500;
 
 /**
  * EditorSaveService - Debounced auto-save on CONTENT_PERSIST; immediate flush on focus-out and manual save.
@@ -19,6 +20,7 @@ export class EditorSaveService {
         this.scriptStore = options.scriptStore;
         this.stateManager = options.stateManager;
         this.lastNormalizedContent = '';
+        this.lastAutoSaveTime = 0;
         this.autoSaveTimer = null;
 
         this.handleContentChange = this.handleContentChange.bind(this);
@@ -60,6 +62,12 @@ export class EditorSaveService {
         if (readOnly) {
             console.warn('[EditorSaveService] Save blocked (read-only mode)');
             return false;
+        }
+        if (reason === 'auto') {
+            const now = Date.now();
+            if (now - this.lastAutoSaveTime < AUTO_SAVE_MIN_INTERVAL_MS) {
+                return false;
+            }
         }
 
         if (!this.content || !this.content.hasLoadedInitialContent || !this.content.hasLoadedInitialContent()) {
@@ -104,6 +112,9 @@ export class EditorSaveService {
 
         this.scriptStore.queuePatch(scriptId, { content: normalized }, 'editor');
         this.scriptStore.flushPatch(scriptId);
+        if (reason === 'auto') {
+            this.lastAutoSaveTime = Date.now();
+        }
 
         return true;
     }
