@@ -75,6 +75,7 @@ export class TitlePageManager {
         this.isTitlePageCollapsed = false;
         this.mediaPicker = null;
         this.mediaContainer = null;
+        this._updatingFromState = false;
     }
 
     /**
@@ -291,22 +292,27 @@ export class TitlePageManager {
      */
     handleScriptChange (script) {
         if (!script) return;
-        this.scriptId = script.id;
-        this.titlePageData.title = script.title || '';
-        this.titlePageData.author = script.author || '';
-        this.titlePageData.description = script.description || '';
-        if (typeof script.visibility === 'string') {
-            this.titlePageData.visibility = this.normalizeVisibility(script.visibility);
-        }
-        this.titlePageData.date = this.formatDate(script.createdAt);
-        this.updateInputs();
-        if (this.mediaPicker) {
-            this.mediaPicker.setOwner({
-                ownerType: 'script',
-                ownerId: this.scriptId,
-                role: 'cover'
-            });
-            this.mediaPicker.refreshPreview();
+        this._updatingFromState = true;
+        try {
+            this.scriptId = script.id;
+            this.titlePageData.title = script.title || '';
+            this.titlePageData.author = script.author || '';
+            this.titlePageData.description = script.description || '';
+            if (typeof script.visibility === 'string') {
+                this.titlePageData.visibility = this.normalizeVisibility(script.visibility);
+            }
+            this.titlePageData.date = this.formatDate(script.createdAt);
+            this.updateInputs();
+            if (this.mediaPicker) {
+                this.mediaPicker.setOwner({
+                    ownerType: 'script',
+                    ownerId: this.scriptId,
+                    role: 'cover'
+                });
+                this.mediaPicker.refreshPreview();
+            }
+        } finally {
+            this._updatingFromState = false;
         }
     }
 
@@ -336,6 +342,7 @@ export class TitlePageManager {
      *
      */
     handleInputChange () {
+        if (this._updatingFromState) return;
         this.titlePageData.title = this.titleInput?.value || '';
         this.titlePageData.author = this.authorInput?.value || '';
         this.titlePageData.description = this.descriptionInput?.value || '';
@@ -366,6 +373,7 @@ export class TitlePageManager {
      *
      */
     handleVisibilityChange () {
+        if (this._updatingFromState) return;
         this.titlePageData.visibility = this.normalizeVisibility(this.visibilitySelect?.value);
         this.queueVisibilityUpdate();
     }

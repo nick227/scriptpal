@@ -282,7 +282,7 @@ export class ScriptStore extends BaseManager {
             const script = shouldUseCache
                 ? cached
                 : await this.api.scripts.getScript(scriptId);
-            console.log('[ScriptStore] loadScript raw api response', { scriptId, script });
+            debugLog('[ScriptStore] loadScript raw api response', { scriptId, script });
 
             return this.applyLoadedScript(script, options);
         } catch (error) {
@@ -310,7 +310,7 @@ export class ScriptStore extends BaseManager {
         try {
             this.setLoading(true);
             const script = await this.api.scripts.getScriptBySlug(slug);
-            console.log('[ScriptStore] loadScriptBySlug raw api response', { slug, script });
+            debugLog('[ScriptStore] loadScriptBySlug raw api response', { slug, script });
             return this.applyLoadedScript(script, options);
         } catch (error) {
             console.error('[ScriptStore] Failed to load script by slug:', error);
@@ -469,7 +469,7 @@ export class ScriptStore extends BaseManager {
             return;
         }
 
-        console.debug('[ScriptStore] flushPatch', {
+        debugLog('[ScriptStore] flushPatch', {
             scriptId,
             hasContent: Boolean(entry.patch?.content),
             contentLength: entry.patch?.content?.length
@@ -841,7 +841,7 @@ export class ScriptStore extends BaseManager {
         if (script && script.id) {
             this.currentScriptId = script.id;
             this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT_ID, Number(script.id));
-            console.log('[ScriptStore] setCurrentScript', script.id, script.visibility);
+            debugLog('[ScriptStore] setCurrentScript', script.id, script.visibility);
             this.stateManager.setState(StateManager.KEYS.CURRENT_SCRIPT, script);
 
             this.eventManager.publish(EventManager.EVENTS.SCRIPT.SELECTED, {

@@ -1,5 +1,4 @@
 import { EventManager } from '../../core/EventManager.js';
-import { StateManager } from '../../core/StateManager.js';
 import { debugLog } from '../../core/logger.js';
 
 import { AutocompleteManager } from './AutocompleteManager.js';
@@ -230,8 +229,6 @@ export class EditorCoordinator {
      * @param root0.focus
      */
     async updateContent(content, { isEdit = false, preserveState = false, source = null, focus = false } = {}) {
-        const contentLength = typeof content === 'string' ? content.length : (content ? 0 : 0);
-        console.trace('[EditorCoordinator] updateContent called', { contentLength, source });
 
         try {
             if (content === null || content === undefined) {
