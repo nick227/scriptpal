@@ -390,6 +390,19 @@
     background: #7de489 !important;
 }
 
+.list-editor-modal__ai-row {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.list-editor-modal__ai-row button {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
 .scene-editor-modal__form .row,
 .list-editor-modal__form .row {
     display: flex;

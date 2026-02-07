@@ -8,6 +8,7 @@ const DEFAULT_CLASS_NAMES = {
     close: 'list-editor-modal__close',
     form: 'list-editor-modal__form',
     row: 'row',
+    aiRow: 'list-editor-modal__ai-row',
     actions: 'list-editor-modal__actions',
     save: 'list-editor-modal__save'
 };

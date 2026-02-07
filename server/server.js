@@ -305,7 +305,7 @@ class ScriptPalServer {
     // Manual JSON parsing for brainstorm endpoints to avoid empty array corruption
     this.app.use((req, res, next) => {
       const isBrainstormBoard = req.path.startsWith('/api/brainstorm/boards');
-      const isScriptItem = req.path.match(/^\/api\/script\/\d+\/(locations|characters|scenes|themes)/);
+      const isScriptItem = req.path.match(/^\/api\/script\/\d+\/(locations|characters|scenes|themes|outlines)/);
       
       if ((isBrainstormBoard || isScriptItem) && (req.method === 'POST' || req.method === 'PUT')) {
         let rawBody = '';

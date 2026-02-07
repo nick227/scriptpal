@@ -365,8 +365,13 @@ RULES
     route: '/script/:scriptId/outlines/ai/outline-idea',
     enabled: false,
     intent: INTENT_TYPES.OUTLINE_IDEA,
-    userPrompt: 'Generate an outline idea based on the script context.',
+    userPrompt: `Generate an outline idea using:
+- Script title, description, and full script text (below)
+- If the user provided a draft outline (title and/or items in the Add Outline modal), refine and extend it to fit the script
+- Otherwise, create a new outline from scratch`,
     systemInstruction: `You are an outline ideation engine.
+
+Use the script title, description, and full script text to generate an outline. If the user provided a draft (title and/or items in the Add Outline modal), refine and extend it; otherwise create from scratch.
 
 OUTPUT FORMAT
 Return valid JSON only: { "title": "Optional title", "items": ["Opening image", "Inciting incident", "Midpoint reversal", "Climax"] }

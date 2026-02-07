@@ -1,0 +1,47 @@
+.outline-creator {
+  border: 1px solid var(--color-border, #ccc);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--color-bg, #fff);
+  min-height: 120px;
+}
+
+.outline-creator-list {
+  margin: 0;
+  padding-left: 1.5em;
+}
+
+.outline-creator-item {
+  margin: 2px 0;
+}
+
+.outline-creator-item[data-indent="0"] {
+  list-style-type: disc;
+}
+
+.outline-creator-item[data-indent="1"],
+.outline-creator-item[data-indent="2"],
+.outline-creator-item[data-indent="3"],
+.outline-creator-item[data-indent="4"] {
+  list-style-type: square;
+}
+
+.outline-creator-input {
+  width: 100%;
+  border: none;
+  padding: 4px 6px;
+  font-size: 14px;
+  background: transparent;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.outline-creator-input::placeholder {
+  color: #999;
+}
+
+.outline-creator-wrap {
+  flex: 1;
+  min-width: 0;
+}
+

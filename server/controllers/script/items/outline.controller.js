@@ -2,16 +2,19 @@ import prisma from '../../../db/prismaClient.js';
 import { parseNumericId, parseSortIndex } from '../../../utils/idUtils.js';
 import { listScriptItems } from '../../../utils/queryUtils.js';
 
+const MAX_INDENT = 4;
+
 const normalizeItems = (raw) => {
   if (Array.isArray(raw)) {
     return raw.map((entry) => {
-      if (typeof entry === 'string') return { text: entry };
-      if (entry && typeof entry.text === 'string') return { text: entry.text };
-      return { text: String(entry ?? '') };
+      const indent = typeof entry?.indent === 'number' ? Math.min(MAX_INDENT, Math.max(0, entry.indent)) : 0;
+      if (typeof entry === 'string') return { text: entry, indent: 0 };
+      if (entry && typeof entry.text === 'string') return { text: entry.text, indent };
+      return { text: String(entry ?? ''), indent: 0 };
     }).filter((e) => e.text.trim());
   }
   if (typeof raw === 'string' && raw.trim()) {
-    return raw.split('\n').map((s) => s.trim()).filter(Boolean).map((t) => ({ text: t }));
+    return raw.split('\n').map((s) => s.trim()).filter(Boolean).map((t) => ({ text: t, indent: 0 }));
   }
   return [];
 };

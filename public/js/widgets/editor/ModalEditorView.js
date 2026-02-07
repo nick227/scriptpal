@@ -1,3 +1,5 @@
+import { mountOutlineCreator } from '../outline/OutlineCreatorComponent.js';
+
 export class ModalEditorView {
     constructor (options = {}) {
         this.adapter = options.adapter;
@@ -7,6 +9,7 @@ export class ModalEditorView {
         this.onAiGenerate = null;
         this.currentItemId = null;
         this.aiButton = null;
+        this.outlineComponents = {};
         this.buildModal();
     }
 
@@ -15,6 +18,10 @@ export class ModalEditorView {
             throw new Error('Modal editor adapter not found');
         }
         const { classNames, labels, fields } = this.adapter.view;
+        const hasAiGenerate = fields.some((f) => f.aiGenerate);
+        const aiGenerateRow = hasAiGenerate
+            ? `<div class="${classNames.aiRow}"><button type="button" data-action="ai-generate">${labels.aiGenerate}</button></div>`
+            : '';
         this.modal = document.createElement('div');
         this.modal.className = `${classNames.modal} ${classNames.hidden}`;
         this.modal.innerHTML = `
@@ -24,6 +31,7 @@ export class ModalEditorView {
                     <h3 class="${classNames.title}">${labels.title}</h3>
                 </header>
                 <form class="${classNames.form}">
+                    ${aiGenerateRow}
                     ${fields.map(field => this.renderField(field, classNames, labels)).join('')}
                     <div class="${classNames.actions}">
                         <button type="button" class="${classNames.close}" data-action="close">${labels.close}</button>
@@ -36,6 +44,7 @@ export class ModalEditorView {
         document.body.appendChild(this.modal);
         this.form = this.modal.querySelector(`.${classNames.form}`);
         this.aiButton = this.modal.querySelector('[data-action="ai-generate"]');
+        this.mountOutlineFields();
 
         this.modal.addEventListener('click', (event) => {
             const { target } = event;
@@ -64,20 +73,18 @@ export class ModalEditorView {
         const labelText = field.label || '';
         const required = field.required ? 'required' : '';
         const placeholder = field.placeholder ? `placeholder="${field.placeholder}"` : '';
-        const inputHtml = field.type === 'textarea'
-            ? `<textarea name="${field.name}" rows="${field.rows || 3}"></textarea>`
-            : `<input name="${field.name}" type="${field.inputType || 'text'}" ${required} ${placeholder} />`;
-
-        if (field.aiGenerate) {
-            return `
-                <label>
-                    <span>${labelText}</span>
-                    <div class="${classNames.row}">
-                        ${inputHtml}
-                        <button type="button" data-action="ai-generate">${labels.aiGenerate}</button>
-                    </div>
-                </label>
+        let inputHtml;
+        if (field.type === 'outline') {
+            inputHtml = `
+                <div class="outline-creator-wrap">
+                    <div class="outline-creator" data-outline-field="${field.name}"></div>
+                    <input type="hidden" name="${field.name}" value="[]" />
+                </div>
             `;
+        } else if (field.type === 'textarea') {
+            inputHtml = `<textarea name="${field.name}" rows="${field.rows || 3}"></textarea>`;
+        } else {
+            inputHtml = `<input name="${field.name}" type="${field.inputType || 'text'}" ${required} ${placeholder} />`;
         }
 
         return `
@@ -86,6 +93,22 @@ export class ModalEditorView {
                 ${inputHtml}
             </label>
         `;
+    }
+
+    mountOutlineFields () {
+        const { fields } = this.adapter.view;
+        fields.filter((f) => f.type === 'outline').forEach((field) => {
+            const container = this.form.querySelector(`.outline-creator[data-outline-field="${field.name}"]`);
+            const hiddenInput = this.form.querySelector(`input[name="${field.name}"]`);
+            if (container && hiddenInput) {
+                this.outlineComponents[field.name] = mountOutlineCreator(container, {
+                    hiddenInput,
+                    onReady: (api) => {
+                        this.outlineComponents[field.name] = api;
+                    }
+                });
+            }
+        });
     }
 
     setHandlers ({ onSave, onAiGenerate }) {
@@ -111,6 +134,13 @@ export class ModalEditorView {
     }
 
     setFieldValue (name, value) {
+        const outline = this.outlineComponents[name];
+        if (outline) {
+            outline.setValue(Array.isArray(value) ? value : []);
+            const hidden = this.form.querySelector(`input[name="${name}"]`);
+            if (hidden) hidden.value = JSON.stringify(outline.getValue());
+            return;
+        }
         const field = this.form.querySelector(`[name="${name}"]`);
         if (field) {
             field.value = value;

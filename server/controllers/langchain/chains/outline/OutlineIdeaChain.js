@@ -4,14 +4,19 @@ import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.j
 import { formatItemList } from '../helpers/ItemListFormatter.js';
 
 const formatOutlineBlock = (outline) => {
-  if (!outline || typeof outline !== 'object') return 'None.';
-  const title = outline.title || 'Untitled Outline';
+  if (!outline || typeof outline !== 'object') return 'None (user has not entered any draft).';
+  const title = (outline.title || '').trim();
   const items = Array.isArray(outline.items) ? outline.items : [];
   const itemLines = items
     .slice(0, 12)
-    .map((i) => `  • ${typeof i === 'string' ? i : (i?.text ?? '')}`)
+    .map((i) => {
+      const text = typeof i === 'string' ? i : (i?.text ?? '');
+      const indent = typeof i?.indent === 'number' ? i.indent : 0;
+      return `  ${'  '.repeat(indent)}• ${text}`;
+    })
     .filter((s) => s.trim().length > 2);
-  const lines = [`Title: ${title}`];
+  if (!title && !itemLines.length) return 'None (user has not entered any draft).';
+  const lines = title ? [`Title: ${title}`] : [];
   if (itemLines.length) lines.push('Items:', ...itemLines);
   return lines.join('\n');
 };
@@ -84,17 +89,19 @@ export class OutlineIdeaChain extends BaseChain {
     const userContent = `
 ${prompt}
 
-Script Title: ${scriptTitle}
-Script Description: ${scriptDescription}
+SCRIPT
+Title: ${scriptTitle}
+Description: ${scriptDescription}
 
-Current Outline:
+DRAFT OUTLINE (from Add Outline modal – title and items if user entered any):
 ${currentOutline}
 
-Other Outlines:
+Other outlines in this script:
 ${otherOutlines}
 
 ${collectionBlock}
 
+FULL SCRIPT TEXT:
 ${scriptContext}
 `;
 
