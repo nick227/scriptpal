@@ -16,6 +16,7 @@ import { EditorHistory } from './history/EditorHistory.js';
 import { LineFormatter } from './LineFormatter.js';
 // Minimap functionality now consolidated into EditorToolbar.js
 import { PageManager } from './page/PageManager.js';
+import { ScriptExportService } from './export/ScriptExportService.js';
 import { EditorSaveService } from './save/EditorSaveService.js';
 import { EditorStateManager } from './state/EditorStateManager.js';
 import { TitlePageManager } from './title/TitlePageManager.js';
@@ -222,6 +223,30 @@ export class EditorWidget {
                     });
                 },
                 deps: ['content', 'toolbar']
+            },
+            {
+                name: 'exportService',
+                required: true,
+                init: async () => {
+                    const content = this.getComponent('content');
+                    const appStateManager = this.getComponent('globalStateManager') || this.stateManager;
+
+                    if (!content || !appStateManager) {
+                        throw new Error('Required dependencies not available for exportService');
+                    }
+                    const onNotify = (message) => {
+                        if (this.eventManager) {
+                            this.eventManager.publish(EventManager.EVENTS.SCRIPT.ERROR, { message, type: 'export' });
+                        }
+                    };
+                    return new ScriptExportService({
+                        content,
+                        scriptStore: this.scriptStore,
+                        stateManager: appStateManager,
+                        onNotify
+                    });
+                },
+                deps: ['content']
             },
             {
                 name: 'history',
@@ -499,6 +524,14 @@ export class EditorWidget {
             if (typeof toolbar.onRedo === 'function') {
                 toolbar.onRedo(() => history.redo());
             }
+        }
+
+        const exportService = this.getComponent('exportService');
+        if (toolbar && exportService && typeof toolbar.onExportRequested === 'function') {
+            toolbar.onExportRequested(({ format }) => {
+                if (format === 'txt') exportService.exportAsTxt();
+                else if (format === 'json') exportService.exportAsJson();
+            });
         }
 
         this.setupVersionHandlers();

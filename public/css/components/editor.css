@@ -308,7 +308,7 @@
         .script-line.format-header {
             text-transform: uppercase;
             font-weight: bold;
-            margin: var(--spacing-sm) 0;
+            margin: 0;
         }
         
         .script-line.format-action {
@@ -534,6 +534,66 @@
 .toolbar-version-dropdown .version-dropdown-select:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+/* Export dropdown */
+.toolbar-export-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.editor-toolbar .export-button {
+    color: var(--color-text-muted, #999);
+}
+
+.editor-toolbar .export-button:hover:not(:disabled) {
+    color: var(--color-bg-white, #fff);
+}
+
+.editor-toolbar .export-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.export-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    min-width: 160px;
+    padding: 4px 0;
+    background: var(--toolbar-bg, #2c2e32);
+    border: 1px solid var(--toolbar-border, #363a3f);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.export-dropdown[hidden] {
+    display: none !important;
+}
+
+.export-dropdown .export-option {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    text-align: left;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-text-muted, #ccc);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.export-dropdown .export-option:hover {
+    background: var(--button-hover, #363a3f);
+    color: var(--color-bg-white, #fff);
 }
 
 /* Version preview bar: only visible when in version-preview mode (never on load) */

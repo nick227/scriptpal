@@ -59,6 +59,9 @@ export class EditorToolbar extends BaseWidget {
         this.versionPreviewBar = null;
         this.versionRestoreButton = null;
         this.versionCancelButton = null;
+        this.exportButton = null;
+        this.exportDropdown = null;
+        this.exportWrapper = null;
 
         // Initialize handlers
         this._handlers = {
@@ -71,7 +74,8 @@ export class EditorToolbar extends BaseWidget {
             import: null,
             versionPreviewRequested: null,
             versionRestoreRequested: null,
-            versionPreviewCancelRequested: null
+            versionPreviewCancelRequested: null,
+            exportRequested: null
         };
 
         // Bind event handlers
@@ -128,6 +132,7 @@ export class EditorToolbar extends BaseWidget {
             // this.createUndoRedoButtons();
             this.createVersionDropdown();
             this.createVersionPreviewBar();
+            this.createExportDropdown();
             this.setEditorMode('edit');
 
             this.createPageNumButtons();
@@ -299,6 +304,61 @@ export class EditorToolbar extends BaseWidget {
         this.versionCancelButton = cancelBtn;
         this.versionPreviewBar.hidden = true;
         // Bar buttons handled by handleToolbarClick (delegated); only active when in preview
+    }
+
+    createExportDropdown () {
+        const wrapper = this.createElement('div', 'toolbar-export-wrapper');
+        const btn = this.createElement('button', 'format-button export-button');
+        btn.type = 'button';
+        btn.innerHTML = '<i class="fas fa-download"></i>';
+        btn.title = 'Export script';
+        btn.disabled = true;
+        const dropdown = this.createElement('div', 'export-dropdown');
+        dropdown.hidden = true;
+        const optTxt = this.createElement('button', 'export-option format-button');
+        optTxt.type = 'button';
+        optTxt.dataset.format = 'txt';
+        optTxt.textContent = 'Export as TXT';
+        const optJson = this.createElement('button', 'export-option format-button');
+        optJson.type = 'button';
+        optJson.dataset.format = 'json';
+        optJson.textContent = 'Export as JSON';
+        dropdown.appendChild(optTxt);
+        dropdown.appendChild(optJson);
+        wrapper.appendChild(btn);
+        wrapper.appendChild(dropdown);
+        this.toolbar.appendChild(wrapper);
+        this.exportButton = btn;
+        this.exportDropdown = dropdown;
+        this.exportWrapper = wrapper;
+
+        const closeDropdown = () => {
+            if (this.exportDropdown) this.exportDropdown.hidden = true;
+        };
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.exportButton.disabled) return;
+            this.exportDropdown.hidden = !this.exportDropdown.hidden;
+        });
+
+        dropdown.addEventListener('click', (e) => {
+            const option = e.target.closest('.export-option');
+            const { format } = option?.dataset ?? {};
+            if (!option || !format) return;
+            e.stopPropagation();
+            closeDropdown();
+            if (this._handlers.exportRequested) this._handlers.exportRequested({ format });
+        });
+
+        this._closeExportDropdownOnClickOutside = (e) => {
+            if (this.exportWrapper && !this.exportWrapper.contains(e.target)) closeDropdown();
+        };
+        document.addEventListener('click', this._closeExportDropdownOnClickOutside);
+    }
+
+    setExportEnabled (enabled) {
+        if (this.exportButton) this.exportButton.disabled = !enabled;
     }
 
     /**
@@ -523,6 +583,8 @@ export class EditorToolbar extends BaseWidget {
         const modeSource = this.appStateManager || this.stateManager;
         const inPreview = modeSource?.getState(StateManager.KEYS.EDITOR_MODE) === 'version-preview';
         this.versionDropdownSelect.disabled = versions.length === 0 || inPreview;
+        const hasScript = versions.length > 0 || !!this.scriptStore?.getCurrentScriptId();
+        this.setExportEnabled(hasScript);
     }
 
     setCurrentVersion (versionNumber) {
@@ -580,6 +642,10 @@ export class EditorToolbar extends BaseWidget {
 
     onVersionPreviewCancelRequested (callback) {
         this._handlers.versionPreviewCancelRequested = typeof callback === 'function' ? callback : null;
+    }
+
+    onExportRequested (callback) {
+        this._handlers.exportRequested = typeof callback === 'function' ? callback : null;
     }
 
     /**
@@ -782,6 +848,9 @@ export class EditorToolbar extends BaseWidget {
                 this.container.removeChild(this.toolbarContainer);
             }
 
+            if (this._closeExportDropdownOnClickOutside) {
+                document.removeEventListener('click', this._closeExportDropdownOnClickOutside);
+            }
             if (this.toolbar) {
                 this.toolbar.removeEventListener('click', this.handleToolbarClick);
             }
