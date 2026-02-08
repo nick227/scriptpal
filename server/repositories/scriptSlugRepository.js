@@ -12,6 +12,22 @@ const scriptSlugRepository = {
     });
   },
 
+  /** Ensure a slug row for this user/script/slug is canonical. Reuse existing row if present (avoids unique constraint on userId+slug). */
+  ensureCanonical: async({ userId, scriptId, slug }, client = prisma) => {
+    const existing = await client.scriptSlug.findFirst({
+      where: { userId, scriptId, slug }
+    });
+    if (existing) {
+      return await client.scriptSlug.update({
+        where: { id: existing.id },
+        data: { isCanonical: true }
+      });
+    }
+    return await client.scriptSlug.create({
+      data: { userId, scriptId, slug, isCanonical: true }
+    });
+  },
+
   getBySlugForUser: async(userId, slug, client = prisma) => {
     if (!userId || !slug) return null;
     return await client.scriptSlug.findFirst({

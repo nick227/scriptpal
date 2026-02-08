@@ -172,11 +172,10 @@ const scriptModel = {
         });
         if (candidateSlug && candidateSlug !== currentScript.slug) {
           await scriptSlugRepository.deactivateCanonical(currentScript.id, tx);
-          await scriptSlugRepository.create({
+          await scriptSlugRepository.ensureCanonical({
             userId: currentScript.userId,
             scriptId: currentScript.id,
-            slug: candidateSlug,
-            isCanonical: true
+            slug: candidateSlug
           }, tx);
           nextSlug = candidateSlug;
         }
