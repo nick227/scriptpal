@@ -1,3 +1,4 @@
+import { createPageShell } from '../../../utils/pageRedistribution.js';
 import { PAGE_STYLES, PAGE_MARGIN, CONTENT_HEIGHT } from '../constants.js';
 
 export class PageFactory {
@@ -19,8 +20,7 @@ export class PageFactory {
      * @returns {HTMLElement}
      */
     createPageElement (options = {}) {
-        const page = document.createElement('div');
-        page.className = 'editor-page';
+        const { page, content } = createPageShell();
         page.setAttribute('role', 'document');
         page.setAttribute('aria-label', 'Script Page');
 
@@ -31,12 +31,10 @@ export class PageFactory {
 
         Object.assign(page.style, PAGE_STYLES);
 
-        const contentContainer = document.createElement('div');
-        contentContainer.className = 'editor-page-content page-content';
-        contentContainer.style.height = `${CONTENT_HEIGHT}px`;
-        contentContainer.style.padding = `0 ${PAGE_MARGIN}px`;
+        content.classList.add('page-content');
+        content.style.height = `${CONTENT_HEIGHT}px`;
+        content.style.padding = `0 ${PAGE_MARGIN}px`;
 
-        page.appendChild(contentContainer);
         return page;
     }
 }

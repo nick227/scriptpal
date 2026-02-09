@@ -7,6 +7,11 @@ import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
 import { LineFormatter } from '../widgets/editor/LineFormatter.js';
 import { ScriptDocument } from '../widgets/editor/model/ScriptDocument.js';
 import { MAX_LINES_PER_PAGE } from '../widgets/editor/constants.js';
+import {
+    chunkLines,
+    createPageShell,
+    redistributeOverflowingContent
+} from '../utils/pageRedistribution.js';
 
 const getQueryParam = (key) => {
     return new URLSearchParams(window.location.search).get(key);
@@ -56,43 +61,54 @@ const setViewerMessage = (container, message, isError = false) => {
     container.innerHTML = `<div class="${className}">${message}</div>`;
 };
 
+const createPublicPage = (container) => {
+    const { page, content } = createPageShell();
+    page.classList.add('public-script-viewer__page');
+    const indicator = document.createElement('div');
+    indicator.className = 'page-break-indicator';
+    container.appendChild(indicator);
+    container.appendChild(page);
+    return page;
+};
+
 const renderStaticScriptLines = (container, content) => {
     if (!container) return;
     container.innerHTML = '';
     const documentModel = ScriptDocument.fromStorage(content || '');
-    if (!documentModel.lines || documentModel.lines.length === 0) {
+    const lines = documentModel.lines || [];
+    if (lines.length === 0) {
         setViewerMessage(container, 'Script content is unavailable.', true);
         return;
     }
 
-    const chunkSize = MAX_LINES_PER_PAGE || 22;
-    const totalLines = documentModel.lines.length;
-    for (let i = 0; i < totalLines; i += chunkSize) {
-        const chunk = documentModel.lines.slice(i, i + chunkSize);
-        const page = document.createElement('div');
-        page.className = 'editor-page public-script-viewer__page';
+    const maxPerPage = MAX_LINES_PER_PAGE || 22;
+    const chunks = chunkLines(lines, maxPerPage);
 
-        const contentWrapper = document.createElement('div');
-        contentWrapper.className = 'editor-page-content';
+    for (let i = 0; i < chunks.length; i++) {
+        const { page, content: contentEl } = createPageShell();
+        page.classList.add('public-script-viewer__page');
 
-        chunk.forEach((line) => {
+        chunks[i].forEach((line) => {
             const lineElement = LineFormatter.createStaticLine({
                 format: line.format,
                 content: line.content
             });
-            contentWrapper.appendChild(lineElement);
+            contentEl.appendChild(lineElement);
         });
 
-        page.appendChild(contentWrapper);
         container.appendChild(page);
 
-        const isLastPage = i + chunkSize >= totalLines;
-        if (!isLastPage) {
+        if (i < chunks.length - 1) {
             const indicator = document.createElement('div');
             indicator.className = 'page-break-indicator';
             container.appendChild(indicator);
         }
     }
+
+    redistributeOverflowingContent({
+        getPages: () => Array.from(container.querySelectorAll('.editor-page')),
+        createNewPage: () => createPublicPage(container)
+    });
 };
 
 const COMMENT_PAGE_SIZE = 20;
