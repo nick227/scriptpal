@@ -328,34 +328,28 @@ export class ChatManager extends BaseManager {
      * @returns {Promise<object|null>} - The API response or null if failed
      */
     async handleSend (message) {
-        this.ensureRenderer();
-
-        const sendValidation = validateSendConditions({
-            message,
-            renderer: this.renderer,
-            api: this.api,
-            isProcessing: this.isProcessing
-        });
-        if (!sendValidation.ok) {
-            console.warn('[ChatManager] Message validation failed:', sendValidation.reason, message);
+        // 1. Validation (Orchestration)
+        if (!this._isValidSendState(message)) {
             return null;
         }
 
         try {
+            // 2. State & UI Feedback (Orchestrator -> View)
+            await this._setProcessingState(true);
             this.eventManager.publish(EventManager.EVENTS.CHAT.TYPING_INDICATOR_SHOW, {});
-            await this.startMessageProcessing();
 
-            // Get and process API response with timeout
+            // 3. Data Retrieval (Orchestration)
             const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
-            const currentScriptId = currentScript?.id ?? null;
             console.log('[ChatManager] Sending AI request', {
                 prompt: message,
-                scriptId: currentScriptId,
+                scriptId: currentScript?.id,
                 scriptTitle: currentScript?.title
             });
+
             const data = await this.getApiResponseWithTimeout(message);
             if (!data) {
                 console.warn('[ChatManager] Empty response received from API');
+                await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
                 return null;
             }
 
@@ -364,25 +358,12 @@ export class ChatManager extends BaseManager {
                 hasIntent: !!data.intent,
                 responseType: typeof data.response
             });
-            console.log('[ChatManager] Raw AI response', data);
 
-            const historyRows = data?.history ?? data?.messages ?? [];
+            // 4. Presentation Logic (View)
+            await this._presentResponse(data);
 
-            if (Array.isArray(historyRows) && historyRows.length > 0) {
-                this.processQuestionButtons(data.response);
-                await this.appendServerMessages(historyRows);
-            } else {
-                const content = extractApiResponseContent(data) ?? extractRenderableContent(data.response);
-                if (!content) {
-                    await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
-                    return null;
-                }
-                await this.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
-            }
-
+            // 5. Side Effects & Events (Orchestration)
             this.eventManager.publish(EventManager.EVENTS.CHAT.MESSAGE_SENT, { message });
-
-            // Handle script operations based on intent
             await this.handleScriptOperations(data);
 
             return data;
@@ -391,8 +372,67 @@ export class ChatManager extends BaseManager {
             await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
             throw error;
         } finally {
-            await this.endMessageProcessing();
+            // 6. Cleanup (Orchestration)
+            await this._setProcessingState(false);
             this.eventManager.publish(EventManager.EVENTS.CHAT.TYPING_INDICATOR_HIDE, {});
+        }
+    }
+
+    /**
+     * Validates if the system is in a valid state to send a message.
+     * @param {string} message 
+     * @returns {boolean}
+     */
+    _isValidSendState (message) {
+        this.ensureRenderer();
+        const sendValidation = validateSendConditions({
+            message,
+            renderer: this.renderer,
+            api: this.api,
+            isProcessing: this.isProcessing
+        });
+
+        if (!sendValidation.ok) {
+            console.warn('[ChatManager] Message validation failed:', sendValidation.reason, message);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Manages processing state and store updates.
+     * @param {boolean} isProcessing 
+     */
+    async _setProcessingState (isProcessing) {
+        this.isProcessing = isProcessing;
+        await this.stateManager.setState(StateManager.KEYS.LOADING, isProcessing);
+    }
+
+    /**
+     * View Orchestration: Decides how to present the response data.
+     * Handles both history-style lists and single messages.
+     * @param {object} data - API Response Data
+     */
+    async _presentResponse (data) {
+        // Strategy A: Server returned a list of history interactions
+        const historyRows = data?.history ?? data?.messages ?? [];
+        if (Array.isArray(historyRows) && historyRows.length > 0) {
+            // Check for buttons in the main response wrapper
+            this.processQuestionButtons(data.response || data);
+            await this.appendServerMessages(historyRows);
+            return;
+        }
+
+        // Strategy B: Single message response
+        const content = extractApiResponseContent(data) ?? extractRenderableContent(data.response);
+        
+        if (content) {
+            await this.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
+            
+            // Check for buttons in the single response
+            this.processQuestionButtons(data.response || data);
+        } else {
+            console.warn('[ChatManager] Response contained no renderable content', data);
         }
     }
 
