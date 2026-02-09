@@ -409,8 +409,6 @@ export class EditorToolbar extends BaseWidget {
         // Assemble the counter with format "Page X of Y"
         pageCounter.appendChild(document.createTextNode('Page '));
         pageCounter.appendChild(this.currentPage);
-        pageCounter.appendChild(document.createTextNode(' of '));
-        pageCounter.appendChild(this.totalPages);
 
         this.toolbar.appendChild(pageCounter);
 
