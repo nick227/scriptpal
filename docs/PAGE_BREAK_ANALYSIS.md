@@ -1,291 +1,237 @@
-# Page Break Analysis for AI Script Append
+# Page Break Analysis: Script Pages Lines-Per-Page Tracking
 
 ## Overview
 
-This document analyzes how the editor handles page breaks when appending AI-generated script content, and identifies the root cause of content overflow issues.
-
-**Status**: Root cause identified, fix implemented (chunked append).
+This document analyzes how the editor determines line limits, tracks current lines and pages, and how three distinct content flows—**initial page rendering**, **live user carriage returns**, and **live AI-generated appending**—differ and align. It identifies why AI content may still exceed line limits and proposes solutions to stabilize AI appends.
 
 ---
 
-## 1. Page Break Architecture
+## 1. Line Limit Determination
 
-### Key Components (Fault Domain)
+### Source of Truth
 
-| Component | File | Responsibility |
-|-----------|------|----------------|
-| `PageManager` | `page/PageManager.js` | Tracks pages, enforces capacity, manages line-to-page mapping |
-| `EditorRendererAdapter` | `handlers/EditorRendererAdapter.js` | Distributes lines across pages during render |
-| `EditorRenderer` | `renderers.js` | Low-level DOM creation and page filling |
-| `EditorCoordinator` | `EditorCoordinator.js` | Orchestrates commands and triggers renders |
-
-**Note**: `PageBreakManager` handles manual page breaks only and is NOT causally involved in AI append overflow.
-
-### Page Constants
+| Constant | File | Value |
+|----------|------|-------|
+| `MAX_LINES_PER_PAGE` | `public/js/widgets/editor/constants.js` | 22 |
+| `AI_APPEND_CHUNK_SIZE` | `public/js/services/script/ScriptOrchestrator.js` | 22 (matches) |
 
 ```javascript
 // constants.js
 export const MAX_LINES_PER_PAGE = 22;
-export const MAX_OVERFLOW = 0;
-export const PAGE_MARGIN = 30;
-export const PAGE_HEIGHT = 1056;     // ~11 inches at 96dpi
-export const CONTENT_HEIGHT = 996;   // PAGE_HEIGHT - (PAGE_MARGIN * 2)
-export const LINE_HEIGHT = 22;       // Standard line height in pixels
+
+// PageManager.js - consumed at construction
+this.maxLinesPerPage = MAX_LINES_PER_PAGE;
 ```
 
-### CSS Page Constraints
+### How Line Limit Is Used
 
-```css
-.editor-page {
-    width: 8.5in;
-    height: 11in;
-    max-height: 11in;
-    padding: 1in;
-    overflow: hidden;  /* ⚠️ Content beyond height is clipped */
-}
-
-.editor-page-content {
-    height: 100%;
-    overflow: hidden;  /* ⚠️ Double overflow clipping */
-}
-```
+- **Page capacity**: `pageLineCount >= maxLinesPerPage` triggers a new page (PageOperations.addLine)
+- **Required pages**: `Math.ceil(lines.length / maxLinesPerPage)` drives `ensurePageCapacity`
+- **Chunk size**: AI append splits content into chunks of 22 to align with page math
 
 ---
 
-## 2. Page Break Flow (AI Append)
+## 2. Current Lines and Pages Tracking
 
+### Document Model (Lines)
+
+| Source | Method | Responsibility |
+|--------|--------|----------------|
+| EditorDocumentService | `getLineCount()` | Total logical lines |
+| EditorDocumentService | `getLines()` | Array of line objects |
+| EditorDocumentService | `getLineIndex(lineId)` | Index for a given line |
+
+### Page Model (Pages and Mapping)
+
+| Source | Method | Responsibility |
+|--------|--------|----------------|
+| PageManager | `pages` | Array of page DOM elements |
+| PageManager | `getPageCount()` | Number of pages |
+| PageManager | `getCurrentPage()` | Currently focused page |
+| PageManager | `_getLineCountInPage(page)` | `.script-line` count in a page |
+| PageManager | `_lineToPageIndex` | Map of lineId → pageIndex |
+| PageManager | `_rebuildLineMap()` | Rebuilds line→page mapping |
+
+### Line Count Per Page (DOM-Based)
+
+```javascript
+// PageManager._getLineCountInPage
+const container = page.querySelector('.editor-page-content');
+return container ? container.querySelectorAll('.script-line').length : 0;
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  AI Response                                                        │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ { script: "<action>...</action>\n<speaker>..." }              │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  ScriptOrchestrator.handleScriptAppend()                            │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ 1. normalizeScriptLines(content)                              │  │
-│  │ 2. buildLineItem() for each line                              │  │
-│  │ 3. Call EditorCoordinator.appendLines(lineItems)              │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  EditorCoordinator.appendLines()                                    │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ 1. Create ADD commands for each line                          │  │
-│  │ 2. applyCommands(commands)                                    │  │
-│  │    └─ DocumentService.applyCommands() (model mutation)        │  │
-│  │    └─ renderController.renderDocument() (DOM render)          │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  EditorRendererAdapter.renderDocument()                             │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ 1. Calculate requiredPages = ceil(lines / maxLinesPerPage)    │  │
-│  │ 2. ensurePageCapacity(requiredPages)                          │  │
-│  │ 3. _renderWithLineReuse() or full rebuild                     │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Page Distribution (_renderWithLineReuse)                           │
-│  ┌───────────────────────────────────────────────────────────────┐  │
-│  │ for each page:                                                │  │
-│  │   for (i = 0; i < maxLinesPerPage && lineIndex < lines; i++)  │  │
-│  │     fragment.appendChild(lineElement)                         │  │
-│  │   content.appendChild(fragment)                               │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-```
+
+The line limit is enforced by **logical line count**, not pixel height. One logical line can span multiple visual lines due to wrapping.
 
 ---
 
-## 3. The Root Problem: Line-Count vs Pixel-Height Mismatch
+## 3. Three Content Flows: Comparison
 
-### Current Logic (Line-Count Based)
+### 3.1 Initial Page Rendering
 
-The page break system uses a **fixed line count** (`MAX_LINES_PER_PAGE = 22`) to determine when to break to a new page:
+**Entry points**: Load script, `EditorRendererAdapter.renderDocument()` or `updateContent()`
 
+**Flow**:
+1. `requiredPages = Math.ceil(lines.length / maxLinesPerPage)`
+2. `ensurePageCapacity(requiredPages)` — ensures enough pages exist
+3. Try `_tryInPlaceUpdate` (fails if line count differs)
+4. Try `_renderWithLineReuse` or fallback to `renderContentChunk`
+
+**Line distribution** (`renderContentChunk` in `renderers.js`):
 ```javascript
-// EditorRendererAdapter._renderWithLineReuse()
-for (let i = 0; i < maxLinesPerPage && lineIndex < lines.length; i++, lineIndex++) {
-    // Add line to page
-}
-// Move to next page after 22 lines
-```
-
-### Why This Causes Overflow
-
-| Problem | Cause | Effect |
-|---------|-------|--------|
-| **Variable line heights** | Different formats have different CSS (padding, margins) | 22 lines of dialog ≠ 22 lines of action in height |
-| **Text wrapping** | Long content wraps to multiple visual lines | 1 logical line = 2-3 visual lines |
-| **Format-specific spacing** | Speaker has less margin than action | Unpredictable vertical space usage |
-| **Fixed pixel height** | Page has `max-height: 11in` with `overflow: hidden` | Excess content is clipped, not visible |
-
-### Visual Example
-
-```
-┌─────────────────────────────────────────┐
-│  Page 1 (height: 11in, ~996px content)  │
-├─────────────────────────────────────────┤
-│  Line 1: <header> INT. ROOM - DAY       │  ~30px
-│  Line 2: <action> Short action.         │  ~25px
-│  Line 3: <speaker> DAVID                │  ~20px
-│  Line 4: <dialog> Short dialog.         │  ~25px
-│  ...                                    │
-│  Line 20: <action> Very long action     │
-│           that wraps to multiple        │  ~75px (3 visual lines!)
-│           lines because of length.      │
-│  Line 21: <speaker> FRIEND              │  ~20px
-│  Line 22: <dialog> Another long dialog  │
-│           that also wraps because...    │  ~50px
-├─────────────────────────────────────────┤
-│  ▼ HIDDEN (overflow: hidden) ▼          │
-│  ... rest of line 22 content ...        │
-└─────────────────────────────────────────┘
-```
-
----
-
-## 4. Code Paths That Trigger Page Breaks
-
-### Path 1: Full Document Render
-
-```javascript
-// EditorRenderer.renderContentChunk() in renderers.js
-const pageIsFull = linesInCurrentPage >= this.pageManager.maxLinesPerPage;
-
-if (pageIsFull || isLastLine) {
-    pageContent.appendChild(fragment);
-    if (!isLastLine) {
-        currentPageIndex++;
-        currentPage = this.pageManager.pages[currentPageIndex];
-        linesInCurrentPage = 0;
-    }
-}
-```
-
-### Path 2: Line-by-Line Addition (via PageManager)
-
-```javascript
-// PageManager.addLine() → PageOperations.addLine()
-addLine (line, targetPageIndex, anchorLineId, pageLineCount, maxLinesPerPage) {
-    if (pageLineCount >= maxLinesPerPage) {
-        return [
-            { type: 'ADD_PAGE' },
-            { type: 'ADD_LINE', line, targetPageIndex: targetPageIndex + 1 }
-        ];
-    }
-    return [{ type: 'ADD_LINE', line, anchorLineId, targetPageIndex }];
-}
-```
-
-### Path 3: Post-Render Capacity Enforcement
-
-```javascript
-// PageManager._enforcePageCapacity()
-while (lines.length > this.maxLinesPerPage) {
-    const overflowLine = lines[lines.length - 1];
-    let nextPage = this.pages[pageIndex + 1] || this._applyAddPage(null, batchState);
-    nextContainer.insertBefore(overflowLine, nextContainer.firstChild);
-}
-```
-
-**Note:** This only runs after PageManager operations, NOT after `EditorRendererAdapter` renders.
-
----
-
-## 5. Inconsistency in `linesPerPage` Values
-
-There's a hardcoded value that doesn't match the constant:
-
-```javascript
-// EditorRendererAdapter.updateContent() - line 153
-const linesPerPage = 20;  // ⚠️ Hardcoded to 20!
-const requiredPages = Math.ceil(lines.length / linesPerPage);
-
-// vs everywhere else using:
-this.pageManager.maxLinesPerPage  // = 22
-```
-
-This can cause page count miscalculation.
-
----
-
-## 6. Recommended Fixes
-
-### P0: Fix Hardcoded Lines-Per-Page ✅ DONE
-
-```javascript
-// EditorRendererAdapter.updateContent()
-// Before:
-const linesPerPage = 20;
-
-// After:
-const requiredPages = Math.ceil(lines.length / this.pageManager.maxLinesPerPage);
-```
-
-### P1: Chunked AI Append ✅ IMPLEMENTED
-
-The highest-ROI fix. Append in smaller chunks that naturally trigger page evaluation:
-
-```javascript
-// ScriptOrchestrator.js
-const AI_APPEND_CHUNK_SIZE = 22;  // Matches MAX_LINES_PER_PAGE
-
-async _chunkedAppend(editorContent, lineItems, source) {
-    let totalAppended = 0;
-    
-    for (let i = 0; i < lineItems.length; i += AI_APPEND_CHUNK_SIZE) {
-        const chunk = lineItems.slice(i, i + AI_APPEND_CHUNK_SIZE);
-        const result = await editorContent.appendLines(chunk, { source });
-        
-        if (!result.success) {
-            return { success: false, linesAffected: totalAppended };
+for (let i = 0; i < lines.length; i++) {
+    fragment.appendChild(lineElement);
+    linesInCurrentPage++;
+    const pageIsFull = linesInCurrentPage >= this.pageManager.maxLinesPerPage;
+    if (pageIsFull || isLastLine) {
+        pageContent.appendChild(fragment);
+        if (!isLastLine) {
+            currentPageIndex++;
+            currentPage = this.pageManager.pages[currentPageIndex];
+            linesInCurrentPage = 0;
         }
-        totalAppended += chunk.length;
     }
-    
-    return { success: true, linesAffected: totalAppended };
 }
 ```
 
-**Why this works:**
-- Reuses existing page math
-- No DOM measurement needed
-- No new abstractions
-- Each chunk triggers a full render cycle with page capacity checks
-- Minimal risk
+**Page break trigger**: `linesInCurrentPage >= maxLinesPerPage` or last line.
+
+---
+
+### 3.2 Live User Carriage Return (Enter Key)
+
+**Entry points**: `KeyboardManager._handleEnter` → `KeyboardEditController.handleEnter` → `contentManager.insertLineAfter()`
+
+**Flow**:
+1. `createAddCommandAfterLine(lineId, { format, content })`
+2. `documentService.applyCommands(commands)` — mutates model
+3. Decide incremental vs full render:
+   - `canIncremental = wasLastLine && requiredPages === currentPages`
+4. **If incremental**: `renderController.appendLine(newLine)`
+5. **If full render**: `renderController.renderDocument(document)`
+
+**Incremental path** (`EditorRendererAdapter.appendLine`):
+```javascript
+const lastPage = pages[pages.length - 1];
+const contentContainer = lastPage.querySelector('.editor-page-content');
+contentContainer.appendChild(lineElement);  // No page capacity check
+```
+
+**When incremental is safe**: `requiredPages === currentPages` ensures adding one line will not push total line count past the current page capacity, so the last page will not exceed 22 lines.
+
+**When full render runs**: If inserting after the last line would require a new page (`requiredPages > currentPages`), a full render runs and redistributes all lines across pages.
+
+---
+
+### 3.3 Live AI-Generated Appending
+
+**Entry points**: `ScriptOperationsHandler._handleScriptAppend` or `handleAiDelta({ operation: 'append' })` → `ScriptOrchestrator._chunkedAppend`
+
+**Flow**:
+1. `normalizeScriptLines(content)` → array of line items
+2. Chunk by `AI_APPEND_CHUNK_SIZE` (22)
+3. For each chunk: `editorContent.appendLines(chunk, { source })`
+4. `appendLines` → `applyCommands(ADD commands)` → `renderDocument(document)`
+
+**Render path** (no incremental append for AI):
+- `_tryInPlaceUpdate`: fails (line count changed)
+- `_renderWithLineReuse` or full rebuild
+- Both respect `maxLinesPerPage` when distributing lines
+
+**Chunked append**:
+```javascript
+for (let i = 0; i < lineItems.length; i += AI_APPEND_CHUNK_SIZE) {
+    const chunk = lineItems.slice(i, i + AI_APPEND_CHUNK_SIZE);
+    const result = await editorContent.appendLines(chunk, { source });
+    // Each chunk triggers full renderDocument with entire document
+}
+```
+
+Each chunk causes a **full document render** (model already has all previous chunks + current chunk), so distribution is recomputed from the full line list.
+
+---
+
+## 4. Summary: Same vs Different
+
+| Aspect | Initial Render | User Carriage Return | AI Append |
+|--------|----------------|----------------------|-----------|
+| Entry | load/updateContent | insertLineAfter | appendLines (chunked) |
+| Model mutation | Full document | Single ADD | Multiple ADDs per chunk |
+| Render path | _renderWithLineReuse or renderContentChunk | appendLine OR renderDocument | renderDocument only |
+| Page capacity check | Yes (pageIsFull, maxLinesPerPage loop) | appendLine: No (safe via canIncremental) | Yes (full render) |
+| Line-by-line vs batch | Batch | Single line | Batch (22 per chunk) |
+| Distribution logic | Iterate pages, cap at 22/page | Append to last page or full rebuild | Same as initial |
+
+**Common**: All flows eventually use the same distribution logic when doing a full render (`_renderWithLineReuse` or `renderContentChunk`).
+
+**Difference**: User carriage return can use `appendLine` (no capacity check) when `canIncremental` is true; AI always goes through full render.
+
+---
+
+## 5. Why AI Content Still Exceeds Line Limits
+
+### 5.1 Line-Count vs Pixel-Height Mismatch (Primary)
+
+The system uses a fixed **logical line count** (22) per page. It does not measure actual pixel height.
+
+- Long action or dialogue lines **wrap** and occupy multiple visual lines
+- Different formats have different padding/margins (speaker vs action)
+- `overflow: hidden` on `.editor-page-content` hides overflow
+
+Result: 22 logical lines can exceed the visible page height, so content is clipped even when the line limit is respected.
+
+### 5.2 Chunk Boundary on Partially-Filled Pages
+
+When the last page has, e.g., 21 lines and a chunk of 22 is appended:
+- Total = 43 lines → `requiredPages = 2`
+- `_renderWithLineReuse` should distribute 22 + 21 correctly
+
+If `ensurePageCapacity` or `_renderWithLineReuse` has a timing or ordering bug, overflow could occur. The current code appears sound, but this is a sensitive path.
+
+### 5.3 Alternative AI Paths Without Chunking
+
+- **EditorCommandExecutor.handleAppendCommand**: Adds one line via `_applyCommands` → full render. Safe.
+- **handleAiDelta** with `position: 'end'`: Uses `_chunkedAppend`. Safe.
+- **handleScriptAppend**: Uses `_chunkedAppend`. Safe.
+
+All known AI append paths use chunked append or full render. No direct use of `appendLine` for AI content was found.
+
+### 5.4 Race or Queue Issues
+
+`_enqueueOperation` in EditorCoordinator serializes operations. If a second append starts before the first render completes, the queue should still serialize correctly. Worth verifying in high-load scenarios.
+
+### 5.5 `_renderWithLineReuse` and Page Count
+
+`_renderWithLineReuse` clears all page content and redistributes. If `ensurePageCapacity` adds new pages asynchronously, there could be a window where `getPages()` returns a stale list. The code suggests `ensurePageCapacity` is synchronous; this should be confirmed.
+
+---
+
+## 6. Ideal Solutions to Stabilize AI Content Appends
+
+### P0: Ensure Single Source for Line Limit (Verify)
+
+- Import `MAX_LINES_PER_PAGE` from `constants.js` everywhere
+- Remove any hardcoded values (historical `linesPerPage = 20` is documented as fixed)
+- `ScriptOrchestrator` should import `MAX_LINES_PER_PAGE` instead of duplicating 22
+
+### P1: Chunk Size Alignment (Verify)
+
+- Confirm `AI_APPEND_CHUNK_SIZE === MAX_LINES_PER_PAGE`
+- Use a shared constant to avoid divergence
 
 ### P2: Post-Render Overflow Redistribution (Future)
 
-If chunked append isn't sufficient, add overflow detection in `EditorRendererAdapter`:
+Add overflow detection after render:
 
 ```javascript
-// Should live in EditorRendererAdapter, NOT PageManager
+// In EditorRendererAdapter, after _renderWithLineReuse or renderContentChunk
 async _redistributeOverflowingContent() {
     const pages = this.pageManager.getPages();
-    
     for (let i = 0; i < pages.length; i++) {
         const content = pages[i].querySelector('.editor-page-content');
-        
         while (content.scrollHeight > content.clientHeight) {
             const lastLine = content.lastElementChild;
             if (!lastLine) break;
-            
-            let nextPage = pages[i + 1];
-            if (!nextPage) {
-                nextPage = await this.pageManager.createNewPage();
-            }
-            
+            const nextPage = pages[i + 1] || await this.pageManager.createNewPage();
             const nextContent = nextPage.querySelector('.editor-page-content');
             nextContent.insertBefore(lastLine, nextContent.firstChild);
         }
@@ -293,9 +239,15 @@ async _redistributeOverflowingContent() {
 }
 ```
 
-**Note:** `_enforcePageCapacity` in PageManager is NOT a universal safety net - it's designed for PageManager-driven line ops, not post-render redistribution.
+This addresses pixel overflow when logical line count is within limits.
 
-### P3: Pixel-Based Page Breaking (Future - Print Fidelity)
+### P3: Conservative Chunk Size (Quick Win)
+
+Use `AI_APPEND_CHUNK_SIZE = 18` (or `MAX_LINES_PER_PAGE - 4`) to leave room for wrapping. More frequent renders, but lower risk of visual overflow.
+
+### P4: Pixel-Based Page Breaking (Long-Term)
+
+Use `scrollHeight` and `clientHeight` to decide when to break:
 
 ```javascript
 _shouldBreakPage(pageContent, lineElement, maxContentHeight) {
@@ -303,62 +255,43 @@ _shouldBreakPage(pageContent, lineElement, maxContentHeight) {
 }
 ```
 
-**Caveats:**
-- Introduces layout thrash (DOM insertion → measurement → removal)
-- Can get expensive with many pages
-- Save for when print fidelity / export correctness become top-tier requirements
+Requires layout measurement; best used when print fidelity becomes a priority.
 
-### Debug Aid Only: CSS Overflow (NOT a fix)
+### P5: Disable Incremental Append When Last Page Is Full
 
-```css
-.editor-page-content {
-    overflow-y: auto;  /* Makes overflow visible */
-}
+In `EditorCoordinator.insertLineAfter`, add an explicit check:
+
+```javascript
+const lastPageLineCount = this.pageManager._getLineCountInPage(lastPage);
+const canIncremental = wasLastLine && requiredPages === currentPages 
+    && lastPageLineCount < this.pageManager.maxLinesPerPage;
 ```
 
-**Warning:** This is a band-aid for debugging only. It breaks the mental model of screenplay pages and hides real bugs.
+This prevents any edge case where `appendLine` is used when the last page is already at capacity.
 
 ---
 
-## 7. Why AI Append Was Especially Vulnerable
+## 7. Key Files Reference
 
-1. **Bulk addition**: AI appends 5-16 lines at once
-2. **Unpredictable content length**: AI generates variable-length dialog
-3. **No mid-batch reassessment**: Lines were added as a single batch, then rendered once
-4. **Single render pass**: No opportunity for page math between lines
-5. **Post-render enforcement skipped**: `_enforcePageCapacity` only runs for PageManager line operations
-
-**Key insight**: The paging model was designed for humans (typing one line at a time), not bulk AI inserts. The fix is about **append strategy**, not rewriting the editor.
-
----
-
-## 8. Implementation Status
-
-| Priority | Fix | Status |
-|----------|-----|--------|
-| **P0** | Fix hardcoded `linesPerPage = 20` | ✅ Done |
-| **P1** | Chunked AI append | ✅ Implemented |
-| **P2** | Post-render overflow redistribution | Future (if needed) |
-| **P3** | Pixel-based page breaking | Future (print fidelity) |
+| File | Role |
+|------|------|
+| `public/js/widgets/editor/constants.js` | MAX_LINES_PER_PAGE, page dimensions |
+| `public/js/widgets/editor/page/PageManager.js` | Page lifecycle, _getLineCountInPage, _enforcePageCapacity |
+| `public/js/widgets/editor/page/PageOperations.js` | addLine intent (ADD_PAGE when page full) |
+| `public/js/widgets/editor/handlers/EditorRendererAdapter.js` | renderDocument, _renderWithLineReuse, appendLine |
+| `public/js/renderers.js` | EditorRenderer.renderContentChunk (pageIsFull logic) |
+| `public/js/widgets/editor/EditorCoordinator.js` | appendLines, applyCommands, insertLineAfter |
+| `public/js/services/script/ScriptOrchestrator.js` | _chunkedAppend, AI_APPEND_CHUNK_SIZE |
 
 ---
 
-## 9. Testing Checklist
+## 8. Testing Checklist
 
-- [ ] Append 16 lines of short dialog → should fit on one page
-- [ ] Append 16 lines of long action (wrapping) → should overflow to page 2
-- [ ] Mixed content with varied formats → correct distribution
-- [ ] Append to partially-filled page → overflow detection works
+- [ ] Append 22 lines of short dialog → fits on one page
+- [ ] Append 22 lines of long action (wrapping) → may overflow; verify post-render redistribution if implemented
+- [ ] Append to page with 21 lines → overflow to page 2
+- [ ] User Enter on line 22 → full render, new page
+- [ ] User Enter on line 21 → incremental append, no new page
+- [ ] Chunked AI append (44 lines) → two pages, 22 each
 - [ ] Undo after page break → page count decreases correctly
-
----
-
-## 10. Key Files
-
-| File | Purpose |
-|------|---------|
-| `public/js/widgets/editor/constants.js` | `MAX_LINES_PER_PAGE`, page dimensions |
-| `public/js/widgets/editor/page/PageManager.js` | Page lifecycle, capacity enforcement |
-| `public/js/widgets/editor/handlers/EditorRendererAdapter.js` | Line distribution during render |
-| `public/js/renderers.js` | `EditorRenderer.renderContentChunk()` |
-| `public/css/components/editor.css` | Page styling, `overflow: hidden` |
+- [ ] Shared constant for MAX_LINES_PER_PAGE and AI_APPEND_CHUNK_SIZE

@@ -76,6 +76,7 @@ export class EditorRendererAdapter {
 
         // Try line reuse (faster than full rebuild)
         if (options.allowInPlace && await this._renderWithLineReuse(lines)) {
+            await this._redistributeOverflowingContent();
             return true;
         }
 
@@ -88,6 +89,7 @@ export class EditorRendererAdapter {
             return false;
         }
 
+        await this._redistributeOverflowingContent();
         this._rebuildLineElementMap();
         return true;
     }
@@ -170,6 +172,7 @@ export class EditorRendererAdapter {
                 return false;
             }
 
+            await this._redistributeOverflowingContent();
             this._rebuildLineElementMap();
             return true;
         } catch (error) {
@@ -300,6 +303,66 @@ export class EditorRendererAdapter {
         });
 
         return true;
+    }
+
+    /**
+     * Redistribute overflowing content based on pixel height.
+     * Moves lines from pages where scrollHeight > clientHeight to the next page.
+     * Call after full render to fix clipping from wrapped lines.
+     * Outer loop until stable so cascading overflow is resolved.
+     */
+    async _redistributeOverflowingContent () {
+        const pageManager = this.pageManager;
+        let changed = true;
+
+        while (changed) {
+            changed = false;
+            const pages = pageManager.getPages();
+            if (!pages.length) {
+                return;
+            }
+
+            for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+                const page = pages[pageIndex];
+                const content = page.querySelector('.editor-page-content') ||
+                    page.querySelector('.page-content');
+                if (!content) {
+                    continue;
+                }
+
+                if (content.scrollHeight <= content.clientHeight) {
+                    continue;
+                }
+
+                while (content.scrollHeight > content.clientHeight) {
+                    const lastLine = content.lastElementChild;
+                    if (!lastLine || !lastLine.classList.contains('script-line')) {
+                        break;
+                    }
+
+                    let nextPage = pages[pageIndex + 1];
+                    if (!nextPage) {
+                        nextPage = pageManager.createNewPage();
+                        if (!nextPage) {
+                            break;
+                        }
+                    }
+
+                    const nextContent = nextPage.querySelector('.editor-page-content') ||
+                        nextPage.querySelector('.page-content');
+                    if (!nextContent) {
+                        break;
+                    }
+
+                    nextContent.insertBefore(lastLine, nextContent.firstChild);
+                    changed = true;
+                }
+            }
+        }
+
+        if (typeof pageManager.rebuildLineMap === 'function') {
+            pageManager.rebuildLineMap();
+        }
     }
 
     /**

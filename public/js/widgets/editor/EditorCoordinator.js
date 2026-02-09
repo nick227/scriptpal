@@ -663,7 +663,11 @@ export class EditorCoordinator {
 
             const requiredPages = this._getRequiredPageCount();
             const currentPages = this.pageManager.getPageCount();
-            const canIncremental = wasLastLine && requiredPages === currentPages;
+            const pages = this.pageManager.getPages();
+            const lastPage = pages.length > 0 ? pages[pages.length - 1] : null;
+            const lastPageLineCount = lastPage ? this.pageManager.getLineCountInPage(lastPage) : 0;
+            const lastPageHasRoom = lastPageLineCount < this.pageManager.maxLinesPerPage;
+            const canIncremental = wasLastLine && requiredPages === currentPages && lastPageHasRoom;
 
             if (updateCurrentContent !== undefined) {
                 const renderContent = updatePayload?.content ?? updateCurrentContent;

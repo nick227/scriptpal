@@ -323,7 +323,7 @@ export class PageManager {
             }
         });
 
-        this._enforcePageCapacity(batchState);
+        // Capacity enforcement handled by EditorRendererAdapter (pixel-based overflow redistribution)
 
         if (batchState.pageStructureChanged) {
             this._syncPageMetadata();
@@ -520,10 +520,19 @@ export class PageManager {
         return page.querySelector('.editor-page-content') || page.querySelector('.page-content');
     }
 
-    _getLineCountInPage (page) {
+    getLineCountInPage (page) {
         const container = this._getContentContainer(page);
         return container ? container.querySelectorAll('.script-line').length : 0;
     }
+
+    rebuildLineMap () {
+        this._rebuildLineMap();
+    }
+
+    _getLineCountInPage (page) {
+        return this.getLineCountInPage(page);
+    }
+
 
     _getAdjacentPagesForBreak (pageBreakElement) {
         let previousPage = pageBreakElement.previousElementSibling;

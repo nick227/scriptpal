@@ -1,15 +1,9 @@
 import { isValidFormat, resolveLineFormat, DEFAULT_FORMAT } from '../../constants/formats.js';
 import { EventManager } from '../../core/EventManager.js';
 import { StateManager } from '../../core/StateManager.js';
+import { MAX_LINES_PER_PAGE } from '../../widgets/editor/constants.js';
 
 const AI_MAX_LINE_LENGTH = 120;
-
-/**
- * Chunk size for AI append operations.
- * Matches MAX_LINES_PER_PAGE to ensure page math runs between chunks.
- * This prevents content overflow when bulk-appending AI-generated lines.
- */
-const AI_APPEND_CHUNK_SIZE = 22;
 
 /**
  * ScriptOrchestrator - SEMANTIC AUTHORITY for AI script content.
@@ -212,8 +206,8 @@ export class ScriptOrchestrator {
 
         const operation = delta.operation || 'append';
 
-        // Normalize content through canonical pipeline
-        const normalizedLines = this.normalizeScriptLines(delta.content);
+        const hygiened = this.splitLongAiLines(delta.content);
+        const normalizedLines = this.normalizeScriptLines(hygiened);
         const lineItems = normalizedLines
             .map(line => this.buildLineItem(line))
             .filter(Boolean);
@@ -284,8 +278,8 @@ export class ScriptOrchestrator {
         let totalAppended = 0;
         let lastResult = { success: true };
 
-        for (let i = 0; i < lineItems.length; i += AI_APPEND_CHUNK_SIZE) {
-            const chunk = lineItems.slice(i, i + AI_APPEND_CHUNK_SIZE);
+        for (let i = 0; i < lineItems.length; i += MAX_LINES_PER_PAGE) {
+            const chunk = lineItems.slice(i, i + MAX_LINES_PER_PAGE);
             const result = await editorContent.appendLines(chunk, { source });
 
             if (!result.success) {
@@ -341,7 +335,8 @@ export class ScriptOrchestrator {
                 throw new Error('Editor content component not available');
             }
 
-            const normalizedLines = this.normalizeScriptLines(data.content);
+            const hygiened = this.splitLongAiLines(data.content);
+            const normalizedLines = this.normalizeScriptLines(hygiened);
             console.log('[ScriptOrchestrator] append line normalization', {
                 normalizedLineCount: normalizedLines.length
             });
@@ -360,7 +355,7 @@ export class ScriptOrchestrator {
 
             console.log('[ScriptOrchestrator] append lines', {
                 totalLines: lineItems.length,
-                chunks: Math.ceil(lineItems.length / AI_APPEND_CHUNK_SIZE)
+                chunks: Math.ceil(lineItems.length / MAX_LINES_PER_PAGE)
             });
 
             // Use chunked append for proper page distribution
@@ -654,8 +649,8 @@ export class ScriptOrchestrator {
                 throw new Error('Editor content component not available');
             }
 
-            // Use same normalization as append - NO TAGGED STRINGS
-            const normalizedLines = this.normalizeScriptLines(data.content);
+            const hygiened = this.splitLongAiLines(data.content);
+            const normalizedLines = this.normalizeScriptLines(hygiened);
             const lineItems = normalizedLines
                 .map(line => this.buildLineItem(line))
                 .filter(Boolean);
