@@ -113,6 +113,7 @@ export class PublicScriptsWidget {
     }
 
     createScriptCard (script) {
+        console.log(script);
         const card = document.createElement('article');
         card.className = 'public-script-card';
         card.dataset.scriptId = script.id;
@@ -143,6 +144,10 @@ export class PublicScriptsWidget {
         const meta = document.createElement('div');
         meta.className = 'public-script-card__meta';
 
+        const descriptionSpan = document.createElement('span');
+        descriptionSpan.className = 'public-script-card__description';
+        descriptionSpan.textContent = script.description || 'No description';
+
         const authorSpan = document.createElement('span');
         authorSpan.textContent = script.author || 'Unknown author';
 
@@ -157,6 +162,7 @@ export class PublicScriptsWidget {
         header.appendChild(thumb);
         header.appendChild(titleLink);
         card.appendChild(header);
+        card.appendChild(descriptionSpan);
         card.appendChild(meta);
 
         return card;
