@@ -34,7 +34,7 @@ Be concise but informative.`;
       ? `${prompt}\n\n${contextBlocks}`
       : prompt;
 
-    const messages = [{
+    return [{
       role: 'system',
       content: context && context.systemInstruction
         ? context.systemInstruction
@@ -43,8 +43,6 @@ Be concise but informative.`;
       role: 'user',
       content: userContent
     }];
-
-    return this.addCommonInstructions(messages);
   }
 
   /**

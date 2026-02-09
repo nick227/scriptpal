@@ -56,7 +56,7 @@
             --speaker-right: clamp(15%, 2.5vw, 20%);
             --directions-left: clamp(40%, 5vw, 50%);
             /* Toolbar */
-            --toolbar-height: clamp(32px, 5vh, 48px);
+            --toolbar-height: clamp(48px);
             --toolbar-bg: var(--color-bg-toolbar);
             --toolbar-border: #363a3f;
             --button-hover: #363a3f;
@@ -74,8 +74,24 @@
         .editor-container {
             display: grid;
             height: 94vh;
-            background: var(--color-bg-workspace);
+            width: 100%;
             grid-template-rows: var(--toolbar-height) 1fr;
+        }
+        .editor-container * {
+            
+            
+            opacity: 0;
+            animation: fadeIn 0.2s linear forwards;
+            animation-delay: 0.1s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
         }
         
         .editor-toolbar {
@@ -89,9 +105,10 @@
             align-items: center;
             justify-content: center;
             gap: var(--spacing-xs);
-            position: sticky;
-            top: var(--navbar-height);
             z-index: 2;
+            opacity: 0;
+            animation: fadeIn 0.2s linear forwards;
+            animation-delay: 0.5s;
         }
         
         .editor-area {
@@ -100,6 +117,9 @@
             overflow-y: auto;
             outline: none !important;
             position: relative;
+            opacity: 0;
+            animation: fadeIn 0.2s linear forwards;
+            animation-delay: 1s;
         }
         
         .editor-page {
@@ -120,6 +140,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            border: 1px solid var(--color-border);
         }
         
         .editor-page:first-child {
@@ -142,7 +163,6 @@
         }
         
         .editor-page[data-loaded="false"] {
-            background: #f8f8f8;
             display: flex;
             align-items: center;
             justify-content: center;
