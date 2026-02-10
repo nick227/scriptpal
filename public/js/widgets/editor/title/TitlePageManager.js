@@ -151,6 +151,9 @@ export class TitlePageManager {
         if (this.authorInput) {
             this.authorInput.addEventListener('input', () => this.handleInputChange());
         }
+        if (this.descriptionInput) {
+            this.descriptionInput.addEventListener('blur', () => this.handleDescriptionBlur());
+        }
         if (this.visibilitySelect) {
             this.visibilitySelect.addEventListener('change', () => this.handleVisibilityChange());
         }
@@ -346,6 +349,20 @@ export class TitlePageManager {
         this.titlePageData.visibility = this.normalizeVisibility(this.visibilitySelect?.value);
         this.updateHiddenTitleText();
         this.schedulePersist();
+    }
+
+    handleDescriptionBlur () {
+        if (this._updatingFromState) return;
+        this.titlePageData.description = this.descriptionInput?.value || '';
+
+        if (!this.scriptId || !this.scriptStore) {
+            return;
+        }
+
+        this.scriptStore.queuePatch(this.scriptId, {
+            description: this.titlePageData.description
+        }, 'title-page-description-blur');
+        this.scriptStore.flushPatchImmediately(this.scriptId);
     }
 
     /**
