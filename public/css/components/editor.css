@@ -159,7 +159,7 @@
             font-family: var(--font-family-mono);
             font-size: var(--font-size-base);
             line-height: var(--line-height-base);
-            overflow: hidden;
+            overflow: visible;
         }
         
         .editor-page[data-loaded="false"] {
