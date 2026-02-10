@@ -151,9 +151,6 @@ export class TitlePageManager {
         if (this.authorInput) {
             this.authorInput.addEventListener('input', () => this.handleInputChange());
         }
-        if (this.descriptionInput) {
-            this.descriptionInput.addEventListener('input', () => this.handleInputChange());
-        }
         if (this.visibilitySelect) {
             this.visibilitySelect.addEventListener('change', () => this.handleVisibilityChange());
         }
