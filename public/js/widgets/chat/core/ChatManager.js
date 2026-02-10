@@ -29,6 +29,7 @@ const createDefaultRenderer = () => {
 };
 
 const PAGE_LOAD_WELCOME_MESSAGE = 'Welcome to ScriptPal. I can help you write, edit, and explore your script. Select or create a script to get started.';
+const CHAT_RESPONSE_TIMEOUT_MS = 30000;
 
 /**
  * ChatManager handles all chat-related functionality including:
@@ -261,6 +262,11 @@ export class ChatManager extends BaseManager {
      * @returns {Promise<string|null>} - The processed content or null if failed
      */
     async processAndRenderMessage (messageData, type) {
+        console.log('[ChatManager] processAndRenderMessage called', {
+            type,
+            messageType: typeof messageData,
+            hasMessageData: messageData != null
+        });
         const content = extractRenderableContent(messageData);
         if (!content) {
             if (messageData != null) {
@@ -414,9 +420,18 @@ export class ChatManager extends BaseManager {
      * @param {object} data - API Response Data
      */
     async _presentResponse (data) {
+        console.log('[ChatManager] _presentResponse start', {
+            hasHistory: Array.isArray(data?.history) && data.history.length > 0,
+            hasMessages: Array.isArray(data?.messages) && data.messages.length > 0,
+            hasResponse: !!data?.response,
+            intent: data?.intent
+        });
         // Strategy A: Server returned a list of history interactions
         const historyRows = data?.history ?? data?.messages ?? [];
         if (Array.isArray(historyRows) && historyRows.length > 0) {
+            console.log('[ChatManager] _presentResponse using history strategy', {
+                historyCount: historyRows.length
+            });
             // Check for buttons in the main response wrapper
             this.processQuestionButtons(data.response || data);
             await this.appendServerMessages(historyRows);
@@ -425,6 +440,10 @@ export class ChatManager extends BaseManager {
 
         // Strategy B: Single message response
         const content = extractApiResponseContent(data) ?? extractRenderableContent(data.response);
+        console.log('[ChatManager] _presentResponse single-message extraction', {
+            hasContent: !!content,
+            contentLength: content ? content.length : 0
+        });
         
         if (content) {
             await this.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
@@ -453,7 +472,7 @@ export class ChatManager extends BaseManager {
      * @returns {Promise<object|null>} - The API response or null if failed
      */
     async getApiResponseWithTimeout (message) {
-        const timeout = 90000; // 90 seconds timeout
+        const timeout = CHAT_RESPONSE_TIMEOUT_MS;
         const timeoutPromise = new Promise((_resolve, reject) => {
             setTimeout(() => reject(new Error('Request timeout')), timeout);
         });

@@ -1,7 +1,7 @@
 import { SYSTEM_PROMPTS_MAP } from '../../../../../shared/systemPrompts.js';
 import { MESSAGE_TYPES } from '../../../constants.js';
 import { EventManager } from '../../../core/EventManager.js';
-import { extractRenderableContent } from '../core/ResponseExtractor.js';
+import { extractApiResponseContent, extractRenderableContent } from '../core/ResponseExtractor.js';
 
 const STATUS_LINE_STEP = 10;
 const IDEAS_LINE_THRESHOLD = 150;
@@ -131,6 +131,7 @@ export class SystemPromptOrchestrator {
     async triggerPrompt (promptId, scriptId, context) {
         const definition = SYSTEM_PROMPTS_MAP[promptId];
         if (!definition) {
+            console.warn('[SystemPromptOrchestrator] Unknown prompt id', { promptId, scriptId });
             return;
         }
 
@@ -178,7 +179,20 @@ export class SystemPromptOrchestrator {
         };
 
         try {
+            console.log('[SystemPromptOrchestrator] Triggering prompt', {
+                promptId,
+                scriptId,
+                lineCount: requestContext.lineCount,
+                hasContent: typeof requestContext.content === 'string' && requestContext.content.length > 0
+            });
             const response = await this.api.triggerSystemPrompt(promptId, scriptId, requestContext);
+            console.log('[SystemPromptOrchestrator] Prompt response received', {
+                promptId,
+                scriptId,
+                responseType: typeof response,
+                hasResponseField: !!response?.response,
+                intent: response?.intent
+            });
             await this.renderResponse(response, promptId, scriptId);
             this.eventManager.publish(EventManager.EVENTS.SYSTEM_PROMPT.FIRED, {
                 scriptId,
@@ -198,9 +212,17 @@ export class SystemPromptOrchestrator {
 
     async renderResponse (response, promptId, scriptId) {
         if (this.chatManager?.isProcessing) {
+            console.warn('[SystemPromptOrchestrator] Skipping render because chat is processing', {
+                promptId,
+                scriptId
+            });
             return;
         }
         if (!response) {
+            console.warn('[SystemPromptOrchestrator] Empty response, skipping render', {
+                promptId,
+                scriptId
+            });
             return;
         }
 
@@ -215,12 +237,23 @@ export class SystemPromptOrchestrator {
                 }
             };
 
-        const content = extractRenderableContent(decoratedResponse);
+        const content = extractApiResponseContent(decoratedResponse) ||
+            extractRenderableContent(decoratedResponse);
         if (!content) {
+            console.warn('[SystemPromptOrchestrator] No renderable content after extraction', {
+                promptId,
+                scriptId,
+                responseKeys: Object.keys(decoratedResponse || {})
+            });
             return;
         }
 
-        await chatManager.processAndRenderMessage(decoratedResponse, MESSAGE_TYPES.ASSISTANT);
+        console.log('[SystemPromptOrchestrator] Rendering prompt response', {
+            promptId,
+            scriptId,
+            contentLength: content.length
+        });
+        await chatManager.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
     }
 
     computeFingerprint (context = {}) {

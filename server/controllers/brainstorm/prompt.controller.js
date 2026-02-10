@@ -96,6 +96,8 @@ const brainstormPromptController = {
     }
 
     try {
+      const chatRequestId = req.body?.context?.chatRequestId || req.headers['x-correlation-id']
+        || `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const board = await brainstormRepository.getByIdForUser(boardId, req.userId);
       if (!board) {
         return res.status(404).json({ error: 'Board not found' });
@@ -106,10 +108,16 @@ const brainstormPromptController = {
       const intentResult = createIntentResult(definition.intent);
       const enrichedContext = {
         userId: req.userId || null,
+        disableHistory: true,
+        chatRequestId,
         promptType: promptId,
         brainstormBoardId: board.id,
         brainstormSeed: board.seed,
         brainstormNotes: board.notes || [],
+        chainConfig: {
+          shouldGenerateQuestions: false,
+          persistResponse: false
+        },
         systemInstruction: definition.systemInstruction
       };
 

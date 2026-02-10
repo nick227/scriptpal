@@ -128,10 +128,9 @@ export class ScriptInspirationChain extends BaseChain {
         lastUpdated: scriptMetadata.lastUpdated
       });
 
-      // Add common instructions and execute with context
-      console.log('Adding common instructions and executing...');
-      const formattedMessages = this.addCommonInstructions(messages);
-      return this.execute(formattedMessages, {
+      // Execute with context
+      console.log('Executing formatted template prompt...');
+      return this.execute(messages, {
         scriptId: scriptMetadata.id,
         scriptTitle: scriptMetadata.title,
         metadata: {

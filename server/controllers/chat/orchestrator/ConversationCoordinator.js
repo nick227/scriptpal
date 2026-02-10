@@ -46,16 +46,21 @@ export class ConversationCoordinator {
         hasContext: Object.keys(context).length > 0
       });
 
-      const script = this.scriptId ? await this.scriptManager.getScript(this.scriptId) : null;
-      console.log('Script Details:', script);
+      const script = context?.script || (this.scriptId ? await this.scriptManager.getScript(this.scriptId) : null);
+      console.log('Script Details:', {
+        scriptId: this.scriptId,
+        hasScript: Boolean(script),
+        title: script?.title || null,
+        versionNumber: script?.versionNumber || null,
+        status: script?.status || null
+      });
 
       const classifierScriptInfo = buildScriptInfo(script, {
-        includeScriptContext: true,
+        includeScriptContext: false,
         allowStructuredExtraction: false
       });
       const classifierContext = {
-        userId: this.userId,
-        scriptId: this.scriptId,
+        chatRequestId: context?.chatRequestId,
         scriptTitle: classifierScriptInfo.scriptTitle,
         scriptContent: classifierScriptInfo.scriptContent
       };

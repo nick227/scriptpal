@@ -3,6 +3,8 @@ import { debugLog } from '../../core/logger.js';
 import { HttpClient } from './HttpClient.js';
 import { ValidationError } from './APIError.js';
 
+const CHAT_RESPONSE_TIMEOUT_MS = 30000;
+
 /**
  * Chat service for AI chat and message history
  */
@@ -41,6 +43,7 @@ export class ChatService {
 
         const result = await this.http.request(API_ENDPOINTS.CHAT, {
             method: 'POST',
+            timeout: CHAT_RESPONSE_TIMEOUT_MS,
             data: {
                 prompt: content,
                 context: enhancedContext
@@ -66,6 +69,7 @@ export class ChatService {
 
         return this.http.request(API_ENDPOINTS.SYSTEM_PROMPTS, {
             method: 'POST',
+            timeout: CHAT_RESPONSE_TIMEOUT_MS,
             data: {
                 promptType,
                 scriptId,

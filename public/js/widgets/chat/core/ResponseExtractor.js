@@ -43,7 +43,11 @@ export function extractLegacyDbContent (data) {
     if (typeof data === 'string') {
         const parsed = _tryParseJsonString(data);
         if (parsed) {
-            return extractLegacyDbContent(parsed);
+            const extracted = extractLegacyDbContent(parsed);
+            if (extracted) {
+                return extracted;
+            }
+            return data.trim();
         }
         return data.trim();
     }
@@ -65,6 +69,11 @@ export function extractLegacyDbContent (data) {
         if (data.assistantResponse && typeof data.assistantResponse === 'string') {
             return data.assistantResponse.trim();
         }
+
+        const structured = _formatStructuredObjectForDisplay(data);
+        if (structured) {
+            return structured;
+        }
     }
 
     return '';
@@ -80,6 +89,10 @@ export function extractLegacyDbContent (data) {
 export function extractRenderableContent (messageData) {
     if (messageData == null) {
         return '';
+    }
+    const apiContent = extractApiResponseContent(messageData);
+    if (apiContent) {
+        return apiContent;
     }
     return extractLegacyDbContent(messageData);
 }
@@ -120,6 +133,12 @@ function _findResponseMessage (payload) {
         return _findResponseMessage(payload.response);
     }
 
+    if (typeof payload === 'object') {
+        console.warn('[ResponseExtractor] No message-like field in payload', {
+            keys: Object.keys(payload)
+        });
+    }
+
     return null;
 }
 
@@ -145,6 +164,7 @@ function _extractJsonAssistantMessage (rawMessage) {
             if (typeof parsed.formattedScript === 'string' && parsed.formattedScript.trim()) {
                 return parsed.formattedScript.trim();
             }
+            return _formatStructuredObjectForDisplay(parsed);
         }
     } catch (error) {
         console.warn('[ResponseExtractor] Failed to parse JSON response message:', error);
@@ -166,5 +186,57 @@ function _tryParseJsonString (value) {
         return parsed && typeof parsed === 'object' ? parsed : null;
     } catch (_error) {
         return null;
+    }
+}
+
+function _formatStructuredObjectForDisplay (value) {
+    if (!value || typeof value !== 'object') {
+        return '';
+    }
+
+    if (Array.isArray(value)) {
+        const lines = value
+            .map(item => (typeof item === 'string' ? item.trim() : ''))
+            .filter(Boolean);
+        return lines.join('\n');
+    }
+
+    if (Array.isArray(value.idea_nudges) && value.idea_nudges.length > 0) {
+        return value.idea_nudges
+            .map((entry, index) => {
+                const idea = entry?.idea ? String(entry.idea).trim() : '';
+                const reason = entry?.reason ? String(entry.reason).trim() : '';
+                if (idea && reason) {
+                    return `Idea ${index + 1}: ${idea}\nReason: ${reason}`;
+                }
+                return idea || reason;
+            })
+            .filter(Boolean)
+            .join('\n\n');
+    }
+
+    const statusKeys = ['current_state_summary', 'progress', 'strengths', 'next_focus_area'];
+    const statusLines = statusKeys
+        .map((key) => {
+            const raw = value[key];
+            if (typeof raw !== 'string' || !raw.trim()) {
+                return '';
+            }
+            const label = key.replace(/_/g, ' ');
+            return `${label}: ${raw.trim()}`;
+        })
+        .filter(Boolean);
+    if (statusLines.length > 0) {
+        return statusLines.join('\n');
+    }
+
+    if (typeof value.intent === 'string' && typeof value.reason === 'string') {
+        return `intent: ${value.intent}\nreason: ${value.reason}`;
+    }
+
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch (_error) {
+        return '';
     }
 }

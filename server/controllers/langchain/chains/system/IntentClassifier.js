@@ -8,6 +8,7 @@ export class IntentClassifier extends BaseChain {
         super({
             type: 'INTENT_CLASSIFIER',
             temperature: 0.2,
+            applyCommonInstructions: false,
             modelConfig: {
                 response_format: { type: 'text' }
             }
@@ -15,8 +16,7 @@ export class IntentClassifier extends BaseChain {
     }
 
     buildMessages (context, prompt) {
-        const scriptTitle = context?.scriptTitle || 'Untitled Script';
-        const snippet = context?.scriptContent ? context.scriptContent.substring(0, 400) : 'Script content unavailable';
+        const normalizedPrompt = typeof prompt === 'string' ? prompt.trim() : String(prompt || '');
 
         return [
             {
@@ -25,7 +25,7 @@ export class IntentClassifier extends BaseChain {
             },
             {
                 role: 'user',
-                content: `Script Title: ${scriptTitle}\nScript Content Snippet:\n${snippet}\n\nUser Prompt: ${prompt}`
+                content: `User Prompt: ${normalizedPrompt}`
             }
         ];
     }
@@ -34,9 +34,11 @@ export class IntentClassifier extends BaseChain {
         try {
             const messages = await this.buildMessages(context, prompt);
             const response = await this.execute(messages, {
-                context,
+                ...context,
+                disableHistory: true,
                 chainConfig: {
-                    shouldGenerateQuestions: false
+                    shouldGenerateQuestions: false,
+                    persistResponse: false
                 }
             });
 

@@ -63,10 +63,13 @@ export default async (req, res) => {
       includeScriptContext: true,
       allowStructuredExtraction: true
     });
+    const chatRequestId = req.body?.context?.chatRequestId || req.headers['x-correlation-id']
+      || `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
     const intentResult = createIntentResult(INTENT_TYPES.OUTLINE_IDEA);
     const response = await router.route(intentResult, {
       userId: req.userId,
+      chatRequestId,
       scriptId,
       intent: INTENT_TYPES.OUTLINE_IDEA,
       scriptTitle: contextBundle.scriptTitle,
@@ -76,7 +79,10 @@ export default async (req, res) => {
       otherOutlines,
       scriptCollections: contextBundle.scriptCollections,
       disableHistory: true,
-      chainConfig: { shouldGenerateQuestions: false },
+      chainConfig: {
+        shouldGenerateQuestions: false,
+        persistResponse: false
+      },
       systemInstruction: OUTLINE_IDEA_PROMPT.systemInstruction
     }, OUTLINE_IDEA_PROMPT.userPrompt);
 

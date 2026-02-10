@@ -122,6 +122,7 @@ You are a calm, helpful script-writing assistant.
     label: 'Status Check',
     clientCopy: 'I can give you a quick status check and suggest what to focus on next.',
     enabled: true,
+    attachScriptContext: true,
     category: PROMPT_CATEGORIES.SYSTEM,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,

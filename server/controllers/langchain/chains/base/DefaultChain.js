@@ -8,6 +8,7 @@ export class DefaultChain extends BaseChain {
     super({
       type: INTENT_TYPES.GENERAL_CONVERSATION,
       temperature: 0.5,
+      applyCommonInstructions: false,
       modelConfig: {
         response_format: { type: 'text' }
       }
@@ -49,11 +50,19 @@ Be concise but informative.`;
      * Format the response for the default chain
      */
   formatResponse(response) {
+    const rawResponse = typeof response === 'string'
+      ? response
+      : (response?.response || response?.message || '');
+    const metadata = (response && typeof response === 'object' && response.metadata && typeof response.metadata === 'object')
+      ? response.metadata
+      : {};
+
     return {
-      response: typeof response === 'string' ? response : response.response || response,
+      response: rawResponse,
       type: INTENT_TYPES.GENERAL_CONVERSATION,
       metadata: {
-        timestamp: new Date().toISOString()
+        ...metadata,
+        timestamp: metadata.timestamp || new Date().toISOString()
       }
     };
   }
@@ -75,7 +84,7 @@ Be concise but informative.`;
 
       // Execute without generating questions (we'll handle them separately)
       const response = await this.execute(messages, {
-        context,
+        ...context,
         chainConfig: {
           shouldGenerateQuestions: false // Prevent circular question generation
         }

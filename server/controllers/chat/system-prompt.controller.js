@@ -26,6 +26,9 @@ class SystemPromptController {
       scriptId = resolvedScriptId;
       let script = null;
       let scriptCollections = null;
+      let scriptContent = '';
+      let scriptDescription = '';
+      let scriptMetadata = null;
       if (resolvedScriptId) {
         const request = {
           ...req,
@@ -40,6 +43,7 @@ class SystemPromptController {
           requireEditable: true
         });
         script = result.script;
+        scriptMetadata = result.script || null;
         if (definition.attachScriptContext) {
           const contextBundle = await buildScriptContextBundle({
             scriptId: resolvedScriptId,
@@ -48,33 +52,55 @@ class SystemPromptController {
             allowStructuredExtraction: true
           });
           scriptCollections = contextBundle.scriptCollections;
+          scriptContent = contextBundle.scriptContent || '';
+          scriptDescription = contextBundle.scriptDescription || '';
+          scriptMetadata = contextBundle.scriptMetadata || scriptMetadata;
         }
       }
+      const chatRequestId = context?.chatRequestId || req.headers['x-correlation-id']
+        || `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const resolvedIntent = definition.intent || INTENT_TYPES.SCRIPT_REFLECTION;
+      const promptIntent = resolvedIntent === INTENT_TYPES.SCRIPT_CONVERSATION
+        ? INTENT_TYPES.SCRIPT_REFLECTION
+        : resolvedIntent;
+
       const intentResult = {
-        intent: INTENT_TYPES.SCRIPT_CONVERSATION,
+        intent: promptIntent,
         confidence: 1,
         target: null,
         value: null
       };
 
       const enrichedContext = {
+        ...context,
         userId: req.userId || null,
         scriptId: resolvedScriptId,
         scriptTitle: script?.title,
-        scriptMetadata: script || null,
+        scriptDescription,
+        scriptContent,
+        scriptMetadata,
         scriptCollections,
+        disableHistory: true,
+        chatRequestId,
         promptType,
         systemInstruction: definition.systemInstruction,
         originalUserPrompt: context?.triggerPrompt ?? promptType ?? definition.userPrompt,
-        ...context
+        chainConfig: {
+          shouldGenerateQuestions: false
+        }
       };
 
       const response = await router.route(intentResult, enrichedContext, definition.userPrompt);
+      const responseType = response?.type || response?.response?.type || 'unknown';
+      const responseText = typeof response?.response === 'string'
+        ? response.response
+        : (typeof response?.message === 'string' ? response.message : '');
       logger.info('System prompt completed', {
         scriptId: resolvedScriptId,
         promptType,
-        chain: response?.type || 'unknown',
-        responseLength: response?.response ? response.response.length : 0,
+        chain: responseType,
+        responseLength: responseText.length,
+        chatRequestId,
         success: true
       });
       const responsePayload = buildAiResponse({

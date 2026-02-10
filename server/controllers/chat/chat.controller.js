@@ -402,6 +402,7 @@ const chatController = {
         ...baseContext,
         userId: req.userId,
         scriptId,
+        script: ownedScript,
         chatRequestId,
         prompt: req.body.prompt
       };

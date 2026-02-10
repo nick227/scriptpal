@@ -16,6 +16,7 @@ export class ScriptReflectionChain extends BaseChain {
     super({
       type: INTENT_TYPES.SCRIPT_REFLECTION,
       temperature: 0.4,
+      applyCommonInstructions: false,
       modelConfig: {
         response_format: { type: 'text' }
       }
@@ -35,15 +36,13 @@ export class ScriptReflectionChain extends BaseChain {
       ? `${prompt}\n\n${combinedContext}`
       : combinedContext;
 
-    const messages = [{
+    return [{
       role: 'system',
       content: context?.systemInstruction || SYSTEM_INSTRUCTION
     }, {
       role: 'user',
       content: userContent
     }];
-
-    return this.addCommonInstructions(messages);
   }
 
   formatResponse(response) {

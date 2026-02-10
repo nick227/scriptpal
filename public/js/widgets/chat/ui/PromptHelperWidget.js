@@ -130,7 +130,7 @@ export class PromptHelperWidget {
      */
     hideSpinner () {
         if (this.spinner) {
-            this.spinner.style.disaply = 'none';
+            this.spinner.style.display = 'none';
         }
     }
 
@@ -145,6 +145,7 @@ export class PromptHelperWidget {
 
         this.indicator.textContent = message || '';
         this.indicator.style.display = message ? 'block' : 'none';
+        this.indicator.style.opacity = message ? '1' : '0';
 
         if (this.indicatorTimeout) {
             clearTimeout(this.indicatorTimeout);
@@ -153,7 +154,8 @@ export class PromptHelperWidget {
         if (message) {
             this.indicatorTimeout = setTimeout(() => {
                 if (this.indicator) {
-                    this.indicator.style.opacity = 'none';
+                    this.indicator.style.opacity = '0';
+                    this.indicator.style.display = 'none';
                 }
             }, 4000);
         }

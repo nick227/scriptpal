@@ -298,10 +298,13 @@ const sceneController = {
         includeScriptContext: true,
         allowStructuredExtraction: true
       });
+      const chatRequestId = req.body?.context?.chatRequestId || req.headers['x-correlation-id']
+        || `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
       const intentResult = createIntentResult(INTENT_TYPES.SCENE_IDEA);
       const response = await router.route(intentResult, {
         userId: req.userId,
+        chatRequestId,
         scriptId,
         intent: INTENT_TYPES.SCENE_IDEA,
         scriptTitle: contextBundle.scriptTitle,
@@ -312,7 +315,8 @@ const sceneController = {
         scriptCollections: contextBundle.scriptCollections,
         disableHistory: true,
         chainConfig: {
-          shouldGenerateQuestions: false
+          shouldGenerateQuestions: false,
+          persistResponse: false
         },
         systemInstruction: SCENE_IDEA_PROMPT.systemInstruction
       }, SCENE_IDEA_PROMPT.userPrompt);

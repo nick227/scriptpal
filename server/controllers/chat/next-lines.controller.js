@@ -24,7 +24,13 @@ class NextLinesController {
 
     try {
       const script = await this.scriptManager.getScript(scriptId);
-      const context = await this.buildContext(scriptId, script, req.body?.context || {});
+      const chatRequestId = req.body?.context?.chatRequestId || req.headers['x-correlation-id']
+        || `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const context = await this.buildContext(scriptId, script, {
+        ...(req.body?.context || {}),
+        userId: req.userId,
+        chatRequestId
+      });
       const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
 
       const response = await router.route(intentResult, context, NEXT_FIVE_LINES_PROMPT.userPrompt);
@@ -77,6 +83,7 @@ class NextLinesController {
       systemInstruction: NEXT_FIVE_LINES_PROMPT.systemInstruction,
       chainConfig: {
         shouldGenerateQuestions: false,
+        persistResponse: false,
         modelConfig: {
           temperature: 0.3,
           response_format: { type: 'json_object' }

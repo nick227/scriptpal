@@ -45,7 +45,7 @@ export class ScriptAppendChain extends BaseChain {
             content: scriptSnippet
         }];
 
-        return this.addCommonInstructions(messages);
+        return messages;
     }
 
     formatResponse (response) {

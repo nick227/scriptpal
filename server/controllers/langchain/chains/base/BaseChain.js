@@ -10,9 +10,16 @@ export class BaseChain {
       throw new Error('Chain configuration must include type');
     }
 
-    const { type, temperature = 0.7, modelConfig = {} } = config;
+    const {
+      type,
+      temperature = 0.7,
+      modelConfig = {},
+      applyCommonInstructions = true
+    } = config;
     this.type = type;
     this.temperature = temperature;
+    this.applyCommonInstructions = applyCommonInstructions;
+    this.enablePromptHistory = false;
 
     // Merge configurations once
     this.config = {
@@ -64,7 +71,12 @@ export class BaseChain {
       if (!context || !context.userId) return [];
 
       try {
-        const rows = await chatMessageRepository.listByUser(context.userId, null, 3, 0);
+        const rows = await chatMessageRepository.listByUser(
+          context.userId,
+          context.scriptId ?? null,
+          3,
+          0
+        );
         return rows.reverse()
           .flatMap(row => {
             if (!row || typeof row !== 'object') return [];
@@ -110,7 +122,7 @@ export class BaseChain {
 
     const systemMessage = messages.find(m => m.role === 'system');
     if (systemMessage) {
-      const prefixMarker = 'You are a script writing assistant.';
+      const prefixMarker = COMMON_PROMPT_INSTRUCTIONS.SYSTEM_PREFIX.trim();
       const formatMarker = COMMON_PROMPT_INSTRUCTIONS.RESPONSE_GUIDELINES.FORMAT.trim();
       let content = systemMessage.content || '';
       if (!content.includes(prefixMarker)) {
@@ -186,7 +198,9 @@ export class BaseChain {
         chain: this.type,
         chatRequestId: ctx.chatRequestId
       });
-      const processedMessages = this.addCommonInstructions(messages);
+      const processedMessages = this.applyCommonInstructions
+        ? this.addCommonInstructions(messages)
+        : (Array.isArray(messages) ? messages : [messages]);
 
       const lastMessage = messages[messages.length - 1];
       const constructedPrompt = lastMessage ? lastMessage.content : '';
@@ -261,8 +275,9 @@ export class BaseChain {
         responseTime: Number(result.metrics?.responseTime ?? 0)
       };
 
+      const shouldPersist = chainConfig.persistResponse !== false;
       let loggedUsage = false;
-      if (ctx?.userId && !isFunctionCall) {
+      if (shouldPersist && ctx?.userId && !isFunctionCall) {
         try {
           await chatMessageRepository.create({
             userId: ctx.userId,
@@ -293,7 +308,7 @@ export class BaseChain {
         const payload = this.createResponse(content, ctx, questions, { aiUsage });
         payload.aiMessage = aiMessage;
         payload.raw = result;
-        if (isFunctionCall && ctx?.userId) {
+        if (isFunctionCall && shouldPersist && ctx?.userId) {
           payload._persistContext = {
             userId: ctx.userId,
             scriptId: ctx.scriptId ?? null,
@@ -360,8 +375,8 @@ export class BaseChain {
   async buildMessageChain(currentMessages, context) {
     try {
       if (!Array.isArray(currentMessages)) currentMessages = [currentMessages];
-      const history = (context.userId && !context.disableHistory) ?
-        await this.getChatHistory(context) : [];
+      const shouldUsePromptHistory = this.enablePromptHistory && context.userId && !context.disableHistory;
+      const history = shouldUsePromptHistory ? await this.getChatHistory(context) : [];
 
       const validHistory = history.map(msg => this.validateMessage(msg, 'history')).filter(Boolean);
       const validCurrentMessages = currentMessages.map(msg => this.validateMessage(msg, 'current')).filter(Boolean);

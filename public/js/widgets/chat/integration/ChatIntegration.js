@@ -8,6 +8,7 @@
 import { EventManager } from '../../../core/EventManager.js';
 
 import { ChatManager } from '../core/ChatManager.js';
+import { extractApiResponseContent, extractRenderableContent } from '../core/ResponseExtractor.js';
 import { ModernChatWidget } from '../ui/ModernChatWidget.js';
 import { PromptHelperBridge } from './PromptHelperBridge.js';
 
@@ -125,7 +126,20 @@ export class ChatIntegration {
                 EventManager.EVENTS.AI.RESPONSE_RECEIVED,
                 (data) => {
                     if (this.chatManager && data && data.response) {
-                        this.chatManager.processAndRenderMessage(data.response, 'assistant');
+                        console.log('[ChatIntegration] AI.RESPONSE_RECEIVED', {
+                            responseType: typeof data.response,
+                            hasIntent: !!data.intent
+                        });
+                        const content = extractApiResponseContent(data) ||
+                            extractRenderableContent(data.response);
+                        if (!content) {
+                            console.warn('[ChatIntegration] No renderable content on AI.RESPONSE_RECEIVED', data);
+                            return;
+                        }
+                        console.log('[ChatIntegration] Rendering AI.RESPONSE_RECEIVED content', {
+                            contentLength: content.length
+                        });
+                        this.chatManager.processAndRenderMessage(content, 'assistant');
                     }
                 }
             )

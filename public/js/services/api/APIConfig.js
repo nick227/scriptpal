@@ -17,6 +17,8 @@ export const RETRY_CONFIG = {
 export const TIMEOUT_CONFIG = {
     /** Default timeout for standard requests (90 seconds) */
     DEFAULT_MS: 90000,
+    /** Timeout for chat and system-prompt responses (30 seconds) */
+    CHAT_MS: 30000,
     /** Timeout for upload operations (60 seconds) */
     UPLOAD_MS: 60000,
     /** Timeout for download operations (45 seconds) */
@@ -58,6 +60,9 @@ export function calculateRetryDelay(attempt) {
  * @returns {number} Timeout in milliseconds
  */
 export function getTimeoutForRequest(method, endpoint) {
+    if (endpoint.includes('/chat') || endpoint.includes('/system-prompts')) {
+        return TIMEOUT_CONFIG.CHAT_MS;
+    }
     // Upload endpoints or POST to /script need longer timeout
     if (endpoint.includes('/upload') || (method === 'POST' && endpoint.includes('/script'))) {
         return TIMEOUT_CONFIG.UPLOAD_MS;

@@ -52,12 +52,15 @@
     z-index: 0;
 }
 .chatbot-container {
-    width: 17vw;
-    height: 100vh;
-    position:fixed;
-    right: 0;
+    width: 22vw;
+    height: 48vh;
+    position: fixed;
+    right: 30px;
     z-index: 222;
-    top: 0;
+    bottom: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 10px;
+    border-radius: 10px;
 }
 .side-panel-panel {
     position: fixed;

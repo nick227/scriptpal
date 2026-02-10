@@ -77,10 +77,13 @@ export const createScriptItemIdeaController = (options) => {
         includeScriptContext: true,
         allowStructuredExtraction: true
       });
+      const chatRequestId = req.body?.context?.chatRequestId || req.headers['x-correlation-id']
+        || `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
       const intentResult = createIntentResult(intentType);
       const response = await router.route(intentResult, {
         userId: req.userId,
+        chatRequestId,
         scriptId,
         intent: intentType,
         scriptTitle: contextBundle.scriptTitle,
@@ -91,7 +94,8 @@ export const createScriptItemIdeaController = (options) => {
         scriptCollections: contextBundle.scriptCollections,
         disableHistory: true,
         chainConfig: {
-          shouldGenerateQuestions: false
+          shouldGenerateQuestions: false,
+          persistResponse: false
         },
         systemInstruction: prompt.systemInstruction
       }, prompt.userPrompt);
