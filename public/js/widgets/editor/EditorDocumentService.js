@@ -33,6 +33,7 @@ const INITIAL_LINE_FORMAT = VALID_FORMATS.HEADER;
 export class EditorDocumentService {
     constructor () {
         this.document = new ScriptDocument();
+        this._ensureMinimumLine();
     }
 
     /**
@@ -41,6 +42,7 @@ export class EditorDocumentService {
      */
     setContent (content = '') {
         this.document = ScriptDocument.fromContent(content || '');
+        this._ensureMinimumLine();
         return this.document;
     }
 
@@ -335,6 +337,17 @@ export class EditorDocumentService {
             }
         }
 
+        this._ensureMinimumLine();
         return { success: true, results, inverseCommands };
+    }
+
+    _ensureMinimumLine () {
+        if (!this.document || !Array.isArray(this.document.lines) || this.document.lines.length > 0) {
+            return;
+        }
+        this.document.insertLineAt(0, {
+            format: INITIAL_LINE_FORMAT,
+            content: ''
+        });
     }
 }
