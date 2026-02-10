@@ -97,6 +97,7 @@
         .editor-toolbar {
             position: relative;
             z-index: 100;
+            max-height: var(--toolbar-height);
             height: var(--toolbar-height);
             padding: 0 var(--spacing-xl);
             background: var(--toolbar-bg);
@@ -108,7 +109,7 @@
             z-index: 2;
             opacity: 0;
             animation: fadeIn 0.2s linear forwards;
-            animation-delay: 0.5s;
+            animation-delay: 2s;
         }
         
         .editor-area {
