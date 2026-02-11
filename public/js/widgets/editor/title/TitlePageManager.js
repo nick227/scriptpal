@@ -294,6 +294,7 @@ export class TitlePageManager {
         if (!script) return;
         this._updatingFromState = true;
         try {
+            const previousScriptId = this.scriptId;
             this.scriptId = script.id;
             this.titlePageData.title = script.title || '';
             this.titlePageData.author = script.author || '';
@@ -309,7 +310,9 @@ export class TitlePageManager {
                     ownerId: this.scriptId,
                     role: 'cover'
                 });
-                this.mediaPicker.refreshPreview();
+                if (String(previousScriptId) !== String(this.scriptId)) {
+                    this.mediaPicker.refreshPreview();
+                }
             }
         } finally {
             this._updatingFromState = false;

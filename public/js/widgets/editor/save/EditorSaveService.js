@@ -1,8 +1,8 @@
 import { EDITOR_EVENTS } from '../constants.js';
 import { StateManager } from '../../../core/StateManager.js';
 
-const AUTO_SAVE_DEBOUNCE_MS = 1200;
-const AUTO_SAVE_MIN_INTERVAL_MS = 2500;
+const AUTO_SAVE_DEBOUNCE_MS = 3000;
+const AUTO_SAVE_MIN_INTERVAL_MS = 3000;
 
 /**
  * EditorSaveService - Debounced auto-save on CONTENT_PERSIST; immediate flush on focus-out and manual save.
@@ -22,6 +22,7 @@ export class EditorSaveService {
         this.lastNormalizedContent = '';
         this.lastAutoSaveTime = 0;
         this.autoSaveTimer = null;
+        this.focusOutTimer = null;
 
         this.handleContentChange = this.handleContentChange.bind(this);
         this.handleFocusOut = this.handleFocusOut.bind(this);
@@ -119,9 +120,29 @@ export class EditorSaveService {
         return true;
     }
 
-    handleFocusOut () {
+    handleFocusOut (event) {
         this.cancelAutoSave();
-        this.flushSave('focus');
+        if (this.focusOutTimer) {
+            clearTimeout(this.focusOutTimer);
+            this.focusOutTimer = null;
+        }
+
+        const editorRoot = this.content?.editorArea || event?.currentTarget || null;
+        const relatedTarget = event?.relatedTarget || null;
+        if (editorRoot && relatedTarget && typeof editorRoot.contains === 'function' && editorRoot.contains(relatedTarget)) {
+            return;
+        }
+
+        // Let focus settle first. During line-to-line movement and renderer swaps, focusout
+        // can fire transiently even though focus remains inside the editor.
+        this.focusOutTimer = setTimeout(() => {
+            this.focusOutTimer = null;
+            const active = typeof document !== 'undefined' ? document.activeElement : null;
+            if (editorRoot && active && typeof editorRoot.contains === 'function' && editorRoot.contains(active)) {
+                return;
+            }
+            this.flushSave('focus');
+        }, 0);
     }
 
     async handleManualSave () {
@@ -131,6 +152,10 @@ export class EditorSaveService {
 
     destroy () {
         this.cancelAutoSave();
+        if (this.focusOutTimer) {
+            clearTimeout(this.focusOutTimer);
+            this.focusOutTimer = null;
+        }
         this.content.off(EDITOR_EVENTS.CONTENT_PERSIST, this.handleContentChange);
         this.content.off(EDITOR_EVENTS.FOCUS_OUT, this.handleFocusOut);
         this.content = null;

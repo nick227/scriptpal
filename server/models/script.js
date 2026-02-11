@@ -135,6 +135,15 @@ const scriptModel = {
 
       const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
 
+      const resolvedTitle = script.title ?? currentScript.title;
+      const resolvedStatus = script.status ?? currentScript.status;
+      const resolvedAuthor = script.author !== undefined
+        ? (script.author || null)
+        : currentScript.author;
+      const resolvedDescription = script.description !== undefined
+        ? (script.description || null)
+        : currentScript.description;
+
       const resolvedContent = script.content !== undefined && script.content !== null
         ? script.content
         : latestVersion?.content ?? '';
@@ -146,14 +155,25 @@ const scriptModel = {
           : undefined;
       const desiredVisibility = requestedVisibility ?? currentScript.visibility;
 
+      const contentUnchanged = normalizeContentForCompare(resolvedContent) === normalizeContentForCompare(latestVersion?.content ?? '');
+      const metadataUnchanged = resolvedTitle === currentScript.title
+        && resolvedStatus === currentScript.status
+        && resolvedAuthor === currentScript.author
+        && resolvedDescription === currentScript.description
+        && desiredVisibility === currentScript.visibility;
+
+      if (latestVersion && metadataUnchanged && contentUnchanged) {
+        return { script: currentScript, version: latestVersion };
+      }
+
       let nextSlug = currentScript.slug;
       let nextPublicId = currentScript.publicId;
-      const shouldRefreshSlug = script.title !== currentScript.title
+      const shouldRefreshSlug = resolvedTitle !== currentScript.title
         || (desiredVisibility === 'public' && currentScript.visibility !== 'public');
 
       if (shouldRefreshSlug) {
         const candidateSlug = await generateUniqueSlug({
-          title: script.title,
+          title: resolvedTitle,
           isTaken: async(candidate) => {
             const takenForUser = await scriptSlugRepository.existsSlugForUser({
               userId: currentScript.userId,
@@ -188,10 +208,10 @@ const scriptModel = {
       const updatedScript = await tx.script.update({
         where: { id: currentScript.id },
         data: {
-          title: script.title,
-          status: script.status,
-          author: script.author || null,
-          description: script.description || null,
+          title: resolvedTitle,
+          status: resolvedStatus,
+          author: resolvedAuthor,
+          description: resolvedDescription,
           visibility: desiredVisibility,
           slug: nextSlug,
           publicId: nextPublicId

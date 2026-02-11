@@ -136,6 +136,12 @@ export class ChatHistoryManager {
             return;
         }
 
+        const nextScriptId = String(script.id);
+        const currentScriptId = this.currentScriptId === null ? null : String(this.currentScriptId);
+        if (currentScriptId === nextScriptId) {
+            return;
+        }
+
         this.currentScriptId = script.id;
 
         if (this._hasHistoryScope(script.id, 'handleScriptChange')) {

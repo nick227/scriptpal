@@ -25,6 +25,7 @@ import mediaJobController from './controllers/media/job.controller.js';
 import mediaOwnerMediaController from './controllers/media/owner-media.controller.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import { requireScriptOwnership } from './middleware/scriptOwnership.js';
+import scriptUpdateRateLimit from './middleware/scriptUpdateRateLimit.js';
 import chatController from './controllers/chat/chat.controller.js';
 import publicScriptController from './controllers/public/public-script.controller.js';
 import publicScriptCommentController from './controllers/public/public-script-comment.controller.js';
@@ -239,7 +240,7 @@ const routes = [
     path: '/script/:id',
     method: 'put',
     handler: scriptController.updateScript,
-    middleware: [validateSession, requireScriptOwnership()]
+    middleware: [validateSession, requireScriptOwnership(), scriptUpdateRateLimit]
   },
   {
     path: '/script/:id/append-page',

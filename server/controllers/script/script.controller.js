@@ -12,6 +12,7 @@ const VALID_FORMATS = new Set([
   'parenthetical',
   'transition'
 ]);
+const shouldLogScriptUpdates = process.env.DEBUG_SCRIPT_UPDATES === 'true';
 
 const tryParseJson = (value) => {
   if (!value || (value[0] !== '{' && value[0] !== '[')) {
@@ -156,11 +157,13 @@ const scriptController = {
   },
 
   updateScript: async(req, res) => {
-    console.log('Update script request received:', {
-      id: req.params.id,
-      bodyKeys: Object.keys(req.body),
-      contentLength: req.body.content ? req.body.content.length : 0
-    });
+    if (shouldLogScriptUpdates) {
+      console.log('Update script request received:', {
+        id: req.params.id,
+        bodyKeys: Object.keys(req.body),
+        contentLength: req.body.content ? req.body.content.length : 0
+      });
+    }
 
     try {
       const { title, status, content, author, description, visibility } = req.body;
@@ -214,7 +217,9 @@ const scriptController = {
         }
       }
 
-      console.log('Validation passed, updating script...');
+      if (shouldLogScriptUpdates) {
+        console.log('Validation passed, updating script...');
+      }
 
       // Update script in database
       const existingScript = await scriptRepository.getById(Number(req.params.id));
