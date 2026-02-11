@@ -26,6 +26,7 @@ const healthControllerModule = await import('./controllers/common/health.control
 const aiClientModule = await import('./services/AIClient.js');
 const routesModule = await import('./routes.js');
 const securityMiddlewareModule = await import('./middleware/security.js');
+const dbCircuitBreakerModule = await import('./middleware/dbCircuitBreaker.js');
 const authModule = await import('./middleware/auth.js');
 const scriptRepositoryModule = await import('./repositories/scriptRepository.js');
 const scriptSlugRepositoryModule = await import('./repositories/scriptSlugRepository.js');
@@ -34,10 +35,12 @@ import helmet from 'helmet';
 
 const { logger, requestLoggingMiddleware } = loggerModule;
 const prisma = prismaModule.default;
+const dbRuntimeConfig = prismaModule.dbRuntimeConfig;
 const { HealthController } = healthControllerModule;
 const { AIClient } = aiClientModule;
 const routes = routesModule.default;
 const { SecurityMiddleware } = securityMiddlewareModule;
+const dbCircuitBreaker = dbCircuitBreakerModule.default;
 const { validateSession } = authModule;
 const scriptRepository = scriptRepositoryModule.default;
 const scriptSlugRepository = scriptSlugRepositoryModule.default;
@@ -158,6 +161,13 @@ class ScriptPalServer {
         environment: config.get('NODE_ENV'),
         port: config.get('PORT'),
         host: config.get('HOST')
+      });
+      logger.info('Runtime DB settings', dbRuntimeConfig);
+      logger.info('Runtime resiliency settings', {
+        sessionCacheTtlMs: Number(process.env.SESSION_CACHE_TTL_MS || 60000),
+        sessionCacheMaxEntries: Number(process.env.SESSION_CACHE_MAX_ENTRIES || 5000),
+        dbCircuitOpenMs: Number(process.env.DB_CIRCUIT_OPEN_MS || 15000),
+        dbCircuitRetryAfterSeconds: Number(process.env.DB_CIRCUIT_RETRY_AFTER_SECONDS || 5)
       });
 
       // Initialize AI client
@@ -484,6 +494,7 @@ class ScriptPalServer {
       apiRouter[route.method](route.path, ...middleware, handler);
     });
 
+    this.app.use('/api', dbCircuitBreaker.middleware());
     this.app.use('/api', apiRouter);
 
     // Frontend fallback (non-API GET routes)
@@ -514,6 +525,7 @@ class ScriptPalServer {
     // Global error handler
     // Note: 'next' required for Express to recognize this as error handler
     this.app.use((error, req, res, next) => {
+      dbCircuitBreaker.recordFailure(error);
       req.logger.error('Unhandled error', {
         error: error.message,
         stack: error.stack,

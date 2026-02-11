@@ -1,5 +1,6 @@
 import sessionRepository from '../repositories/sessionRepository.js';
-import userRepository from '../repositories/userRepository.js';
+import sessionCache from './sessionCache.js';
+import dbCircuitBreaker from './dbCircuitBreaker.js';
 
 export const validateSession = async(req, res, next) => {
   try {
@@ -8,21 +9,39 @@ export const validateSession = async(req, res, next) => {
       return res.status(401).json({ error: 'No session token provided' });
     }
 
-    const session = await sessionRepository.getByToken(sessionToken);
-    if (!session) {
+    const cached = sessionCache.get(sessionToken);
+    if (cached) {
+      req.userId = cached.userId;
+      req.user = cached.user;
+      return next();
+    }
+
+    if (dbCircuitBreaker.isOpen()) {
+      res.set('Retry-After', '5');
+      return res.status(503).json({ error: 'Service temporarily unavailable' });
+    }
+
+    const resolved = await sessionRepository.getUserByValidToken(sessionToken);
+    if (!resolved) {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
-    const user = await userRepository.getById(session.userId);
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    req.userId = session.userId;
-    req.user = user;
+    req.userId = resolved.session.userId;
+    req.user = resolved.user;
+    sessionCache.set(sessionToken, {
+      userId: resolved.session.userId,
+      user: resolved.user,
+      sessionExpiresAt: resolved.session.expiresAt
+    });
     next();
   } catch (error) {
+    const isDbError = dbCircuitBreaker.isDbConnectivityError(error);
+    dbCircuitBreaker.recordFailure(error);
     console.error('Session validation error:', error);
+    if (isDbError) {
+      res.set('Retry-After', '5');
+      return res.status(503).json({ error: 'Service temporarily unavailable' });
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
 };

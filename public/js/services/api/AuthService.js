@@ -127,7 +127,8 @@ export class AuthService {
         debugLog('[AUTH] Checking session');
         const result = await this.http.request(`${API_ENDPOINTS.USER}/current`, {
             method: 'GET',
-            silent401: true
+            silent401: true,
+            maxRetries: 0
         });
         debugLog('[AUTH] Session check:', { hasUser: !!result });
         return result;
@@ -138,7 +139,10 @@ export class AuthService {
      * @returns {Promise<object>}
      */
     async getTokenWatch() {
-        return this.http.request(API_ENDPOINTS.USER_TOKEN_WATCH, { method: 'GET' });
+        return this.http.request(API_ENDPOINTS.USER_TOKEN_WATCH, {
+            method: 'GET',
+            maxRetries: 0
+        });
     }
 
     /**

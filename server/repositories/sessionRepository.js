@@ -23,6 +23,29 @@ const sessionRepository = {
     });
   },
 
+  getUserByValidToken: async(token) => {
+    const session = await prisma.session.findFirst({
+      where: {
+        token,
+        expiresAt: {
+          gt: new Date()
+        }
+      },
+      include: {
+        user: true
+      }
+    });
+
+    if (!session || !session.user) {
+      return null;
+    }
+
+    return {
+      session,
+      user: session.user
+    };
+  },
+
   deleteByToken: async(token) => {
     const result = await prisma.session.deleteMany({
       where: { token }

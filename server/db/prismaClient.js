@@ -62,19 +62,23 @@ const buildPoolConfig = () => {
     queueLimit: getEnvNumber('DB_QUEUE_LIMIT', 0),
     connectTimeout: getEnvNumber('DB_CONNECT_TIMEOUT_MS', 10000),
     acquireTimeout: getEnvNumber('DB_ACQUIRE_TIMEOUT_MS', 15000),
-    socketTimeout: getEnvNumber('DB_SOCKET_TIMEOUT_MS', 30000)
+    socketTimeout: getEnvNumber('DB_SOCKET_TIMEOUT_MS', 30000),
+    enableKeepAlive: getEnvBoolean('DB_ENABLE_KEEP_ALIVE', true),
+    keepAliveInitialDelay: getEnvNumber('DB_KEEP_ALIVE_INITIAL_DELAY_MS', 0),
+    maxIdle: getEnvNumber('DB_MAX_IDLE', getEnvNumber('DB_CONNECTION_LIMIT', 10)),
+    idleTimeout: getEnvNumber('DB_IDLE_TIMEOUT_MS', 60000)
   };
 
   const databaseUrl = getEnvValue('DATABASE_URL');
   if (databaseUrl) {
     const url = new URL(databaseUrl);
-    const host = getEnvValue('DB_HOST') || url.hostname;
+    const host = url.hostname || getEnvValue('DB_HOST');
     const port = getEnvNumber('DB_PORT', Number(url.port) || 3306);
-    const user = getEnvValue('DB_USER') || url.username || 'root';
+    const user = url.username || getEnvValue('DB_USER') || 'root';
     const password = process.env.DB_PASSWORD ?? url.password ?? '';
     const database =
-      getEnvValue('DB_NAME') ||
       (url.pathname ? url.pathname.slice(1) : undefined) ||
+      getEnvValue('DB_NAME') ||
       'scriptpal';
     const allowPublicKeyRetrieval = getEnvBoolean(
       'DB_ALLOW_PUBLIC_KEY_RETRIEVAL',
@@ -161,4 +165,17 @@ const adapter = new PrismaMariaDb(poolConfig);
 
 const prisma = new PrismaClient({ adapter });
 
+const dbRuntimeConfig = Object.freeze({
+  usingDatabaseUrl: Boolean(getEnvValue('DATABASE_URL')),
+  connectionLimit: poolConfig.connectionLimit,
+  maxIdle: poolConfig.maxIdle,
+  queueLimit: poolConfig.queueLimit,
+  connectTimeout: poolConfig.connectTimeout,
+  acquireTimeout: poolConfig.acquireTimeout,
+  socketTimeout: poolConfig.socketTimeout,
+  idleTimeout: poolConfig.idleTimeout,
+  enableKeepAlive: poolConfig.enableKeepAlive
+});
+
 export default prisma;
+export { dbRuntimeConfig };

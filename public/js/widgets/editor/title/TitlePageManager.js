@@ -70,7 +70,7 @@ export class TitlePageManager {
         this.titlePageData = { title: '', author: '', description: '', date: '', visibility: 'private' };
         this.scriptId = null;
         this.persistTimer = null;
-        this.persistDelay = 400;
+        this.persistDelay = 1500;
         this.visibilitySelect = null;
         this.isTitlePageCollapsed = false;
         this.mediaPicker = null;

@@ -1,6 +1,7 @@
 import userModel from '../../models/user.js';
 import scriptModel from '../../models/script.js';
 import tokenUsageRepository from '../../repositories/tokenUsageRepository.js';
+import sessionCache from '../../middleware/sessionCache.js';
 
 const sanitizeUser = (user) => {
   if (!user) return user;
@@ -131,6 +132,7 @@ const userController = {
       if (!success) {
         return res.status(401).json({ error: 'Invalid session' });
       }
+      sessionCache.delete(sessionToken);
 
       // Clear the session cookie
       res.clearCookie('sessionToken', {
@@ -148,17 +150,10 @@ const userController = {
 
   getCurrentUser: async(req, res) => {
     try {
-      const { sessionToken } = req.cookies;
-      if (!sessionToken) {
-        console.log('No session token found');
-        return res.status(401).json({ error: 'Not authenticated' });
-      }
-      const user = await userModel.validateSession(sessionToken);
-      if (!user) {
-        console.log('Invalid session');
+      if (!req.user) {
         return res.status(401).json({ error: 'Invalid session' });
       }
-      res.json(sanitizeUser(user));
+      res.json(sanitizeUser(req.user));
     } catch (error) {
       console.error('Error getting current user:', error);
       res.status(500).json({ error: 'Internal server error' });
