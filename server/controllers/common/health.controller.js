@@ -10,6 +10,7 @@ export class HealthController {
   constructor(dependencies = {}) {
     this.prisma = dependencies.prisma || prisma;
     this.aiClient = dependencies.aiClient;
+    this.healthDbCheckEnabled = process.env.HEALTH_DB_CHECK_ENABLED !== 'false';
     this.startTime = Date.now();
     this.healthChecks = new Map();
     this.readinessChecks = new Map();
@@ -23,12 +24,19 @@ export class HealthController {
      */
   _registerDefaultChecks() {
     // Database health check
-    this.registerHealthCheck('database', async() => {
-      await this.prisma.$queryRaw`SELECT 1`;
-      return {
-        status: 'healthy'
-      };
-    });
+    if (this.healthDbCheckEnabled) {
+      this.registerHealthCheck('database', async() => {
+        await this.prisma.$queryRaw`SELECT 1`;
+        return {
+          status: 'healthy'
+        };
+      });
+    } else {
+      this.registerHealthCheck('database', async() => ({
+        status: 'disabled',
+        message: 'Database health check disabled by HEALTH_DB_CHECK_ENABLED=false'
+      }));
+    }
 
     // AI service health check
     this.registerHealthCheck('ai', async() => {
