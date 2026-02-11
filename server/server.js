@@ -249,11 +249,10 @@ class ScriptPalServer {
           defaultSrc: ["'self'"],
           scriptSrc: [
             "'self'",
-            (req, res) => `'nonce-${res.locals.cspNonce}'`,
-            "'strict-dynamic'"
+            (req, res) => `'nonce-${res.locals.cspNonce}'`
           ],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
           imgSrc: ["'self'", "data:", "blob:", "*"], // Allow images from any source for AI generation
           connectSrc: ["'self'"]
         }
