@@ -54,6 +54,9 @@ export class SecurityMiddleware {
      */
   getHelmetConfig() {
     return helmet({
+      // CSP is configured in server.js with per-request nonces.
+      // Disable Helmet's default CSP here to avoid overriding nonce policy.
+      contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
       hsts: {
         maxAge: 31536000,

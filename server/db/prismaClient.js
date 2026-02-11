@@ -27,6 +27,19 @@ const getEnvNumber = (key, fallback) => {
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const getSearchParamNumber = (searchParams, keys, fallback) => {
+  for (const key of keys) {
+    const raw = searchParams.get(key);
+    if (raw == null || raw === '') {
+      continue;
+    }
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+};
 const getEnvBoolean = (key, fallback) => {
   const raw = trimEnvValue(process.env[key]);
   if (raw === undefined) {
@@ -46,7 +59,10 @@ const buildPoolConfig = () => {
   const baseConfig = {
     waitForConnections: true,
     connectionLimit: getEnvNumber('DB_CONNECTION_LIMIT', 10),
-    queueLimit: getEnvNumber('DB_QUEUE_LIMIT', 0)
+    queueLimit: getEnvNumber('DB_QUEUE_LIMIT', 0),
+    connectTimeout: getEnvNumber('DB_CONNECT_TIMEOUT_MS', 10000),
+    acquireTimeout: getEnvNumber('DB_ACQUIRE_TIMEOUT_MS', 15000),
+    socketTimeout: getEnvNumber('DB_SOCKET_TIMEOUT_MS', 30000)
   };
 
   const databaseUrl = getEnvValue('DATABASE_URL');
@@ -64,6 +80,18 @@ const buildPoolConfig = () => {
       'DB_ALLOW_PUBLIC_KEY_RETRIEVAL',
       url.searchParams.get('allowPublicKeyRetrieval') === 'true'
     );
+    const connectTimeout = getEnvNumber(
+      'DB_CONNECT_TIMEOUT_MS',
+      getSearchParamNumber(url.searchParams, ['connectTimeout', 'connect_timeout'], baseConfig.connectTimeout)
+    );
+    const acquireTimeout = getEnvNumber(
+      'DB_ACQUIRE_TIMEOUT_MS',
+      getSearchParamNumber(url.searchParams, ['acquireTimeout', 'acquire_timeout'], baseConfig.acquireTimeout)
+    );
+    const socketTimeout = getEnvNumber(
+      'DB_SOCKET_TIMEOUT_MS',
+      getSearchParamNumber(url.searchParams, ['socketTimeout', 'socket_timeout'], baseConfig.socketTimeout)
+    );
 
     return {
       ...baseConfig,
@@ -72,6 +100,9 @@ const buildPoolConfig = () => {
       user,
       password,
       database,
+      connectTimeout,
+      acquireTimeout,
+      socketTimeout,
       ...(allowPublicKeyRetrieval === undefined
         ? {}
         : { allowPublicKeyRetrieval })
