@@ -159,7 +159,7 @@ export class PublicScriptsWidget {
 
         meta.append(authorSpan, versionSpan, dateSpan);
 
-        header.appendChild(thumb);
+        // header.appendChild(thumb);
         header.appendChild(titleLink);
         card.appendChild(header);
         card.appendChild(descriptionSpan);

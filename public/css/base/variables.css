@@ -52,5 +52,6 @@
     --top-bar-height: 6vh;
     /* Widths */
     --max-width: 1200px;
+    --max-width-slim: 680px;
     --border-radius: 10px;
 }

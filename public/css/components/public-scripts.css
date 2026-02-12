@@ -8,11 +8,12 @@
 .public-scripts-panel {
     width: 100%;
     height: 100%;
-    margin: 0;
+    margin: 0 auto;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
     border-top: 1px solid var(--border-color, #e1e5e9);
+    width: var(--max-width-slim);
 }
 
 .public-scripts-header {
@@ -53,7 +54,6 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    width: 100%;
 }
 
 .public-script-page {
@@ -364,6 +364,9 @@
     cursor: pointer;
     padding: 0.25rem;
     font-size: 1rem;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
 }
 
 .public-script-comments-panel__body {
