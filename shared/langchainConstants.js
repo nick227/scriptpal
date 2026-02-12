@@ -43,85 +43,15 @@ export const VALID_TAGS_BLOCK = `VALID TAGS
 <action>   Description of what happens
 <speaker>  Character name in CAPS
 <dialog>   Spoken words
-<directions> Parenthetical (beat), (pause), (sotto)
-<chapter-break> Major story division (rare)`;
+<directions> Parenthetical (beat), (pause), (sotto)`;
 
 export const SCREENPLAY_GRAMMAR_V1 = `SCREENPLAY GRAMMAR (enforced)
 1. <speaker> MUST be followed by <dialog>
-2. <directions> only appears between <speaker> and <dialog>
-3. Never output <dialog> without a preceding <speaker>
+2. Never output <dialog> without a preceding <speaker>
 4. <action> stands alone — describes visuals, not speech
 5. Each XML tag = 1 line`;
 
-export const JSON_ESCAPE_RULE = 'Escape quotes in JSON as \\". Output JSON only — no markdown, no extra text.';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CANONICAL RESPONSE SHAPE (v2)
-// Single source of truth for all AI response structures.
-// NO legacy aliases - clean, strict contract.
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Canonical response shape for all script-mutating intents.
- * 
- * API Response Structure:
- *   {
- *     success: boolean,
- *     intent: string,
- *     scriptId: number | null,
- *     scriptTitle: string,
- *     timestamp: string,
- *     response: {
- *       message: string,           // Chat message to display
- *       script: string | null,     // Formatted script content (XML-tagged)
- *       metadata: object           // Additional info
- *     }
- *   }
- * 
- * @typedef {Object} CanonicalResponse
- */
-
-/**
- * Build a canonical response object (v2).
- * Use this instead of ad-hoc object construction.
- */
-export const buildCanonicalResponse = ({
-  intent,
-  scriptId = null,
-  scriptTitle = 'Untitled Script',
-  message,
-  script = null,
-  metadata = {}
-}) => ({
-  success: true,
-  intent,
-  scriptId,
-  scriptTitle,
-  timestamp: new Date().toISOString(),
-  response: {
-    message,
-    script,
-    metadata
-  }
-});
-
-/**
- * Extract message from canonical response (v2).
- * @param {Object} data - API response data
- * @returns {string|null}
- */
-export const extractResponseMessage = (data) => {
-  return data?.response?.message || null;
-};
-
-/**
- * Extract script content from canonical response (v2).
- * @param {Object} data - API response data
- * @returns {string|null}
- */
-export const extractResponseScript = (data) => {
-  return data?.response?.script || null;
-};
+export const JSON_ESCAPE_RULE = 'Output JSON only — no markdown, no extra text.';
 
 const countScriptLines = (text) => {
   if (!text || typeof text !== 'string') {

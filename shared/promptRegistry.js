@@ -264,6 +264,12 @@ RULES
 - Continue naturally from the last line.
 - Never repeat content from context.
 - Match the established tone and pacing.
+- Push the story meaningfully forward with each line.
+- Use brief efficient language.
+- It is better to add too much action.
+- Avoid much description be word efficient.
+- Never say how a character is feeling; show it through action and dialogue.
+- You are a sparkplug drive the momentum with each line.
 - ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
@@ -321,6 +327,9 @@ RULES
 - Continue from the last line naturally.
 - Never repeat content from context.
 - Match the tone and pacing.
+- BE ORIGINAL! Push the story forward with each line.
+- Use brief, efficient language, avoid descriptive phrases.
+- Show feelings through action and dialogue; avoid stating emotions directly.
 - ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
