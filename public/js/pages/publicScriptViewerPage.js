@@ -1,7 +1,7 @@
 import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
-import { ScriptPalUser } from '../services/api/ScriptPalUser.js';
 import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
+import { bindAuthenticatedStateGuard, requireAuth } from '../auth/authGate.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
 import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
 import { LineFormatter } from '../widgets/editor/LineFormatter.js';
@@ -478,12 +478,20 @@ const setupCloneControl = (api, stateManager) => {
 };
 
 const initPublicScriptViewer = async () => {
+    const auth = await requireAuth();
+    if (!auth.authenticated) {
+        return;
+    }
+
     renderSharedTopBar();
     const elements = getTopBarElements();
-    const api = new ScriptPalAPI();
+    const api = auth.user?.api || new ScriptPalAPI();
     const stateManager = new StateManager();
     const eventManager = new EventManager();
-    const user = new ScriptPalUser(api);
+    const user = auth.user;
+
+    bindAuthenticatedStateGuard(stateManager, user);
+
     const { authWidget } = await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
 
     const { publicId, legacySlug } = getPublicPathInfo();
@@ -562,4 +570,6 @@ const initPublicScriptViewer = async () => {
     }
 };
 
-initPublicScriptViewer();
+initPublicScriptViewer().catch((error) => {
+    console.error('[PublicScriptViewer] Initialization failed:', error);
+});

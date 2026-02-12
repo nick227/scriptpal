@@ -160,9 +160,10 @@
 }
 
 .auth-page {
-    min-height: 100vh;
+    margin-top: 20vh;
+    min-height: 80vh;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     padding: 2rem;
     background: var(--background-color, #f7f7f9);

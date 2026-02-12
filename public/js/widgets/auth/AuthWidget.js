@@ -18,11 +18,12 @@ export class AuthWidget extends BaseWidget {
      * @param user
      * @param eventManager
      */
-    constructor (elements, stateManager, user, eventManager) {
+    constructor (elements, stateManager, user, eventManager, options = {}) {
         super(elements);
         if (!user) {
             throw new Error('User is required for AuthWidget');
         }
+        this.options = options;
         this.user = user;
         this.stateManager = stateManager;
         this.eventManager = eventManager;
@@ -58,6 +59,7 @@ export class AuthWidget extends BaseWidget {
             );
         }
     }
+
 
     /**
      *
@@ -227,6 +229,12 @@ export class AuthWidget extends BaseWidget {
      *
      */
     updateUIForUnauthenticatedUser () {
+        if (this.options.redirectOnLogout) {
+             const redirectUrl = this.options.authPageUrl || '/auth.html';
+             window.location.replace(redirectUrl);
+             return;
+        }
+
         if (this.formsView) {
             this.formsView.setVisible(true);
         }

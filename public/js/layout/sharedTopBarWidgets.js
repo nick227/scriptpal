@@ -19,7 +19,9 @@ export const initAuthWidget = async (api, user, stateManager, eventManager, topB
         return null;
     }
 
-    const authWidget = new AuthWidget(elements, stateManager, user, eventManager);
+    const authWidget = new AuthWidget(elements, stateManager, user, eventManager, {
+        redirectOnLogout: true
+    });
 
     await authWidget.initialize(elements);
 
