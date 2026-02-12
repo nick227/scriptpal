@@ -145,6 +145,8 @@
 .script-list {
     padding: 4px 0;
     background-color: white;
+    max-height: 50vh;
+    overflow-y: auto;
 }
 
 /* Script Item */

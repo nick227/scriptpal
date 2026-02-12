@@ -176,7 +176,13 @@ export class ListView {
             title.textContent = this.adapter.getTitle(item);
         }
 
-        const meta = this.createElement('div', classNames.tileMeta, this.adapter.getMetaText(item));
+        const meta = this.createElement('div', classNames.tileMeta);
+        const metaContent = this.adapter.getMetaText(item) ?? '';
+        if (this.adapter.view.metaAsHtml) {
+            meta.innerHTML = metaContent;
+        } else {
+            meta.textContent = metaContent;
+        }
 
         const actions = this.createElement('div', classNames.tileActions);
         const mediaButton = supportsMedia

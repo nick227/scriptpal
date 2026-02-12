@@ -422,9 +422,12 @@ const scriptModel = {
       await tx.scriptPage.deleteMany({ where: { scriptId } });
       await tx.persona.deleteMany({ where: { scriptId } });
       await tx.scene.deleteMany({ where: { scriptId } });
+      await tx.outline.deleteMany({ where: { scriptId } });
       await tx.character.deleteMany({ where: { scriptId } });
       await tx.location.deleteMany({ where: { scriptId } });
       await tx.theme.deleteMany({ where: { scriptId } });
+      await tx.scriptComment.deleteMany({ where: { scriptId } });
+      await tx.scriptSlug.deleteMany({ where: { scriptId } });
 
       const deletedScript = await tx.script.delete({
         where: { id: scriptId }
