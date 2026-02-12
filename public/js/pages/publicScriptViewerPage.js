@@ -369,6 +369,96 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
     };
 };
 
+const setupCloneControl = (api, stateManager) => {
+    const cloneButton = document.querySelector('[data-script-clone]');
+    const statusEl = document.querySelector('[data-script-clone-status]');
+
+    if (!cloneButton) {
+        return {
+            setScript: () => {},
+            clearStatus: () => {}
+        };
+    }
+
+    let isAuthenticated = Boolean(stateManager.getState(StateManager.KEYS.AUTHENTICATED));
+    let isCloning = false;
+    let currentScript = null;
+
+    const setStatus = (message = '', isError = false) => {
+        if (!statusEl) return;
+        statusEl.textContent = message;
+        statusEl.classList.toggle('is-error', Boolean(isError));
+    };
+
+    const updateButtonState = () => {
+        const canClone = Boolean(currentScript?.publicId) && isAuthenticated && !isCloning;
+        cloneButton.disabled = !canClone;
+
+        if (isCloning) {
+            cloneButton.textContent = 'Cloning...';
+            return;
+        }
+
+        if (!isAuthenticated) {
+            cloneButton.textContent = 'Sign in to clone';
+            return;
+        }
+
+        cloneButton.textContent = 'Clone';
+    };
+
+    const handleClone = async() => {
+        if (!currentScript?.publicId || !isAuthenticated || isCloning) {
+            return;
+        }
+
+        isCloning = true;
+        updateButtonState();
+        setStatus('');
+
+        try {
+            const cloned = await api.publicScripts.clonePublicScriptByPublicId(currentScript.publicId, {
+                versionNumber: currentScript.versionNumber
+            });
+
+            if (!cloned || !cloned.id) {
+                throw new Error('Invalid clone response');
+            }
+
+            const targetPath = cloned.slug
+                ? `/mine/${encodeURIComponent(cloned.slug)}`
+                : '/mine';
+            window.location.assign(targetPath);
+        } catch (error) {
+            console.error('[PublicScriptViewer] Clone failed:', error);
+            setStatus('Unable to clone script right now.', true);
+            isCloning = false;
+            updateButtonState();
+        }
+    };
+
+    cloneButton.addEventListener('click', handleClone);
+
+    stateManager.subscribe(StateManager.KEYS.AUTHENTICATED, (value) => {
+        isAuthenticated = Boolean(value);
+        updateButtonState();
+    });
+
+    updateButtonState();
+
+    return {
+        setScript (script) {
+            currentScript = script || null;
+            isCloning = false;
+            setStatus('');
+            updateButtonState();
+        },
+        clearStatus () {
+            setStatus('');
+        }
+    };
+};
+
 const initPublicScriptViewer = async () => {
     renderSharedTopBar();
     const elements = getTopBarElements();
@@ -394,7 +484,9 @@ const initPublicScriptViewer = async () => {
     }
 
     const commentsPanelController = setupCommentsPanel(api, authWidget, stateManager);
+    const cloneControl = setupCloneControl(api, stateManager);
     commentsPanelController?.setScriptId(null);
+    cloneControl.setScript(null);
 
     if (!publicId && !legacySlug && !scriptId) {
         setViewerMessage(viewerLines, 'No script selected.', false);
@@ -409,6 +501,7 @@ const initPublicScriptViewer = async () => {
                 : await api.publicScripts.getPublicScript(scriptId);
         if (!script) {
             commentsPanelController?.setScriptId(null);
+            cloneControl.setScript(null);
             setViewerMessage(viewerLines, 'Script is not available.', true);
             return;
         }
@@ -439,9 +532,11 @@ const initPublicScriptViewer = async () => {
         renderStaticScriptLines(viewerLines, script.content || '');
         commentsPanelController?.setScriptId(script.id);
         commentsPanelController?.setCommentCount(script.commentCount || 0);
+        cloneControl.setScript(script);
     } catch (error) {
         console.error('[PublicScriptViewer] Failed to load script:', error);
         commentsPanelController?.setScriptId(null);
+        cloneControl.setScript(null);
         setViewerMessage(viewerLines, 'Unable to load script.', true);
     }
 };

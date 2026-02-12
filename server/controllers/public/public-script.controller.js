@@ -129,6 +129,38 @@ const publicScriptController = {
       console.error('Error fetching public script by slug:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  },
+
+  cloneByPublicId: async(req, res) => {
+    try {
+      const rawVersion = req.body?.versionNumber;
+      let versionNumber;
+      if (rawVersion !== undefined && rawVersion !== null) {
+        const parsed = Number(rawVersion);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          return res.status(400).json({ error: 'versionNumber must be a positive number' });
+        }
+        versionNumber = Math.floor(parsed);
+      }
+
+      const cloned = await scriptModel.clonePublicScriptByPublicId({
+        publicId: req.params.publicId,
+        targetUserId: req.userId,
+        versionNumber
+      });
+
+      if (!cloned) {
+        return res.status(404).json({ error: 'Script not found' });
+      }
+
+      return res.status(201).json(cloned);
+    } catch (error) {
+      if (error?.code === 'CLONE_TITLE_COLLISION_EXHAUSTED') {
+        return res.status(409).json({ error: 'Unable to generate unique clone title' });
+      }
+      console.error('Error cloning public script by publicId:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
 };
 

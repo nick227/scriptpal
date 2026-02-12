@@ -1,10 +1,15 @@
-import { getCircularFormat, getNextFormat, FORMAT_FLOW } from '../../../constants/formats.js';
+import { getCircularFormat, FORMAT_FLOW } from '../../../constants/formats.js';
 import { debugLog } from '../../../core/logger.js';
 
 import { KeyboardEditController } from './KeyboardEditController.js';
 import { KeyboardSelectionController } from './KeyboardSelectionController.js';
 
 /**
+ * Key Intent Contract:
+ * One keypress resolves to one intent.
+ * Autocomplete may consume keys.
+ * Consumed keys never fall through.
+ *
  * Thin dispatcher for keyboard events.
  * Routes events to appropriate controllers.
  */
@@ -30,10 +35,6 @@ export class KeyboardManager {
         // Format flow for cycling
         this.formatFlow = Object.keys(FORMAT_FLOW);
 
-        // Autocomplete tracking
-        this._autocompleteAccepted = false;
-        this._autocompleteAcceptedLineId = null;
-
         // IME/composition
         this._isComposing = false;
 
@@ -41,6 +42,8 @@ export class KeyboardManager {
         this.selectionController = new KeyboardSelectionController({
             editorArea: null, // Set in initialize()
             pageManager: this.pageManager,
+            getNextLine: (line) => this._getAdjacentLine(line, 'next'),
+            getPreviousLine: (line) => this._getAdjacentLine(line, 'previous'),
             debugLog: this._debugLog
         });
 
@@ -71,6 +74,10 @@ export class KeyboardManager {
 
         this.editorArea = editorArea;
         this.selectionController.setEditorArea(editorArea);
+        this.selectionController.setLineResolvers({
+            getNextLine: (line) => this._getAdjacentLine(line, 'next'),
+            getPreviousLine: (line) => this._getAdjacentLine(line, 'previous')
+        });
 
         editorArea.addEventListener('keydown', this._boundHandlers.keydown);
         editorArea.addEventListener('click', this._boundHandlers.click);
@@ -145,7 +152,7 @@ export class KeyboardManager {
         }
 
         // Priority 4: Formatting
-        if (this._handleFormatting(event, scriptLine)) {
+        if (this._handleFormatting()) {
             return;
         }
     }
@@ -178,17 +185,8 @@ export class KeyboardManager {
         if (event.key === 'Tab') {
             event.preventDefault();
             event.stopPropagation();
-            const accepted = this.autocomplete.acceptSuggestion(scriptLine);
-            if (accepted) {
-                this._autocompleteAccepted = true;
-                this._autocompleteAcceptedLineId = scriptLine.dataset?.lineId || null;
-            }
-            return false;
-        }
-
-        if (event.key === 'Enter') {
             this.autocomplete.acceptSuggestion(scriptLine);
-            return false;
+            return true;
         }
 
         return false;
@@ -249,8 +247,8 @@ export class KeyboardManager {
         this.selectionController.clear();
 
         const nextLine = event.key === 'ArrowUp'
-            ? this.pageManager.getPreviousLine(scriptLine)
-            : this.pageManager.getNextLine(scriptLine);
+            ? this._getAdjacentLine(scriptLine, 'previous')
+            : this._getAdjacentLine(scriptLine, 'next');
 
         if (nextLine) {
             this._focusLine(nextLine);
@@ -285,6 +283,11 @@ export class KeyboardManager {
         event.preventDefault();
         event.stopPropagation();
 
+        // If autocomplete is active, accept first, then split once.
+        if (this.autocomplete?.hasActiveSuggestion(scriptLine)) {
+            this.autocomplete.acceptSuggestion(scriptLine);
+        }
+
         const content = scriptLine.textContent || '';     // DOM, not model
         const offsets = this._getSelectionOffsets(scriptLine);
         const cursorPos = offsets?.startOffset ?? content.length;
@@ -298,24 +301,12 @@ export class KeyboardManager {
         event.preventDefault();
 
         const targetLine = event.shiftKey
-            ? this.pageManager.getPreviousLine(scriptLine)
-            : this.pageManager.getNextLine(scriptLine);
-
-        // Apply dialog format after autocomplete acceptance
-        if (this._autocompleteAccepted && targetLine) {
-            const matchesLine = !this._autocompleteAcceptedLineId ||
-                this._autocompleteAcceptedLineId === scriptLine.dataset?.lineId;
-            if (matchesLine) {
-                this._applyFormatCommand(targetLine, 'dialog');
-            }
-        }
+            ? this._getAdjacentLine(scriptLine, 'previous')
+            : this._getAdjacentLine(scriptLine, 'next');
 
         if (targetLine) {
             this._focusLine(targetLine);
         }
-
-        this._autocompleteAccepted = false;
-        this._autocompleteAcceptedLineId = null;
         return true;
     }
 
@@ -382,14 +373,9 @@ export class KeyboardManager {
     // Priority 4: Formatting
     // ==============================================
 
-    _handleFormatting(event, scriptLine) {
+    _handleFormatting() {
         if (this.appStateManager?.isEditorReadOnly?.()) {
             return false;
-        }
-        if (event.key === 'Tab' && !this.autocomplete?.currentSuggestion) {
-            event.preventDefault();
-            this.lineFormatter?.indent(scriptLine, event.shiftKey);
-            return true;
         }
         return false;
     }
@@ -481,6 +467,33 @@ export class KeyboardManager {
         } catch {
             // Ignore focus errors
         }
+    }
+
+    _getAdjacentLine(scriptLine, direction) {
+        if (!scriptLine) {
+            return null;
+        }
+
+        const lineId = scriptLine.dataset?.lineId || this.contentManager?.ensureLineId?.(scriptLine);
+        if (lineId && this.contentManager) {
+            if (direction === 'next' && typeof this.contentManager.getNextLine === 'function') {
+                const next = this.contentManager.getNextLine(lineId);
+                if (next) {
+                    return next;
+                }
+            }
+            if (direction === 'previous' && typeof this.contentManager.getPrevLine === 'function') {
+                const previous = this.contentManager.getPrevLine(lineId);
+                if (previous) {
+                    return previous;
+                }
+            }
+        }
+
+        if (direction === 'next') {
+            return this.pageManager?.getNextLine(scriptLine) || null;
+        }
+        return this.pageManager?.getPreviousLine(scriptLine) || null;
     }
 
     _captureSelection(line) {

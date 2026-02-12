@@ -273,6 +273,37 @@
     font-size: 0.85rem;
     color: var(--text-secondary, #6b7280);
     cursor: pointer;
+    text-decoration: underline;
+}
+
+.public-script-clone-toggle {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #6b7280);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.public-script-clone-toggle:hover,
+.public-script-clone-toggle:focus-visible {
+    color: var(--accent-color, #2563eb);
+}
+
+.public-script-clone-toggle:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+    text-decoration: none;
+}
+
+.public-script-clone-status {
+    min-height: 1em;
+}
+
+.public-script-clone-status.is-error {
+    color: var(--danger-color, #dc2626);
 }
 
 .public-script-comments-toggle:hover,

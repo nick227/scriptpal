@@ -52,6 +52,7 @@ export class ValidationError extends APIError {
         SCRIPT_ID_REQUIRED: 'Script ID is required',
         ITEM_ID_REQUIRED: 'Item ID is required',
         BOARD_ID_REQUIRED: 'Board ID is required',
+        PUBLIC_ID_REQUIRED: 'Public ID is required',
         CATEGORY_REQUIRED: 'Category is required',
         SLUG_REQUIRED: 'Slug is required',
         FILE_REQUIRED: 'File is required',

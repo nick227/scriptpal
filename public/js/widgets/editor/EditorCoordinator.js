@@ -302,6 +302,63 @@ export class EditorCoordinator {
     }
 
     /**
+     * Get a DOM line element by logical line index.
+     * @param {number} index
+     * @returns {HTMLElement|null}
+     */
+    getLineByIndex(index) {
+        if (!Number.isInteger(index) || index < 0) {
+            return null;
+        }
+
+        const lines = this.documentService.getLines();
+        const line = lines[index];
+        if (!line?.id) {
+            return null;
+        }
+
+        return this._getLineElementById(line.id);
+    }
+
+    /**
+     * Resolve the next line in logical document order.
+     * @param {HTMLElement|string} lineOrId
+     * @returns {HTMLElement|null}
+     */
+    getNextLine(lineOrId) {
+        const lineId = this._resolveLineId(lineOrId);
+        if (!lineId) {
+            return null;
+        }
+
+        const currentIndex = this.documentService.getLineIndex(lineId);
+        if (currentIndex < 0) {
+            return null;
+        }
+
+        return this.getLineByIndex(currentIndex + 1);
+    }
+
+    /**
+     * Resolve the previous line in logical document order.
+     * @param {HTMLElement|string} lineOrId
+     * @returns {HTMLElement|null}
+     */
+    getPrevLine(lineOrId) {
+        const lineId = this._resolveLineId(lineOrId);
+        if (!lineId) {
+            return null;
+        }
+
+        const currentIndex = this.documentService.getLineIndex(lineId);
+        if (currentIndex <= 0) {
+            return null;
+        }
+
+        return this.getLineByIndex(currentIndex - 1);
+    }
+
+    /**
      *
      * @param lineId
      */
@@ -837,6 +894,38 @@ export class EditorCoordinator {
             return 'action';
         }
         return match[1].toLowerCase();
+    }
+
+    /**
+     * @param {HTMLElement|string} lineOrId
+     * @returns {string|null}
+     */
+    _resolveLineId(lineOrId) {
+        if (!lineOrId) {
+            return null;
+        }
+
+        if (typeof lineOrId === 'string') {
+            return lineOrId;
+        }
+
+        if (lineOrId.dataset?.lineId) {
+            return lineOrId.dataset.lineId;
+        }
+
+        return this.ensureLineId(lineOrId);
+    }
+
+    /**
+     * @param {string} lineId
+     * @returns {HTMLElement|null}
+     */
+    _getLineElementById(lineId) {
+        if (!lineId || !this.editorArea) {
+            return null;
+        }
+
+        return this.editorArea.querySelector(`[data-line-id="${lineId}"]`);
     }
 
     /**

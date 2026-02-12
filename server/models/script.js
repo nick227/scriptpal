@@ -35,6 +35,43 @@ const normalizeContentForCompare = (content) => {
   return s;
 };
 
+const buildCloneTitleCandidate = (baseTitle, copyIndex) => {
+  if (copyIndex <= 1) {
+    return `${baseTitle} (Copy)`;
+  }
+  return `${baseTitle} (Copy ${copyIndex})`;
+};
+
+const generateUniqueCloneTitle = async({
+  userId,
+  sourceTitle,
+  client = prisma,
+  maxAttempts = 200
+}) => {
+  const normalizedUserId = Number(userId);
+  const baseTitle = (typeof sourceTitle === 'string' && sourceTitle.trim())
+    ? sourceTitle.trim()
+    : 'Untitled Script';
+
+  for (let copyIndex = 1; copyIndex <= maxAttempts; copyIndex += 1) {
+    const candidate = buildCloneTitleCandidate(baseTitle, copyIndex);
+    const existing = await client.script.findFirst({
+      where: {
+        userId: normalizedUserId,
+        title: candidate
+      },
+      select: { id: true }
+    });
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  const error = new Error('Unable to generate unique clone title');
+  error.code = 'CLONE_TITLE_COLLISION_EXHAUSTED';
+  throw error;
+};
+
 const scriptModel = {
   getScript: async(id, versionNumber = null) => {
     const scriptId = Number(id);
@@ -450,6 +487,115 @@ const scriptModel = {
       fromVersion: result.fromVersion,
       toVersion: result.toVersion
     };
+  },
+
+  clonePublicScriptByPublicId: async({ publicId, targetUserId, versionNumber } = {}) => {
+    const normalizedUserId = Number(targetUserId);
+    if (!publicId || !Number.isFinite(normalizedUserId) || normalizedUserId <= 0) {
+      return null;
+    }
+
+    const result = await prisma.$transaction(async(tx) => {
+      const sourceScript = await tx.script.findFirst({
+        where: {
+          publicId,
+          visibility: 'public'
+        }
+      });
+      if (!sourceScript) {
+        return null;
+      }
+
+      const normalizedVersion = Number.isFinite(Number(versionNumber)) && Number(versionNumber) > 0
+        ? Math.floor(Number(versionNumber))
+        : null;
+
+      const sourceVersion = normalizedVersion
+        ? await tx.scriptVersion.findFirst({
+            where: {
+              scriptId: sourceScript.id,
+              versionNumber: normalizedVersion
+            }
+          })
+        : await tx.scriptVersion.findFirst({
+            where: { scriptId: sourceScript.id },
+            orderBy: { versionNumber: 'desc' }
+          });
+
+      if (!sourceVersion) {
+        return null;
+      }
+
+      const cloneTitle = await generateUniqueCloneTitle({
+        userId: normalizedUserId,
+        sourceTitle: sourceScript.title,
+        client: tx
+      });
+
+      const slug = await generateUniqueSlug({
+        title: cloneTitle,
+        isTaken: async(candidate) => {
+          return await scriptSlugRepository.existsSlugForUser({
+            userId: normalizedUserId,
+            slug: candidate
+          }, tx);
+        }
+      });
+
+      const createdScript = await tx.script.create({
+        data: {
+          userId: normalizedUserId,
+          title: cloneTitle,
+          author: sourceScript.author || null,
+          description: sourceScript.description || null,
+          status: sourceScript.status || 'draft',
+          visibility: 'private',
+          slug,
+          publicId: null
+        }
+      });
+
+      await tx.scriptSlug.create({
+        data: {
+          userId: normalizedUserId,
+          scriptId: createdScript.id,
+          slug,
+          isCanonical: true
+        }
+      });
+
+      const createdVersion = await tx.scriptVersion.create({
+        data: {
+          scriptId: createdScript.id,
+          versionNumber: 1,
+          content: sourceVersion.content || ''
+        }
+      });
+
+      await tx.scriptCommand.create({
+        data: {
+          scriptId: createdScript.id,
+          type: 'clone_script',
+          payload: {
+            sourceScriptId: sourceScript.id,
+            sourcePublicId: sourceScript.publicId,
+            sourceVersionNumber: sourceVersion.versionNumber
+          },
+          author: 'user'
+        }
+      });
+
+      return {
+        script: createdScript,
+        version: createdVersion
+      };
+    });
+
+    if (!result) {
+      return null;
+    }
+
+    return toScriptWithVersion(result.script, result.version);
   }
 };
 

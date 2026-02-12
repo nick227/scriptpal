@@ -105,16 +105,13 @@ export class AutocompleteManager {
      * @param {HTMLElement} lineElement
      */
     acceptSuggestion (lineElement) {
-        if (!this.hasActiveSuggestion(lineElement) || !this.currentSuggestion) {
+        const hasSuggestion = this.hasActiveSuggestion(lineElement) &&
+            Boolean(this.currentSuggestion?.fullSuggestion);
+        if (!hasSuggestion) {
             return false;
         }
 
         const { fullSuggestion } = this.currentSuggestion;
-        if (!fullSuggestion) {
-            this.clearSuggestion();
-            return false;
-        }
-
         lineElement.textContent = fullSuggestion;
 
         if (this.contentManager && typeof this.contentManager.syncLineContentFromDOM === 'function') {

@@ -12,6 +12,8 @@ export class KeyboardSelectionController {
     constructor (options) {
         this.editorArea = options.editorArea;
         this.pageManager = options.pageManager;
+        this.getNextLine = typeof options.getNextLine === 'function' ? options.getNextLine : null;
+        this.getPreviousLine = typeof options.getPreviousLine === 'function' ? options.getPreviousLine : null;
         this._debugLog = options.debugLog || (() => {});
 
         this.selectionStart = null;
@@ -24,6 +26,17 @@ export class KeyboardSelectionController {
      */
     setEditorArea (editorArea) {
         this.editorArea = editorArea;
+    }
+
+    /**
+     * Set logical line resolver callbacks.
+     * @param {object} root0
+     * @param {function} [root0.getNextLine]
+     * @param {function} [root0.getPreviousLine]
+     */
+    setLineResolvers ({ getNextLine, getPreviousLine } = {}) {
+        this.getNextLine = typeof getNextLine === 'function' ? getNextLine : this.getNextLine;
+        this.getPreviousLine = typeof getPreviousLine === 'function' ? getPreviousLine : this.getPreviousLine;
     }
 
     /**
@@ -61,8 +74,8 @@ export class KeyboardSelectionController {
         }
 
         const nextLine = direction === 'up'
-            ? this.pageManager.getPreviousLine(currentLine)
-            : this.pageManager.getNextLine(currentLine);
+            ? this._resolvePreviousLine(currentLine)
+            : this._resolveNextLine(currentLine);
 
         if (nextLine) {
             this.selectionEnd = nextLine;
@@ -185,8 +198,8 @@ export class KeyboardSelectionController {
             }
 
             currentLine = after
-                ? this.pageManager.getNextLine(currentLine)
-                : this.pageManager.getPreviousLine(currentLine);
+                ? this._resolveNextLine(currentLine)
+                : this._resolvePreviousLine(currentLine);
 
             if (lines.length > 100) {
                 console.warn('[KeyboardSelectionController] Selection loop detected, breaking');
@@ -217,5 +230,29 @@ export class KeyboardSelectionController {
         this.clear();
         this.editorArea = null;
         this.pageManager = null;
+        this.getNextLine = null;
+        this.getPreviousLine = null;
+    }
+
+    /**
+     * @param {HTMLElement} line
+     * @returns {HTMLElement|null}
+     */
+    _resolveNextLine (line) {
+        if (this.getNextLine) {
+            return this.getNextLine(line) || null;
+        }
+        return this.pageManager?.getNextLine(line) || null;
+    }
+
+    /**
+     * @param {HTMLElement} line
+     * @returns {HTMLElement|null}
+     */
+    _resolvePreviousLine (line) {
+        if (this.getPreviousLine) {
+            return this.getPreviousLine(line) || null;
+        }
+        return this.pageManager?.getPreviousLine(line) || null;
     }
 }

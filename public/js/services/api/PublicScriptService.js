@@ -1,5 +1,4 @@
 import { API_ENDPOINTS } from '../../constants.js';
-import { HttpClient } from './HttpClient.js';
 import { ValidationError } from './APIError.js';
 
 /**
@@ -71,6 +70,29 @@ export class PublicScriptService {
             throw new ValidationError('SLUG_REQUIRED');
         }
         return this.http.request(`${API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG}/${encodeURIComponent(slug)}`, { method: 'GET' });
+    }
+
+    /**
+     * Clone a public script into the authenticated user's account
+     * @param {string} publicId - Stable public script identifier
+     * @param {object} [options] - Clone options
+     * @param {number} [options.versionNumber] - Specific version to clone
+     * @returns {Promise<object>} Cloned script object
+     */
+    async clonePublicScriptByPublicId(publicId, options = {}) {
+        if (!publicId) {
+            throw new ValidationError('PUBLIC_ID_REQUIRED');
+        }
+
+        const payload = {};
+        if (options.versionNumber !== undefined && options.versionNumber !== null) {
+            payload.versionNumber = Number(options.versionNumber);
+        }
+
+        return this.http.request(API_ENDPOINTS.PUBLIC_SCRIPT_CLONE(encodeURIComponent(publicId)), {
+            method: 'POST',
+            data: payload
+        });
     }
 
     /**

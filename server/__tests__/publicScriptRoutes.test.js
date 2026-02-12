@@ -10,7 +10,13 @@ jest.mock('../repositories/mediaAttachmentRepository.js', () => ({
 }));
 
 const app = express();
+app.use(express.json());
+app.use((req, _res, next) => {
+  req.userId = 7;
+  next();
+});
 app.get('/api/public/scripts/public/:publicId', publicScriptController.getByPublicId);
+app.post('/api/public/scripts/public/:publicId/clone', publicScriptController.cloneByPublicId);
 
 describe('Public script routing', () => {
   beforeEach(() => {
@@ -46,5 +52,37 @@ describe('Public script routing', () => {
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('Script not found');
+  });
+
+  it('clones a public script by publicId when authenticated', async() => {
+    scriptModel.clonePublicScriptByPublicId.mockResolvedValue({
+      id: 91,
+      userId: 7,
+      title: 'Big Red (Copy)',
+      slug: 'big-red-copy',
+      versionNumber: 1,
+      content: 'line'
+    });
+
+    const response = await request(app)
+      .post('/api/public/scripts/public/pub-test-id/clone')
+      .send({ versionNumber: 3 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.id).toBe(91);
+    expect(scriptModel.clonePublicScriptByPublicId).toHaveBeenCalledWith({
+      publicId: 'pub-test-id',
+      targetUserId: 7,
+      versionNumber: 3
+    });
+  });
+
+  it('returns 400 for invalid versionNumber during clone', async() => {
+    const response = await request(app)
+      .post('/api/public/scripts/public/pub-test-id/clone')
+      .send({ versionNumber: 0 });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('versionNumber');
   });
 });

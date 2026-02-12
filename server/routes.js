@@ -81,6 +81,12 @@ const routes = [
     handler: publicScriptController.getByPublicId
   },
   {
+    path: '/public/scripts/public/:publicId/clone',
+    method: 'post',
+    handler: publicScriptController.cloneByPublicId,
+    middleware: [validateSession]
+  },
+  {
     path: '/public/scripts/slug/:slug',
     method: 'get',
     handler: publicScriptController.getBySlug
