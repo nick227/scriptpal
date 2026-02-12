@@ -8,6 +8,8 @@ import { StateManager } from '../../../core/StateManager.js';
 import { loadJsonFromStorage } from '../../../services/persistence/PersistenceManager.js';
 import { MediaPickerWidget } from '../../media/MediaPickerWidget.js';
 
+const MAX_SCRIPT_TAGS = 10;
+
 const TITLE_PAGE_TEMPLATE = `
     <div class="title-page">
         <div class="title-page-content">
@@ -22,6 +24,14 @@ const TITLE_PAGE_TEMPLATE = `
             <div class="description-section">
                 <label class="description-label">DESCRIPTION</label>
                 <textarea class="description-input" placeholder="Enter script description"></textarea>
+            </div>
+            <div class="tags-section">
+                <label class="tags-label" for="script-tags-input">TAGS</label>
+                <div class="tags-input-wrapper">
+                    <input id="script-tags-input" class="tags-input" type="text" placeholder="Add tags (comma or Enter)">
+                </div>
+                <div class="tags-chips" data-script-tags-chips></div>
+                <p class="tags-feedback" data-script-tags-feedback aria-live="polite"></p>
             </div>
             <div class="title-media-section">
                 <label class="title-label">SCRIPT IMAGE</label>
@@ -67,7 +77,7 @@ export class TitlePageManager {
         this.api = options.api;
         this.scriptStore = options.scriptStore;
 
-        this.titlePageData = { title: '', author: '', description: '', date: '', visibility: 'private' };
+        this.titlePageData = { title: '', author: '', description: '', tags: [], date: '', visibility: 'private' };
         this.scriptId = null;
         this.persistTimer = null;
         this.persistDelay = 1500;
@@ -110,6 +120,9 @@ export class TitlePageManager {
         this.hiddenTitleInput = this.titlePage.querySelector('.hidden-title-input');
         this.authorInput = this.titlePage.querySelector('.author-input');
         this.descriptionInput = this.titlePage.querySelector('.description-input');
+        this.tagsInput = this.titlePage.querySelector('.tags-input');
+        this.tagsChips = this.titlePage.querySelector('[data-script-tags-chips]');
+        this.tagsFeedback = this.titlePage.querySelector('[data-script-tags-feedback]');
         this.visibilitySelect = this.titlePage.querySelector('.visibility-select');
         this.dateDisplay = this.titlePage.querySelector('.date-display');
         this.toggleTitlePage = this.titlePage.querySelector('.toggle-title-page');
@@ -153,6 +166,10 @@ export class TitlePageManager {
         }
         if (this.descriptionInput) {
             this.descriptionInput.addEventListener('blur', () => this.handleDescriptionBlur());
+        }
+        if (this.tagsInput) {
+            this.tagsInput.addEventListener('keydown', (event) => this.handleTagInputKeyDown(event));
+            this.tagsInput.addEventListener('blur', () => this.handleTagInputBlur());
         }
         if (this.visibilitySelect) {
             this.visibilitySelect.addEventListener('change', () => this.handleVisibilityChange());
@@ -282,6 +299,7 @@ export class TitlePageManager {
         this.titlePageData.title = scriptState.title || this.titlePageData.title;
         this.titlePageData.author = scriptState.author || this.titlePageData.author;
         this.titlePageData.description = scriptState.description || this.titlePageData.description;
+        this.titlePageData.tags = this.normalizeTagList(scriptState.tags);
         this.titlePageData.visibility = this.normalizeVisibility(scriptState.visibility);
         this.updateInputs();
     }
@@ -299,6 +317,7 @@ export class TitlePageManager {
             this.titlePageData.title = script.title || '';
             this.titlePageData.author = script.author || '';
             this.titlePageData.description = script.description || '';
+            this.titlePageData.tags = this.normalizeTagList(script.tags);
             if (typeof script.visibility === 'string') {
                 this.titlePageData.visibility = this.normalizeVisibility(script.visibility);
             }
@@ -332,6 +351,7 @@ export class TitlePageManager {
         if (this.descriptionInput) {
             this.descriptionInput.value = this.titlePageData.description;
         }
+        this.renderTagChips();
         if (this.visibilitySelect) {
             this.visibilitySelect.value = this.titlePageData.visibility;
         }
@@ -352,6 +372,127 @@ export class TitlePageManager {
         this.titlePageData.visibility = this.normalizeVisibility(this.visibilitySelect?.value);
         this.updateHiddenTitleText();
         this.schedulePersist();
+    }
+
+    handleTagInputKeyDown (event) {
+        if (!event) return;
+        if (event.key === 'Enter' || event.key === ',') {
+            event.preventDefault();
+            this.commitTagInput();
+            return;
+        }
+        if (event.key === 'Backspace' && !this.tagsInput?.value && this.titlePageData.tags.length > 0) {
+            this.removeTag(this.titlePageData.tags.length - 1);
+        }
+    }
+
+    handleTagInputBlur () {
+        if (this._updatingFromState) return;
+        this.commitTagInput();
+    }
+
+    normalizeTagValue (value) {
+        if (typeof value !== 'string') return '';
+        return value.trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    normalizeTagList (tags) {
+        if (!Array.isArray(tags)) return [];
+        const normalized = [];
+        const seen = new Set();
+
+        tags.forEach((tag) => {
+            const compact = this.normalizeTagValue(tag);
+            if (!compact || compact.length > 32 || seen.has(compact)) {
+                return;
+            }
+            if (normalized.length < MAX_SCRIPT_TAGS) {
+                seen.add(compact);
+                normalized.push(compact);
+            }
+        });
+
+        return normalized;
+    }
+
+    commitTagInput () {
+        if (!this.tagsInput) return;
+        const rawValue = this.tagsInput.value || '';
+        this.tagsInput.value = '';
+        const entries = rawValue
+            .split(',')
+            .map((entry) => this.normalizeTagValue(entry))
+            .filter(Boolean);
+
+        if (entries.length === 0) {
+            this.renderTagFeedback();
+            return;
+        }
+
+        const prior = this.titlePageData.tags.slice();
+        entries.forEach((tag) => {
+            if (this.titlePageData.tags.length >= MAX_SCRIPT_TAGS) {
+                return;
+            }
+            if (!this.titlePageData.tags.includes(tag)) {
+                this.titlePageData.tags.push(tag);
+            }
+        });
+
+        this.titlePageData.tags = this.normalizeTagList(this.titlePageData.tags);
+        this.renderTagChips();
+        this.renderTagFeedback();
+
+        if (JSON.stringify(prior) !== JSON.stringify(this.titlePageData.tags)) {
+            this.persistTags();
+        }
+    }
+
+    removeTag (index) {
+        if (this._updatingFromState) return;
+        if (!Array.isArray(this.titlePageData.tags)) return;
+        if (index < 0 || index >= this.titlePageData.tags.length) return;
+        this.titlePageData.tags.splice(index, 1);
+        this.renderTagChips();
+        this.renderTagFeedback();
+        this.persistTags();
+    }
+
+    renderTagFeedback () {
+        if (!this.tagsFeedback) return;
+        const total = this.titlePageData.tags.length;
+        if (total >= MAX_SCRIPT_TAGS) {
+            this.tagsFeedback.textContent = `Tag limit reached (${MAX_SCRIPT_TAGS})`;
+            return;
+        }
+        this.tagsFeedback.textContent = `${total}/${MAX_SCRIPT_TAGS} tags`;
+    }
+
+    renderTagChips () {
+        if (!this.tagsChips) return;
+        this.tagsChips.innerHTML = '';
+
+        this.titlePageData.tags.forEach((tag, index) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'tag-chip';
+            chip.setAttribute('aria-label', `Remove tag ${tag}`);
+            chip.innerHTML = `<span>${tag}</span><span aria-hidden="true">&times;</span>`;
+            chip.addEventListener('click', () => this.removeTag(index));
+            this.tagsChips.appendChild(chip);
+        });
+
+        this.renderTagFeedback();
+    }
+
+    persistTags () {
+        if (!this.scriptId || !this.scriptStore) {
+            return;
+        }
+        this.scriptStore.queuePatch(this.scriptId, {
+            tags: [...this.titlePageData.tags]
+        }, 'title-page-tags');
+        this.scriptStore.flushPatchImmediately(this.scriptId);
     }
 
     handleDescriptionBlur () {
@@ -419,6 +560,7 @@ export class TitlePageManager {
                 title: this.titlePageData.title,
                 author: this.titlePageData.author,
                 description: this.titlePageData.description,
+                tags: [...this.titlePageData.tags],
                 visibility: this.titlePageData.visibility
             }, 'title-page');
             this.scriptStore.flushPatch(this.scriptId);

@@ -56,7 +56,7 @@ describe('ScriptController', () => {
 
       await scriptController.default.getScript(mockRequest, mockResponse);
 
-      expect(scriptModel.getScript).toHaveBeenCalledWith('1');
+      expect(scriptModel.getScript).toHaveBeenCalledWith('1', null);
       expect(mockResponse.json).toHaveBeenCalledWith(mockScript);
       expect(mockResponse.status).not.toHaveBeenCalled();
     });
@@ -67,7 +67,7 @@ describe('ScriptController', () => {
 
       await scriptController.default.getScript(mockRequest, mockResponse);
 
-      expect(scriptModel.getScript).toHaveBeenCalledWith('999');
+      expect(scriptModel.getScript).toHaveBeenCalledWith('999', null);
       expect(mockResponse.status).toHaveBeenCalledWith(404);
       expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Script not found' });
     });
@@ -146,6 +146,37 @@ describe('ScriptController', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Internal server error' });
     });
+
+    it('should return 400 when tags payload is invalid', async() => {
+      const error = new Error('Tags must be an array of strings');
+      error.code = 'INVALID_SCRIPT_TAGS';
+      scriptModel.createScript.mockRejectedValue(error);
+      mockRequest.body = {
+        title: 'Test Script',
+        tags: 'not-an-array'
+      };
+
+      await scriptController.default.createScript(mockRequest, mockResponse);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Tags must be an array of strings' });
+    });
+
+    it('should normalize string tags payload before model call', async() => {
+      const mockScript = global.testUtils.createTestScript();
+      scriptModel.createScript.mockResolvedValue(mockScript);
+      mockRequest.body = {
+        title: 'Test Script',
+        tags: 'thriller, noir'
+      };
+
+      await scriptController.default.createScript(mockRequest, mockResponse);
+
+      expect(scriptModel.createScript).toHaveBeenCalledWith(expect.objectContaining({
+        tags: ['thriller', 'noir']
+      }));
+      expect(mockResponse.status).toHaveBeenCalledWith(201);
+    });
   });
 
   describe('updateScript', () => {
@@ -166,7 +197,8 @@ describe('ScriptController', () => {
         author: undefined,
         description: undefined,
         content: '<action>Updated content</action>',
-        status: undefined
+        status: undefined,
+        tags: undefined
       });
       expect(mockResponse.json).toHaveBeenCalledWith(mockScript);
     });

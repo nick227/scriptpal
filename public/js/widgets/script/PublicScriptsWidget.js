@@ -157,7 +157,18 @@ export class PublicScriptsWidget {
         const dateSpan = document.createElement('span');
         dateSpan.textContent = this.formatDate(script.updatedAt);
 
-        meta.append(authorSpan, versionSpan, dateSpan);
+        const tagsSpan = document.createElement('span');
+        tagsSpan.className = 'public-script-card__tags';
+        const tagValues = Array.isArray(script.tags)
+            ? script.tags
+                .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+                .filter(Boolean)
+            : [];
+        tagsSpan.textContent = tagValues.length
+            ? `Tags: ${tagValues.join(', ')}`
+            : 'Tags: none';
+
+        meta.append(authorSpan, versionSpan, dateSpan, tagsSpan);
 
         // header.appendChild(thumb);
         header.appendChild(titleLink);

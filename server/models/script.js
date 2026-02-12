@@ -11,6 +11,7 @@ const toScriptWithVersion = (script, version) => {
   if (!script) return null;
   return {
     ...script,
+    tags: Array.isArray(script.tags) ? script.tags : [],
     versionNumber: version ? version.versionNumber : 1,
     content: version ? version.content : '',
     visibility: script.visibility ?? 'private',
@@ -18,6 +19,58 @@ const toScriptWithVersion = (script, version) => {
     updatedAt: script.updatedAt,
     createdAt: script.createdAt
   };
+};
+
+const normalizeScriptTags = (tags, options = {}) => {
+  if (tags === undefined) {
+    return undefined;
+  }
+  if (tags === null) {
+    return [];
+  }
+  if (typeof tags === 'string') {
+    tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+  }
+  if (!Array.isArray(tags)) {
+    const error = new Error('Tags must be an array of strings');
+    error.code = 'INVALID_SCRIPT_TAGS';
+    throw error;
+  }
+
+  const maxTags = Number.isFinite(Number(options.maxTags)) ? Number(options.maxTags) : 10;
+  const maxTagLength = Number.isFinite(Number(options.maxTagLength)) ? Number(options.maxTagLength) : 32;
+
+  const normalized = [];
+  const seen = new Set();
+
+  for (const tag of tags) {
+    if (typeof tag !== 'string') {
+      const error = new Error('Tags must contain only strings');
+      error.code = 'INVALID_SCRIPT_TAGS';
+      throw error;
+    }
+
+    const compact = tag.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (!compact) {
+      continue;
+    }
+    if (compact.length > maxTagLength) {
+      const error = new Error(`Each tag must be ${maxTagLength} characters or less`);
+      error.code = 'INVALID_SCRIPT_TAGS';
+      throw error;
+    }
+    if (!seen.has(compact)) {
+      seen.add(compact);
+      normalized.push(compact);
+    }
+    if (normalized.length > maxTags) {
+      const error = new Error(`A script can have at most ${maxTags} tags`);
+      error.code = 'INVALID_SCRIPT_TAGS';
+      throw error;
+    }
+  }
+
+  return normalized;
 };
 
 /** Normalize content for equality (trim; if JSON, parse+stringify to ignore key order/whitespace). Same idea as save path. */
@@ -98,6 +151,7 @@ const scriptModel = {
   },
   createScript: async(script) => {
     const normalizedVisibility = script.visibility || 'private';
+    const normalizedTags = normalizeScriptTags(script.tags) ?? [];
     const result = await prisma.$transaction(async(tx) => {
       const slug = await generateUniqueSlug({
         title: script.title,
@@ -121,6 +175,7 @@ const scriptModel = {
           status: script.status,
           author: script.author || null,
           description: script.description || null,
+          tags: normalizedTags,
           visibility: normalizedVisibility,
           slug,
           publicId: normalizedVisibility === 'public' ? generatePublicId() : null
@@ -180,6 +235,9 @@ const scriptModel = {
       const resolvedDescription = script.description !== undefined
         ? (script.description || null)
         : currentScript.description;
+      const resolvedTags = script.tags !== undefined
+        ? normalizeScriptTags(script.tags)
+        : (Array.isArray(currentScript.tags) ? currentScript.tags : []);
 
       const resolvedContent = script.content !== undefined && script.content !== null
         ? script.content
@@ -197,6 +255,7 @@ const scriptModel = {
         && resolvedStatus === currentScript.status
         && resolvedAuthor === currentScript.author
         && resolvedDescription === currentScript.description
+        && JSON.stringify(resolvedTags) === JSON.stringify(Array.isArray(currentScript.tags) ? currentScript.tags : [])
         && desiredVisibility === currentScript.visibility;
 
       if (latestVersion && metadataUnchanged && contentUnchanged) {
@@ -249,6 +308,7 @@ const scriptModel = {
           status: resolvedStatus,
           author: resolvedAuthor,
           description: resolvedDescription,
+          tags: resolvedTags,
           visibility: desiredVisibility,
           slug: nextSlug,
           publicId: nextPublicId
@@ -285,6 +345,7 @@ const scriptModel = {
         userId: true,
         title: true,
         author: true,
+        tags: true,
         status: true,
         slug: true,
         visibility: true,
@@ -548,6 +609,7 @@ const scriptModel = {
           title: cloneTitle,
           author: sourceScript.author || null,
           description: sourceScript.description || null,
+          tags: Array.isArray(sourceScript.tags) ? sourceScript.tags : [],
           status: sourceScript.status || 'draft',
           visibility: 'private',
           slug,

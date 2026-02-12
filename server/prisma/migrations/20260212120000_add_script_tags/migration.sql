@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `scripts`
+  ADD COLUMN `tags` JSON NOT NULL DEFAULT (JSON_ARRAY());

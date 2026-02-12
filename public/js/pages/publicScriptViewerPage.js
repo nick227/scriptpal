@@ -61,6 +61,24 @@ const setViewerMessage = (container, message, isError = false) => {
     container.innerHTML = `<div class="${className}">${message}</div>`;
 };
 
+const renderScriptTags = (container, tags) => {
+    if (!container) return;
+    const values = Array.isArray(tags)
+        ? tags
+            .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+            .filter(Boolean)
+        : [];
+
+    if (!values.length) {
+        container.hidden = true;
+        container.textContent = '';
+        return;
+    }
+
+    container.textContent = `Tags: ${values.join(', ')}`;
+    container.hidden = false;
+};
+
 const createPublicPage = (container) => {
     const { page, content } = createPageShell();
     page.classList.add('public-script-viewer__page');
@@ -237,7 +255,7 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
             const nextCount = typeof response?.count === 'number' ? response.count : comments.length;
             updateCommentCount(nextCount);
             renderComments(comments);
-        } catch (error) {
+        } catch {
             if (errorState) {
                 errorState.textContent = 'Unable to load comments.';
                 errorState.classList.add('is-visible');
@@ -298,7 +316,7 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
             const nextCount = typeof payload?.count === 'number' ? payload.count : commentCount + 1;
             updateCommentCount(nextCount);
             textarea.value = '';
-        } catch (error) {
+        } catch {
             if (errorState) {
                 errorState.textContent = 'Unable to post your comment.';
                 errorState.classList.add('is-visible');
@@ -476,6 +494,7 @@ const initPublicScriptViewer = async () => {
     const thumbEl = document.querySelector('.public-script-viewer__thumb');
     const metadataEl = document.querySelector('.public-script-viewer__metadata');
     const metadataVersionEl = metadataEl?.querySelector('[data-script-version]');
+    const tagsEl = document.querySelector('[data-script-meta-tags]');
     const ownerEl = document.querySelector('.public-script-owner');
 
     if (!viewerLines) {
@@ -520,6 +539,7 @@ const initPublicScriptViewer = async () => {
         if (metadataVersionEl) {
             metadataVersionEl.textContent = `Updated ${new Date(script.updatedAt).toLocaleString()}`;
         }
+        renderScriptTags(tagsEl, script.tags);
 
         if (thumbEl) {
             thumbEl.src = script.coverUrl || '/images/screenplay-thumb.svg';
@@ -537,6 +557,7 @@ const initPublicScriptViewer = async () => {
         console.error('[PublicScriptViewer] Failed to load script:', error);
         commentsPanelController?.setScriptId(null);
         cloneControl.setScript(null);
+        renderScriptTags(tagsEl, []);
         setViewerMessage(viewerLines, 'Unable to load script.', true);
     }
 };

@@ -14,6 +14,31 @@ const VALID_FORMATS = new Set([
 ]);
 const shouldLogScriptUpdates = process.env.DEBUG_SCRIPT_UPDATES === 'true';
 
+const coerceTagsInput = (tags) => {
+  if (tags === undefined) return undefined;
+  if (tags === null) return [];
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === 'string') {
+    const trimmed = tags.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {
+        // Fall through to comma parsing.
+      }
+    }
+    return trimmed.split(',').map((tag) => tag.trim()).filter(Boolean);
+  }
+  if (typeof tags === 'object') {
+    return Object.values(tags);
+  }
+  return tags;
+};
+
 const tryParseJson = (value) => {
   if (!value || (value[0] !== '{' && value[0] !== '[')) {
     return null;
@@ -132,7 +157,8 @@ const scriptController = {
 
   createScript: async(req, res) => {
     try {
-      const { title, status, content, author, description, visibility } = req.body;
+      const { title, status, content, author, description, visibility, tags } = req.body;
+      const normalizedTags = coerceTagsInput(tags);
       if (!title) {
         return res.status(400).json({ error: 'Title is required' });
       }
@@ -142,6 +168,7 @@ const scriptController = {
         title,
         author,
         description,
+        tags: normalizedTags,
         status: status || 'draft',
         visibility: visibilityValue,
         content: content || JSON.stringify({
@@ -151,6 +178,9 @@ const scriptController = {
       });
       res.status(201).json(script);
     } catch (error) {
+      if (error?.code === 'INVALID_SCRIPT_TAGS') {
+        return res.status(400).json({ error: error.message || 'Invalid tags payload' });
+      }
       console.error('Error creating script:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -166,7 +196,8 @@ const scriptController = {
     }
 
     try {
-      const { title, status, content, author, description, visibility } = req.body;
+      const { title, status, content, author, description, visibility, tags } = req.body;
+      const normalizedTags = coerceTagsInput(tags);
 
       if (!title) {
         console.warn('Update rejected: missing title');
@@ -236,7 +267,8 @@ const scriptController = {
         title,
         author,
         description,
-        status
+        status,
+        tags: normalizedTags
       };
 
       if (hasContent) {
@@ -255,6 +287,9 @@ const scriptController = {
 
       res.json(script);
     } catch (error) {
+      if (error?.code === 'INVALID_SCRIPT_TAGS') {
+        return res.status(400).json({ error: error.message || 'Invalid tags payload' });
+      }
       console.error('Error updating script:', error);
       if (error.message === 'Script not found') {
         return res.status(404).json({ error: 'Script not found' });

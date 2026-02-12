@@ -15,7 +15,7 @@ const ALLOWED_VISIBILITIES = new Set(['private', 'public']);
 const ALLOWED_FILTERS = new Set(['all', 'private', 'public']);
 
 /** @type {string[]} Fields to check for dirty state in patches */
-const PATCHABLE_FIELDS = ['content', 'title', 'author', 'description', 'visibility', 'versionNumber'];
+const PATCHABLE_FIELDS = ['content', 'title', 'author', 'description', 'tags', 'visibility', 'versionNumber'];
 
 const replacePathWithCanonicalSlug = (slug, scriptId) => {
     if (!slug || typeof window === 'undefined') {
@@ -136,7 +136,7 @@ export class ScriptStore extends BaseManager {
         try {
             const parsed = JSON.parse(trimmed);
             return Array.isArray(parsed?.lines) || Array.isArray(parsed);
-        } catch (error) {
+        } catch {
             return false;
         }
     }
@@ -163,6 +163,7 @@ export class ScriptStore extends BaseManager {
             title: script.title || 'UNKNOWN',
             author: script.author || '',
             description: script.description || '',
+            tags: Array.isArray(script.tags) ? script.tags : [],
             userId: script.userId ?? this.currentUserId ?? null,
             visibility: this.normalizeVisibility(script.visibility),
             timestamp: Date.now()
@@ -405,6 +406,12 @@ export class ScriptStore extends BaseManager {
                 if (normalizedPatch !== normalizedCurrent) {
                     effectivePatch.visibility = normalizedPatch;
                 }
+            } else if (field === 'tags') {
+                const patchTags = Array.isArray(patchValue) ? patchValue : [];
+                const currentTags = Array.isArray(currentValue) ? currentValue : [];
+                if (JSON.stringify(patchTags) !== JSON.stringify(currentTags)) {
+                    effectivePatch.tags = patchTags;
+                }
             } else if (patchValue !== currentValue) {
                 effectivePatch[field] = patchValue;
             }
@@ -510,6 +517,9 @@ export class ScriptStore extends BaseManager {
             versionNumber: entry.patch.versionNumber ?? currentScript.versionNumber ?? 1,
             visibility: entry.patch.visibility ?? currentScript.visibility ?? 'private'
         };
+        if (entry.patch.tags !== undefined) {
+            payload.tags = Array.isArray(entry.patch.tags) ? entry.patch.tags : [];
+        }
         if (entry.patch.content !== undefined) {
             payload.content = entry.patch.content;
         }
@@ -625,6 +635,9 @@ export class ScriptStore extends BaseManager {
             if (scriptData.description !== undefined) {
                 updateData.description = scriptData.description;
             }
+            if (scriptData.tags !== undefined) {
+                updateData.tags = Array.isArray(scriptData.tags) ? scriptData.tags : [];
+            }
             if (scriptData.visibility !== undefined) {
                 updateData.visibility = this.normalizeVisibility(scriptData.visibility);
             }
@@ -703,7 +716,7 @@ export class ScriptStore extends BaseManager {
      * @param {object} options
      */
     async createScript (userId, options = {}) {
-        const { title = 'Untitled Script', content = '', author } = options;
+        const { title = 'Untitled Script', content = '', author, tags = [] } = options;
 
         let newScript;
         try {
@@ -712,7 +725,8 @@ export class ScriptStore extends BaseManager {
                 title,
                 status: 'draft',
                 content,
-                author
+                author,
+                tags: Array.isArray(tags) ? tags : []
             });
         } catch (error) {
             this.handleAuthError(error);

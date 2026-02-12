@@ -51,6 +51,7 @@ export const serializePublicScript = (script) => {
     title: script.title || 'Untitled Script',
     author: script.author || '',
     description: script.description || '',
+    tags: Array.isArray(script.tags) ? script.tags : [],
     status: script.status || 'draft',
     visibility: script.visibility || 'private',
     versionNumber: script.versionNumber || 1,

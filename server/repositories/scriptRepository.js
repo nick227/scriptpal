@@ -7,6 +7,7 @@ const scriptSelect = {
   title: true,
   author: true,
   description: true,
+  tags: true,
   slug: true,
   publicId: true,
   status: true,
@@ -16,7 +17,7 @@ const scriptSelect = {
 };
 
 const scriptRepository = {
-  create: async({ userId, title, status, author, description, visibility }) => {
+  create: async({ userId, title, status, author, description, tags, visibility }) => {
     return await prisma.script.create({
       data: {
         userId,
@@ -24,6 +25,7 @@ const scriptRepository = {
         status,
         author,
         description,
+        tags,
         visibility
       }
     });
@@ -122,14 +124,15 @@ const scriptRepository = {
     });
   },
 
-  updateMetadata: async(id, { title, status, author, description }) => {
+  updateMetadata: async(id, { title, status, author, description, tags }) => {
     return await prisma.script.update({
       where: { id },
       data: {
         title,
         status,
         author,
-        description
+        description,
+        tags
       }
     });
   },

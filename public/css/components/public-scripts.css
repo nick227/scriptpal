@@ -115,6 +115,11 @@
     color: var(--text-secondary, #6b7280);
 }
 
+.public-script-card__tags,
+.public-script-meta-tags {
+    color: var(--text-secondary, #6b7280);
+}
+
 .public-script-badge {
     padding: 0.2rem 0.65rem;
     border-radius: 999px;
@@ -166,6 +171,21 @@
     margin: 0 0 0.25rem;
     font-size: 0.95rem;
     color: var(--text-secondary, #6b7280);
+}
+
+.public-script-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0 0 0.4rem;
+}
+
+.public-script-tag {
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    color: var(--text-secondary, #6b7280);
+    padding: 0.18rem 0.55rem;
 }
 
 .public-script-viewer__metadata {

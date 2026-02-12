@@ -116,6 +116,7 @@ model Script {
   title       String
   author      String?
   description String?      @db.LongText
+  tags        Json         @default("[]")
   slug        String?      @db.VarChar(80)
   publicId    String?      @db.VarChar(32) @unique
   status      ScriptStatus @default(draft)

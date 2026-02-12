@@ -76,6 +76,7 @@ export class ScriptService {
      * @param {string} scriptData.content - Script content
      * @param {string} [scriptData.author] - Script author
      * @param {string} [scriptData.description] - Script description
+     * @param {string[]} [scriptData.tags] - Script tags
      * @param {string} [scriptData.visibility] - Script visibility ('private' or 'public')
      * @returns {Promise<object>} Updated script object
      */
@@ -94,6 +95,23 @@ export class ScriptService {
         }
         if (scriptData.description !== undefined) {
             updateData.description = scriptData.description;
+        }
+        if (scriptData.tags !== undefined) {
+            if (Array.isArray(scriptData.tags)) {
+                updateData.tags = scriptData.tags;
+            } else if (typeof scriptData.tags === 'string') {
+                const trimmed = scriptData.tags.trim();
+                if (!trimmed) {
+                    updateData.tags = [];
+                } else {
+                    updateData.tags = trimmed
+                        .split(',')
+                        .map((tag) => tag.trim())
+                        .filter(Boolean);
+                }
+            } else {
+                updateData.tags = [];
+            }
         }
         if (scriptData.visibility !== undefined) {
             const normalizedVisibility = String(scriptData.visibility || '').toLowerCase();
