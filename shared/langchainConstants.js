@@ -74,7 +74,7 @@ const normalizeAiResponse = (response) => {
     return { message: response, script: null, metadata: {} };
   }
 
-  if (typeof response === 'object') {
+  if (typeof response === 'object') { 
     return {
       message: response.message || null,
       script: response.script || null,

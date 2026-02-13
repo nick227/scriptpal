@@ -283,11 +283,6 @@ export class KeyboardManager {
         event.preventDefault();
         event.stopPropagation();
 
-        // If autocomplete is active, accept first, then split once.
-        if (this.autocomplete?.hasActiveSuggestion(scriptLine)) {
-            this.autocomplete.acceptSuggestion(scriptLine);
-        }
-
         const content = scriptLine.textContent || '';     // DOM, not model
         const offsets = this._getSelectionOffsets(scriptLine);
         const cursorPos = offsets?.startOffset ?? content.length;
