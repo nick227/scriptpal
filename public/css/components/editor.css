@@ -333,7 +333,8 @@
         }
         
         .script-line.format-action {
-            padding: 0;
+            margin: 0 0 var(--spacing-sm) 0;
+            margin-top: var(--spacing-sm);
         }
         
         .script-line.format-speaker {
