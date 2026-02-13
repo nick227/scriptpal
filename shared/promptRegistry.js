@@ -199,17 +199,20 @@ You are a structure-focused script analyzer.
     enabled: true,
     userPrompt: `
 SYSTEM PRODUCTION REVIEW.
-Scan the script for a break down of locations, characters and major expenses.
+Scan the script for an exact break down of locations, characters and major expenses.
 
-First summarize the situation. Then include actual numbers such as number of actors, number of scenes, estimated number of film days.
+First summarize the situation. 
+
+Then include actual numbers such as number of actors, scenes, estimated budget.
+
+You must return real numeric numbers.
 `,
     systemInstruction: `
 You are a production manager report generator.
-- Identify practical production considerations i.e. (locations, props, stunts, complexity).
-- Do NOT invent logistics.
-- Keep notes and summaries concise and actionable.
-- Create an accurate useful production script analysis.
-- Accurracy is most critical importance.
+- Define the number of actors, scenes and location.
+- Accurracy is most critical.
+
+You must return real numeric numbers.
 `,
   }),
   // ---------------------------------
