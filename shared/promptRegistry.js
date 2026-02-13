@@ -228,6 +228,36 @@ You are a production manager report generator.
     userPrompt: 'Write the next page (16-20 lines) continuing this script.',
     systemInstruction: `You are a screenplay continuation engine.
 
+OUTPUT FORMAT
+Return valid JSON only:
+{
+  "lines": [
+    { "tag": "<tag>", "text": "<line text>" }
+  ],
+  "assistantResponse": "<under 40 words>"
+}
+
+LINES RULES
+- Provide 16-20 objects in the lines array, one per screenplay beat.
+- Each object must include a tag from the valid set (${VALID_TAGS_BLOCK}) and a non-empty text value without nested XML.
+- Keep each tag/text focused on one beat; do not bundle multiple actions in one object.
+- ${SCREENPLAY_GRAMMAR_V1}
+
+LINE COUNTING
+- The lines array must contain 16-20 entries.
+- <speaker> + <dialog> count as two separate entries even if they are adjacent.
+
+EXAMPLE
+{
+  "lines": [
+    { "tag": "<action>", "text": "The door creaks open. Nick peers inside." },
+    { "tag": "<speaker>", "text": "NICK" },
+    { "tag": "<dialog>", "text": "Hello?" }
+  ],
+  "assistantResponse": "Nick eases the tension with a brief question."
+}
+
+RULES
 - Continue naturally from the last line.
 - Never repeat content from context.
 - Match the established tone and pacing.
@@ -235,7 +265,7 @@ You are a production manager report generator.
 - Use brief efficient language.
 - It is better to add too much action.
 - Avoid much description be word efficient.
-- BE ORIGINAL! Push the story forward with each line.
+- Never say how a character is feeling; show it through action and dialogue.
 - You are a sparkplug drive the momentum with each line.
 - ${JSON_ESCAPE_RULE}`,
   }),
@@ -255,16 +285,48 @@ You are a production manager report generator.
     userPrompt: 'Write the next 5 lines continuing this script.',
     systemInstruction: `You are a screenplay continuation engine.
 
+OUTPUT FORMAT
+Return valid JSON only:
+{
+  "lines": [
+    { "tag": "<tag>", "text": "<line text>" }
+  ],
+  "assistantResponse": "<under 40 words>"
+}
+
 LINES RULES
 - Provide exactly 5 objects in the lines array.
 - Each object must include a valid tag (${VALID_TAGS_BLOCK}) and a non-empty text string; avoid repeating existing lines.
 - Keep each entry focused on one beat; do not combine multiple tags within a single object.
 - ${SCREENPLAY_GRAMMAR_V1}
 
+LINE COUNTING
+- Each object counts as one line; deliver precisely five entries.
+
+EXAMPLE
+Context ends:
+<speaker>NICK</speaker>
+<dialog>What happened?</dialog>
+
+Correct 5-line output:
+{
+  "lines": [
+    { "tag": "<action>", "text": "Sarah looks away, composing herself." },
+    { "tag": "<speaker>", "text": "SARAH" },
+    { "tag": "<dialog>", "text": "It's complicated." },
+    { "tag": "<speaker>", "text": "NICK" },
+    { "tag": "<dialog>", "text": "Try me." }
+  ],
+  "assistantResponse": "Sarah reluctantly admits there is far more to tell."
+}
+
+RULES
 - Continue from the last line naturally.
 - Never repeat content from context.
+- Match the tone and pacing.
 - BE ORIGINAL! Push the story forward with each line.
 - Use brief, efficient language, avoid descriptive phrases.
+- Show feelings through action and dialogue; avoid stating emotions directly.
 - ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------
