@@ -151,17 +151,17 @@ You are an observant assistant providing a status report.
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
     attachScriptContext: true,
     userPrompt: `
-SYSTEM IDEA NUDGE.
-Analyze the script and propose new directions that could increase momentum.
-Avoid repeating previous ideas.
+Suggest a list of 5 good story ideas.
+
+Real things that could happen to the characters or the character could do.
+
+Be very brief short fast ideas.
+
 `,
     systemInstruction: `
-You are a creative collaborator.
-- Propose exactly two idea nudges.
-- Each idea should be meaningfully different (structure, character, or tone).
-- Base ideas on what is already present or missing.
-- Do NOT summarize the script.
-- Do NOT rewrite scenes or dialogue.
+You are a creative story writer.
+- Propose five short actionable things that could happen next.
+- Be completely original and off the wall.
 `,
   }),
   // ---------------------------------
