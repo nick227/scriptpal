@@ -333,8 +333,7 @@
         }
         
         .script-line.format-action {
-            margin: 0 0 var(--spacing-sm) 0;
-            margin-top: var(--spacing-sm);
+            padding: 0;
         }
         
         .script-line.format-speaker {
@@ -351,6 +350,7 @@
             width: auto;
             margin-left: var(--dialog-left);
             margin-right: var(--dialog-right);
+            padding-top: 0;
         }
         
         .script-line.format-directions {

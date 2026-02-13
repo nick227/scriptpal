@@ -94,6 +94,17 @@ const mediaAttachmentRepository = {
       },
       orderBy: { sortOrder: 'asc' }
     });
+  },
+
+  deleteByOwnerAttachmentId: async({ id, userId, ownerType, ownerId }) => {
+    return prisma.mediaAttachment.deleteMany({
+      where: {
+        id,
+        userId,
+        ownerType,
+        ownerId
+      }
+    });
   }
 };
 

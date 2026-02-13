@@ -20,7 +20,8 @@ export class ListWidget extends BaseWidget {
         this.mediaPicker = null;
         this.listModel = new ListModel({
             adapter: null,
-            getContextId: this.getContextId
+            getContextId: this.getContextId,
+            storageKey: this.itemsKey
         });
         this.listView = null;
         this.listController = null;
@@ -76,11 +77,11 @@ export class ListWidget extends BaseWidget {
         this.handleItemsUpdate(this.stateManager.getState(this.itemsKey));
     }
 
-    handleItemsUpdate (items) {
+    async handleItemsUpdate (items) {
         if (!this.listController) {
             return;
         }
-        this.listController.setItems(Array.isArray(items) ? items : []);
+        await this.listController.setItems(Array.isArray(items) ? items : []);
     }
 
     openEditor (item) {
@@ -130,5 +131,19 @@ export class ListWidget extends BaseWidget {
     getCurrentScriptId () {
         const script = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
         return script ? script.id : null;
+    }
+
+    destroy () {
+        if (this.listView && typeof this.listView.destroy === 'function') {
+            this.listView.destroy();
+        }
+        if (this.editorView && typeof this.editorView.destroy === 'function') {
+            this.editorView.destroy();
+        }
+        this.listController = null;
+        this.listView = null;
+        this.editorController = null;
+        this.editorView = null;
+        super.destroy();
     }
 }

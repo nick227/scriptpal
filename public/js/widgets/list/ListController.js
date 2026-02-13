@@ -11,9 +11,15 @@ export class ListController {
         this.view.setActionHandler(this.handleAction.bind(this));
     }
 
-    setItems (items) {
+    async setItems (items) {
         this.model.setItems(items);
         this.view.render(this.model.getItems());
+        const ownerType = this.view?.adapter?.view?.ownerType;
+        const mediaRole = this.view?.adapter?.view?.mediaRole;
+        const hydrated = await this.model.hydrateAllItemMedia(ownerType, mediaRole);
+        if (hydrated) {
+            this.view.render(this.model.getItems());
+        }
     }
 
     async handleAction (action) {
@@ -33,6 +39,8 @@ export class ListController {
         }
         if (type === 'delete') {
             if (!window.confirm('Delete this item?')) return false;
+            this.model.removeItem(payload.itemId);
+            this.view.render(this.model.getItems());
             await this.model.deleteItem(payload.itemId);
             return;
         }
@@ -44,6 +52,18 @@ export class ListController {
         if (type === 'media') {
             if (this.onOpenMedia) {
                 this.onOpenMedia(payload);
+            }
+            return;
+        }
+        if (type === 'remove-media') {
+            const removed = await this.model.removeMediaAttachment(
+                payload.ownerType,
+                payload.itemId,
+                payload.attachmentId,
+                payload.assetId
+            );
+            if (removed) {
+                this.view.render(this.model.getItems());
             }
             return;
         }
@@ -67,10 +87,10 @@ export class ListController {
         }
         if (type === 'drop') {
             const nextItems = this.model.getReorderedItems(payload.sourceId, payload.targetId);
+            this.model.setItems(nextItems, { applyPersistedOrder: false });
+            this.view.render(this.model.getItems());
             await this.model.submitReorder(nextItems);
-        }
-        if (type === 'findInScript') {
-            this.emitAction('findInScript');
+            return;
         }
     }
 }

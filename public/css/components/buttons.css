@@ -55,6 +55,6 @@ button:hover:not(:disabled) {
 
 .icon-button {
     border-radius: 50%;
-    width: 22px;
-    height: 22px;
+    width: 35px !important;
+    height: 35px;
 }

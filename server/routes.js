@@ -23,6 +23,7 @@ import mediaDeleteController from './controllers/media/delete.controller.js';
 import mediaGenerationController from './controllers/media/generation.controller.js';
 import mediaJobController from './controllers/media/job.controller.js';
 import mediaOwnerMediaController from './controllers/media/owner-media.controller.js';
+import mediaOwnerMediaDeleteController from './controllers/media/owner-media-delete.controller.js';
 import { validateSession, validateUserAccess } from './middleware/auth.js';
 import { requireScriptOwnership } from './middleware/scriptOwnership.js';
 import scriptUpdateRateLimit from './middleware/scriptUpdateRateLimit.js';
@@ -192,6 +193,12 @@ const routes = [
     path: '/owners/:ownerType/:ownerId/media',
     method: 'get',
     handler: mediaOwnerMediaController,
+    middleware: [validateSession]
+  },
+  {
+    path: '/owners/:ownerType/:ownerId/media/:attachmentId',
+    method: 'delete',
+    handler: mediaOwnerMediaDeleteController,
     middleware: [validateSession]
   },
   {

@@ -86,6 +86,40 @@ export const createTaggedListAdapter = (options = {}) => {
         updateItem: (contextId, itemId, payload) => store.updateItem(contextId, itemId, payload),
         deleteItem: (contextId, itemId) => store.deleteItem(contextId, itemId),
         reorderItems: (contextId, order) => store.reorderItems(contextId, order),
+        removeMediaAttachment: async(ownerType, ownerId, attachmentId, assetId = null) => {
+            const normalizedOwnerId = Number(ownerId);
+            const normalizedAttachmentId = Number(attachmentId);
+            const normalizedAssetId = Number(assetId);
+            if (!ownerType || !normalizedOwnerId || !store.api || !store.api.http) {
+                return;
+            }
+            const tryDelete = async(targetId) => {
+                await store.api.http.request(`/owners/${ownerType}/${normalizedOwnerId}/media/${targetId}`, {
+                    method: 'DELETE'
+                });
+            };
+            if (normalizedAttachmentId) {
+                try {
+                    await tryDelete(normalizedAttachmentId);
+                    return;
+                } catch (error) {
+                    if (error?.status !== 404 || !normalizedAssetId) {
+                        throw error;
+                    }
+                }
+            }
+            if (normalizedAssetId) {
+                await tryDelete(normalizedAssetId);
+            }
+        },
+        fetchMediaAttachments: async(ownerType, ownerId, role) => {
+            const normalizedOwnerId = Number(ownerId);
+            if (!ownerType || !normalizedOwnerId || !store.api || typeof store.api.getOwnerMedia !== 'function') {
+                return [];
+            }
+            const response = await store.api.getOwnerMedia(ownerType, normalizedOwnerId, role);
+            return Array.isArray(response?.attachments) ? response.attachments : [];
+        },
         supportsAi,
         generateIdea: (contextId, itemId, draft) => (
             supportsAi && typeof store.generateIdea === 'function'
