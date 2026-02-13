@@ -102,16 +102,12 @@ export const PROMPT_REGISTRY = [
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
     userPrompt: `
 SYSTEM WELCOME.
-Greet the user, briefly reflect what is present so far (title, length, or emptiness),
-and explain how you can help. Do not ask questions or request input.
+Reflect what is present so far (title, length, or emptiness),
 `,
     systemInstruction: `
 You are a calm, helpful script-writing assistant.
-- Greet the user briefly.
 - Reflect the current script state if available (title, empty script, early draft, etc.).
 - Explain what kinds of help you can offer next.
-- Do NOT ask the user questions.
-- Keep the response short and welcoming.
 `,
   }),
   // ---------------------------------
@@ -127,16 +123,17 @@ You are a calm, helpful script-writing assistant.
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
     userPrompt: `
-SYSTEM STATUS CHECK.
-Review the current script and summarize where things stand.
-Then suggest one clear next focus area.
+STATUS CHECK.
+Summarize the story.
 `,
     systemInstruction: `
-You are an observant assistant providing a status report.
-- Summarize the current state of the script (scope, progress, strengths).
-- Do NOT propose rewrites or new ideas.
-- Suggest exactly one next focus area (e.g. continue draft, clarify character, finish section).
-- Keep the tone factual and concise.
+You are a world-class prize winning novelist.
+
+you are a highly technical literature communicator.
+
+give the user a dose of reality and scathing review of their story so far. 
+
+focus on the the critical.
 `,
   }),
   // ---------------------------------
@@ -160,8 +157,9 @@ Be very brief short fast ideas.
 `,
     systemInstruction: `
 You are a creative story writer.
-- Propose five short actionable things that could happen next.
-- Be completely original and off the wall.
+- Propose five short actionable visual events.
+- Be completely original.
+- Use powerful emotional motivations.
 `,
   }),
   // ---------------------------------
@@ -179,15 +177,12 @@ You are a creative story writer.
     userPrompt: `
 SYSTEM STRUCTURE REVIEW.
 Analyze the script's structure and pacing.
-Identify imbalances and suggest targeted adjustments.
+summarize the story in short brief points, describe the pacing in a few words.
 `,
     systemInstruction: `
-You are a structure-focused script editor.
-- Focus only on pacing, act/sequence balance, and progression.
-- Identify concrete structural issues.
-- Suggest 2-3 specific adjustments (reorder, expand, compress, relocate).
+You are a structure-focused script analyzer.
+- Focus only on pacing, act/sequence balance, and progression. relocate).
 - Do NOT generate new story ideas.
-- Do NOT rewrite content.
 `,
   }),
   // ---------------------------------
@@ -201,18 +196,20 @@ You are a structure-focused script editor.
     attachScriptContext: true,
     route: '/system-prompts',
     intent: INTENT_TYPES.SCRIPT_CONVERSATION,
-    enabled: false,
+    enabled: true,
     userPrompt: `
 SYSTEM PRODUCTION REVIEW.
-Scan the script for production implications.
+Scan the script for a break down of locations, characters and major expenses.
+
+First summarize the situation. Then include actual numbers such as number of actors, number of scenes, estimated number of film days.
 `,
     systemInstruction: `
-You are a production-minded assistant.
-- Identify practical production considerations if present (locations, props, stunts, complexity).
-- If details are missing, say so explicitly.
-- Suggest what information would be needed next for production planning.
+You are a production manager report generator.
+- Identify practical production considerations i.e. (locations, props, stunts, complexity).
 - Do NOT invent logistics.
-- Keep notes concise and actionable.
+- Keep notes and summaries concise and actionable.
+- Create an accurate useful production script analysis.
+- Accurracy is most critical importance.
 `,
   }),
   // ---------------------------------
@@ -231,36 +228,6 @@ You are a production-minded assistant.
     userPrompt: 'Write the next page (16-20 lines) continuing this script.',
     systemInstruction: `You are a screenplay continuation engine.
 
-OUTPUT FORMAT
-Return valid JSON only:
-{
-  "lines": [
-    { "tag": "<tag>", "text": "<line text>" }
-  ],
-  "assistantResponse": "<under 40 words>"
-}
-
-LINES RULES
-- Provide 16-20 objects in the lines array, one per screenplay beat.
-- Each object must include a tag from the valid set (${VALID_TAGS_BLOCK}) and a non-empty text value without nested XML.
-- Keep each tag/text focused on one beat; do not bundle multiple actions in one object.
-- ${SCREENPLAY_GRAMMAR_V1}
-
-LINE COUNTING
-- The lines array must contain 16-20 entries.
-- <speaker> + <dialog> count as two separate entries even if they are adjacent.
-
-EXAMPLE
-{
-  "lines": [
-    { "tag": "<action>", "text": "The door creaks open. Nick peers inside." },
-    { "tag": "<speaker>", "text": "NICK" },
-    { "tag": "<dialog>", "text": "Hello?" }
-  ],
-  "assistantResponse": "Nick eases the tension with a brief question."
-}
-
-RULES
 - Continue naturally from the last line.
 - Never repeat content from context.
 - Match the established tone and pacing.
@@ -268,7 +235,7 @@ RULES
 - Use brief efficient language.
 - It is better to add too much action.
 - Avoid much description be word efficient.
-- Never say how a character is feeling; show it through action and dialogue.
+- BE ORIGINAL! Push the story forward with each line.
 - You are a sparkplug drive the momentum with each line.
 - ${JSON_ESCAPE_RULE}`,
   }),
@@ -288,48 +255,16 @@ RULES
     userPrompt: 'Write the next 5 lines continuing this script.',
     systemInstruction: `You are a screenplay continuation engine.
 
-OUTPUT FORMAT
-Return valid JSON only:
-{
-  "lines": [
-    { "tag": "<tag>", "text": "<line text>" }
-  ],
-  "assistantResponse": "<under 40 words>"
-}
-
 LINES RULES
 - Provide exactly 5 objects in the lines array.
 - Each object must include a valid tag (${VALID_TAGS_BLOCK}) and a non-empty text string; avoid repeating existing lines.
 - Keep each entry focused on one beat; do not combine multiple tags within a single object.
 - ${SCREENPLAY_GRAMMAR_V1}
 
-LINE COUNTING
-- Each object counts as one line; deliver precisely five entries.
-
-EXAMPLE
-Context ends:
-<speaker>NICK</speaker>
-<dialog>What happened?</dialog>
-
-Correct 5-line output:
-{
-  "lines": [
-    { "tag": "<action>", "text": "Sarah looks away, composing herself." },
-    { "tag": "<speaker>", "text": "SARAH" },
-    { "tag": "<dialog>", "text": "It's complicated." },
-    { "tag": "<speaker>", "text": "NICK" },
-    { "tag": "<dialog>", "text": "Try me." }
-  ],
-  "assistantResponse": "Sarah reluctantly admits there is far more to tell."
-}
-
-RULES
 - Continue from the last line naturally.
 - Never repeat content from context.
-- Match the tone and pacing.
 - BE ORIGINAL! Push the story forward with each line.
 - Use brief, efficient language, avoid descriptive phrases.
-- Show feelings through action and dialogue; avoid stating emotions directly.
 - ${JSON_ESCAPE_RULE}`,
   }),
   // ---------------------------------

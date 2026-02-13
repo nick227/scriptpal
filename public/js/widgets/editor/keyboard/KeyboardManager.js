@@ -257,25 +257,8 @@ export class KeyboardManager {
     }
 
     _handleArrowLeftRight(event, scriptLine) {
-        const content = this._getLineContent(scriptLine);
-        const offsets = this._getSelectionOffsets(scriptLine);
-        if (!offsets) {
-            return false;
-        }
-
-        const isAtStart = offsets.startOffset === 0;
-        const isAtEnd = offsets.startOffset === content.length;
-
-        if ((event.key === 'ArrowLeft' && isAtStart) || (event.key === 'ArrowRight' && isAtEnd)) {
-            event.preventDefault();
-            const direction = event.key === 'ArrowLeft' ? -1 : 1;
-            const newFormat = getCircularFormat(scriptLine.getAttribute('data-format'), direction);
-            const selectionState = this._captureSelection(scriptLine);
-            this._applyFormatCommand(scriptLine, newFormat);
-            this._restoreSelection(scriptLine, selectionState);
-            return true;
-        }
-
+        // Left/right arrows should never change format unless Ctrl+Arrow handled above.
+        // Returning false preserves native caret movement and Shift+Arrow selection behavior.
         return false;
     }
 
