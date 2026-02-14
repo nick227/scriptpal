@@ -159,13 +159,72 @@ const escapeLineText = (text) => {
 
 const normalizeTag = (tag) => {
   if (!tag) return '';
-  return String(tag)
+  const normalized = String(tag)
     .trim()
-    .replace(/^<|>$/g, '')
+    .replace(/^<+\s*\/?\s*|\/?\s*>+$/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/_/g, '-')
     .toLowerCase();
+
+  const aliases = {
+    scene: 'header',
+    'scene-heading': 'header',
+    'scene-header': 'header',
+    heading: 'header',
+    slugline: 'header',
+    description: 'action',
+    parenthetical: 'directions',
+    direction: 'directions',
+    character: 'speaker',
+    name: 'speaker',
+    dialogue: 'dialog',
+    line: 'dialog',
+    'chapterbreak': 'chapter-break',
+    break: 'chapter-break'
+  };
+
+  return aliases[normalized] || normalized;
 };
 
 const ALLOWED_TAGS = new Set([...VALID_FORMAT_VALUES, 'chapter-break']);
+
+const extractInlineTaggedLine = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^<\s*([a-z-]+)\s*>([\s\S]*?)<\/\s*\1\s*>$/i);
+  if (!match) return null;
+  return {
+    tag: normalizeTag(match[1]),
+    text: String(match[2] ?? '').trim()
+  };
+};
+
+const normalizeLineCandidate = (line) => {
+  if (typeof line === 'string') {
+    const inline = extractInlineTaggedLine(line);
+    if (inline) return inline;
+    return { tag: '', text: line.trim() };
+  }
+
+  const rawTag = line?.tag ?? line?.type ?? line?.lineTag ?? '';
+  const rawText = line?.text ?? line?.value ?? line?.content ?? line?.line ?? '';
+  const inlineFromText = extractInlineTaggedLine(rawText);
+  const inlineFromTag = extractInlineTaggedLine(rawTag);
+
+  if (!rawTag && inlineFromText) {
+    return inlineFromText;
+  }
+
+  if (inlineFromTag) {
+    return inlineFromTag;
+  }
+
+  return {
+    tag: normalizeTag(rawTag),
+    text: typeof rawText === 'string'
+      ? rawText.trim()
+      : String(rawText ?? '').trim()
+  };
+};
 
 const renderLinesToXml = (lines) => {
   return lines
@@ -275,12 +334,7 @@ export class ScriptNextLinesChain extends BaseChain {
     const lines = Array.isArray(validated.lines) ? validated.lines : [];
 
     const normalizedCandidates = lines
-      .map((l) => ({
-        tag: normalizeTag(l?.tag),
-        text: typeof l?.text === 'string'
-          ? l.text.trim()
-          : String(l?.text ?? '').trim()
-      }))
+      .map(normalizeLineCandidate)
       .filter((line) => ALLOWED_TAGS.has(line.tag) && line.text.length > 0);
 
     if (normalizedCandidates.length < EXPECTED_LINE_COUNT) {
