@@ -8,6 +8,8 @@ button {
     border-radius: var(--border-radius);
     cursor: pointer;
     height: 36px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
 }
 
 button:disabled {
@@ -51,10 +53,4 @@ button:hover:not(:disabled) {
     margin-bottom: 1rem;
     padding: 0.5rem;
     flex-wrap: wrap;
-}
-
-.icon-button {
-    border-radius: 50%;
-    width: 35px !important;
-    height: 35px;
 }

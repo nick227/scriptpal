@@ -33,7 +33,7 @@ const DEFAULT_LABELS = {
     emptyMeta: 'No tags',
     edit: 'Edit',
     delete: 'Delete',
-    deleteText: 'x',
+    deleteText: 'delete',
     media: 'Media'
 };
 
