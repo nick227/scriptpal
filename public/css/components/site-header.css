@@ -1,8 +1,6 @@
 .site-header {
     display: flex;
     padding: 0rem 2rem;
-    background: var(--header-bg, #ffffff);
-    border-bottom: 1px solid var(--border-color, #e1e5e9);
     top: 0;
     width: var(--max-width-slim);
     margin: 0 auto;

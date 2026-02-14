@@ -127,7 +127,8 @@ export class EditorToolbar extends BaseWidget {
             }
 
             // Initialize all toolbar components in correct order
-            this.createFormatButtons();
+            // TODO: implement format buttons better
+            // this.createFormatButtons();
             // disable possible remove
             // this.createUndoRedoButtons();
             this.createVersionDropdown();
