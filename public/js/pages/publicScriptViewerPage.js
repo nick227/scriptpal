@@ -4,6 +4,7 @@ import { StateManager } from '../core/StateManager.js';
 import { bindAuthenticatedStateGuard, requireAuth } from '../auth/authGate.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
 import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
+import { initPageFrameNavigation, registerPageFrameCleanup } from '../layout/pageFrameNavigation.js';
 import { LineFormatter } from '../widgets/editor/LineFormatter.js';
 import { ScriptDocument } from '../widgets/editor/model/ScriptDocument.js';
 import { MAX_LINES_PER_PAGE } from '../widgets/editor/constants.js';
@@ -358,10 +359,12 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
     textarea?.addEventListener('input', updateComposerState);
     composerForm?.addEventListener('submit', handlePieceSubmit);
 
-    stateManager.subscribe(StateManager.KEYS.AUTHENTICATED, (value) => {
+    const handleAuthStateChange = (value) => {
         isAuthenticated = Boolean(value);
         updateComposerState();
-    });
+    };
+
+    stateManager.subscribe(StateManager.KEYS.AUTHENTICATED, handleAuthStateChange);
 
     updateComposerState();
     updateToggleState(false);
@@ -383,6 +386,16 @@ const setupCommentsPanel = (api, authWidget, stateManager) => {
         },
         setCommentCount (value) {
             updateCommentCount(value);
+        },
+        destroy () {
+            toggleButton.removeEventListener('click', handleToggleClick);
+            closeButton?.removeEventListener('click', closePanel);
+            backdrop?.removeEventListener('click', closePanel);
+            document.removeEventListener('keydown', handleKeyDown);
+            loginTrigger?.removeEventListener('click', handleLoginHint);
+            textarea?.removeEventListener('input', updateComposerState);
+            composerForm?.removeEventListener('submit', handlePieceSubmit);
+            stateManager.unsubscribe(StateManager.KEYS.AUTHENTICATED, handleAuthStateChange);
         }
     };
 };
@@ -457,10 +470,12 @@ const setupCloneControl = (api, stateManager) => {
 
     cloneButton.addEventListener('click', handleClone);
 
-    stateManager.subscribe(StateManager.KEYS.AUTHENTICATED, (value) => {
+    const handleAuthStateChange = (value) => {
         isAuthenticated = Boolean(value);
         updateButtonState();
-    });
+    };
+
+    stateManager.subscribe(StateManager.KEYS.AUTHENTICATED, handleAuthStateChange);
 
     updateButtonState();
 
@@ -473,18 +488,24 @@ const setupCloneControl = (api, stateManager) => {
         },
         clearStatus () {
             setStatus('');
+        },
+        destroy () {
+            cloneButton.removeEventListener('click', handleClone);
+            stateManager.unsubscribe(StateManager.KEYS.AUTHENTICATED, handleAuthStateChange);
         }
     };
 };
 
-const initPublicScriptViewer = async () => {
+export const mountPublicScriptViewerPage = async ({ preserveTopBar = false } = {}) => {
     const auth = await requireAuth();
     if (!auth.authenticated) {
-        return;
+        return () => {};
     }
 
-    renderSharedTopBar();
-    const elements = getTopBarElements();
+    if (!preserveTopBar) {
+        renderSharedTopBar();
+    }
+
     const api = auth.user?.api || new ScriptPalAPI();
     const stateManager = new StateManager();
     const eventManager = new EventManager();
@@ -492,7 +513,12 @@ const initPublicScriptViewer = async () => {
 
     bindAuthenticatedStateGuard(stateManager, user);
 
-    const { authWidget } = await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
+    let authWidget = window.scriptPalAuth || null;
+    if (!preserveTopBar) {
+        const elements = getTopBarElements();
+        const widgets = await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
+        authWidget = widgets?.authWidget || authWidget;
+    }
 
     const { publicId, legacySlug } = getPublicPathInfo();
     const scriptId = getQueryParam('id');
@@ -507,7 +533,7 @@ const initPublicScriptViewer = async () => {
 
     if (!viewerLines) {
         console.warn('[PublicScriptViewer] Viewer container missing');
-        return;
+        return () => {};
     }
 
     const commentsPanelController = setupCommentsPanel(api, authWidget, stateManager);
@@ -517,7 +543,10 @@ const initPublicScriptViewer = async () => {
 
     if (!publicId && !legacySlug && !scriptId) {
         setViewerMessage(viewerLines, 'No script selected.', false);
-        return;
+        return () => {
+            commentsPanelController?.destroy?.();
+            cloneControl?.destroy?.();
+        };
     }
 
     try {
@@ -568,8 +597,18 @@ const initPublicScriptViewer = async () => {
         renderScriptTags(tagsEl, []);
         setViewerMessage(viewerLines, 'Unable to load script.', true);
     }
+
+    return () => {
+        commentsPanelController?.destroy?.();
+        cloneControl?.destroy?.();
+    };
 };
 
-initPublicScriptViewer().catch((error) => {
-    console.error('[PublicScriptViewer] Initialization failed:', error);
-});
+mountPublicScriptViewerPage()
+    .then((cleanup) => {
+        registerPageFrameCleanup(cleanup);
+        initPageFrameNavigation();
+    })
+    .catch((error) => {
+        console.error('[PublicScriptViewer] Initialization failed:', error);
+    });

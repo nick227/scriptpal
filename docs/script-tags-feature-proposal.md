@@ -166,5 +166,8 @@ Update `public/js/widgets/editor/title/TitlePageManager.js`.
 
 ## Open Decisions
 1. Should tags remain lowercase-only in UI, or store lowercase but render original casing?
+  yes
 2. Do we want tag-based filtering in `/public/scripts` in this same release?
+  yes
 3. Should tags be indexed later via generated column/fulltext for search?
+  yes

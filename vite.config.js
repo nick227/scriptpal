@@ -18,8 +18,14 @@ const resolvePublicRoute = (url = '') => {
   if (cleanUrl === '/brainstorm' || cleanUrl === '/brainstorm/') {
     return 'brainstorm.html';
   }
+  if (cleanUrl === '/profile' || cleanUrl === '/profile/') {
+    return 'profile.html';
+  }
   if (cleanUrl === '/auth' || cleanUrl === '/auth/' || cleanUrl === '/auth.html') {
     return 'auth.html';
+  }
+  if (/^\/u\/[^/]+\/?$/.test(cleanUrl)) {
+    return 'public-user.html';
   }
   if (/^\/public\/[^/]+\/?$|^\/public\/[^/]+\/[^/]+\/?$/.test(cleanUrl)) {
     return 'public-script.html';
@@ -104,6 +110,16 @@ export default defineConfig(({ mode }) => {
           target: backendUrl,
           changeOrigin: true,
           secure: false
+        },
+        '/u': {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false
+        },
+        '/profile': {
+          target: backendUrl,
+          changeOrigin: true,
+          secure: false
         }
       },
       headers: {
@@ -119,6 +135,8 @@ export default defineConfig(({ mode }) => {
           index: path.join(publicRoot, 'index.html'),
           publicScripts: path.join(publicRoot, 'public-scripts.html'),
           publicScript: path.join(publicRoot, 'public-script.html'),
+          publicUser: path.join(publicRoot, 'public-user.html'),
+          profile: path.join(publicRoot, 'profile.html'),
           auth: path.join(publicRoot, 'auth.html'),
           brainstorm: path.join(publicRoot, 'brainstorm.html')
         },

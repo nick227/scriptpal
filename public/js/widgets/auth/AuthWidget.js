@@ -31,6 +31,7 @@ export class AuthWidget extends BaseWidget {
         this.formViews = {};
         this.formsView = null;
         this.userBadge = null;
+        this.hasAuthenticatedSession = false;
         this.setupEventSubscriptions();
     }
 
@@ -205,6 +206,7 @@ export class AuthWidget extends BaseWidget {
      */
     updateUIForAuthenticatedUser (user) {
         if (!user) return;
+        this.hasAuthenticatedSession = true;
 
         if (this.formsView) {
             this.formsView.setVisible(false);
@@ -229,7 +231,7 @@ export class AuthWidget extends BaseWidget {
      *
      */
     updateUIForUnauthenticatedUser () {
-        if (this.options.redirectOnLogout) {
+        if (this.options.redirectOnLogout && this.hasAuthenticatedSession) {
              const redirectUrl = this.options.authPageUrl || '/auth.html';
              window.location.replace(redirectUrl);
              return;

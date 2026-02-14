@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal - Writer Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: https: http://localhost:*; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; connect-src 'self' http://localhost:* https: wss:;">
+    <link rel="icon" href="/images/script-logo-4.png">
+</head>
+
+<body class="public-user-page">
+    <div id="shared-topbar"></div>
+
+    <main class="public-user-page__main">
+        <section class="writer-profile-hero">
+            <div class="writer-profile-hero__identity">
+                <div id="public-user-monogram" class="writer-profile-hero__monogram" aria-hidden="true">WU</div>
+                <div>
+                    <p class="writer-profile-hero__label">Writer Portfolio</p>
+                    <h1 id="public-user-title">Writer profile</h1>
+                    <p id="public-user-handle" class="writer-profile-hero__handle"></p>
+                </div>
+            </div>
+            <div class="writer-profile-hero__stats">
+                <div class="writer-profile-stat">
+                    <span class="writer-profile-stat__label">Public scripts</span>
+                    <span id="public-user-script-count" class="writer-profile-stat__value">0</span>
+                </div>
+                <div class="writer-profile-stat">
+                    <span class="writer-profile-stat__label">Catalog page</span>
+                    <span id="public-user-page" class="writer-profile-stat__value">1</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="public-user-content">
+            <header class="public-user-content__header">
+                <h2>Published Work</h2>
+            </header>
+
+            <div id="public-user-loading" class="public-user-page__status">Loading profile...</div>
+            <div id="public-user-error" class="public-user-page__status public-user-page__status--error"></div>
+            <div id="public-user-empty" class="public-user-page__status">No public scripts yet.</div>
+            <div id="public-user-scripts" class="public-user-page__scripts"></div>
+        </section>
+    </main>
+
+    <script type="module" src="/js/pages/publicUserPage.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,88 @@
+.profile-page {
+    min-height: 100vh;
+    background: #f5f7fb;
+}
+
+.profile-page__main {
+    max-width: 760px;
+    margin: 24px auto;
+    padding: 0 16px 32px;
+    display: grid;
+    gap: 16px;
+}
+
+.profile-card {
+    background: #fff;
+    border: 1px solid #dfe4ee;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.profile-card h2 {
+    margin: 0 0 6px;
+}
+
+.profile-card .token-watch-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #dfe4ee;
+    border-radius: 8px;
+    background: #f9fbff;
+}
+
+.profile-card .token-watch-widget.hidden {
+    display: none;
+}
+
+.profile-card .token-watch__tokens,
+.profile-card .token-watch__cost {
+    font-weight: 600;
+    color: #21324f;
+}
+
+.profile-card .token-watch__separator {
+    color: #6a768d;
+}
+
+.profile-card__subtitle {
+    margin: 0 0 14px;
+    color: #4d5970;
+}
+
+.profile-card--danger {
+    border-color: #f2b8c2;
+    background: #fff7f8;
+}
+
+.profile-form {
+    display: grid;
+    gap: 10px;
+}
+
+.profile-form label {
+    font-weight: 600;
+    color: #21324f;
+}
+
+.profile-form input {
+    width: calc(100% - 24px);
+    border: 1px solid #ccd4e3;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.profile-feedback {
+    min-height: 18px;
+    margin: 2px 0 0;
+    font-size: 0.9rem;
+}
+
+.profile-feedback[data-state="error"] {
+    color: #b00020;
+}
+
+.profile-feedback[data-state="success"] {
+    color: #0e7a3f;
+}

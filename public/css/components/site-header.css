@@ -3,12 +3,12 @@
     padding: 0rem 2rem;
     background: var(--header-bg, #ffffff);
     border-bottom: 1px solid var(--border-color, #e1e5e9);
-    position: fixed;
     top: 0;
-    width: 100%;
+    width: var(--max-width-slim);
+    margin: 0 auto;
     height: var(--top-bar-height);
     z-index: 50;
-    justify-content: center;
+    justify-content: space-between;
 }
 
 .site-brand {
@@ -19,7 +19,7 @@
 }
 
 .site-brand .title {
-    margin: 0 60px 0 auto;
+    margin: 0 auto;
     font-size: 1.75rem;
 }
 
@@ -37,12 +37,7 @@
 }
 
 .site-nav__link {
-    padding: 0.5rem 1rem;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    color: var(--text-color, #1a1a1a);
-    font-weight: 600;
-    text-decoration: none;
+    text-decoration: underline;
     transition: border-color 0.2s ease, background 0.2s ease;
 }
 

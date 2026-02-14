@@ -173,4 +173,36 @@ export class ScriptPalUser {
     getCurrentUser () {
         return this.currentUser;
     }
+
+    /**
+     * Update current user profile and refresh local cache.
+     * @param {{ username: string }} profileData
+     * @returns {Promise<object>}
+     */
+    async updateProfile (profileData) {
+        const updated = await this.api.users.updateCurrentProfile(profileData);
+        this.currentUser = updated;
+        saveJsonToStorage('currentUser', updated);
+        return updated;
+    }
+
+    /**
+     * Change password for current user.
+     * @param {{ currentPassword: string, newPassword: string }} payload
+     * @returns {Promise<object>}
+     */
+    async changePassword (payload) {
+        return this.api.users.changePassword(payload);
+    }
+
+    /**
+     * Soft delete current account and clear local auth state.
+     * @param {{ password: string, confirm: string, deleteReason?: string }} payload
+     * @returns {Promise<void>}
+     */
+    async softDeleteCurrentUser (payload) {
+        await this.api.users.softDeleteCurrentUser(payload);
+        this.currentUser = null;
+        removeFromStorage('currentUser');
+    }
 }

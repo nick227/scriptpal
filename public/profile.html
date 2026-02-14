@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptPal - Profile</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https: http://localhost:*; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' http://localhost:* https: wss:;">
+    <link rel="icon" href="/images/script-logo-4.png">
+</head>
+
+<body class="profile-page">
+    <div id="shared-topbar"></div>
+
+    <main class="profile-page__main">
+        <section class="profile-card">
+            <h2>Token Usage</h2>
+            <p class="profile-card__subtitle">Your cumulative token usage and estimated spend.</p>
+            <div id="profile-token-watch" class="token-watch-widget hidden" aria-live="polite">
+                <span class="token-watch__tokens" aria-label="token usage">-</span>
+                <span class="token-watch__separator">-</span>
+                <span class="token-watch__cost" aria-label="cost">$0.0000</span>
+            </div>
+        </section>
+
+        <section class="profile-card">
+            <h2>Profile</h2>
+            <p class="profile-card__subtitle">Update your username and public profile route.</p>
+            <p class="profile-card__subtitle">
+                Public profile URL:
+                <a id="profile-public-url" href="#" target="_blank" rel="noreferrer"></a>
+            </p>
+            <form id="profile-username-form" class="profile-form">
+                <label for="profile-username">Username</label>
+                <input id="profile-username" type="text" minlength="3" maxlength="32" required>
+
+                <label for="profile-email">Email</label>
+                <input id="profile-email" type="email" readonly>
+
+                <button type="submit" class="auth-button auth-button-primary">Save Username</button>
+                <p id="profile-username-feedback" class="profile-feedback" aria-live="polite"></p>
+            </form>
+        </section>
+
+        <section class="profile-card">
+            <h2>Security</h2>
+            <p class="profile-card__subtitle">Change your password.</p>
+            <form id="profile-password-form" class="profile-form">
+                <label for="profile-current-password">Current password</label>
+                <input id="profile-current-password" type="password" required>
+
+                <label for="profile-new-password">New password</label>
+                <input id="profile-new-password" type="password" minlength="8" required>
+
+                <button type="submit" class="auth-button auth-button-primary">Update Password</button>
+                <p id="profile-password-feedback" class="profile-feedback" aria-live="polite"></p>
+            </form>
+        </section>
+
+        <section class="profile-card profile-card--danger hidden">
+            <h2>Danger Zone</h2>
+            <form id="profile-delete-form" class="profile-form">
+                <label for="profile-delete-password">Password</label>
+                <input id="profile-delete-password" type="password" required>
+
+                <label for="profile-delete-confirm">Type DELETE to confirm</label>
+                <input id="profile-delete-confirm" type="text" required>
+
+                <button type="submit" class="auth-button auth-button-danger">Delete Account</button>
+                <p id="profile-delete-feedback" class="profile-feedback" aria-live="polite"></p>
+            </form>
+        </section>
+    </main>
+
+    <script type="module" src="/js/pages/profilePage.js"></script>
+</body>
+
+</html>

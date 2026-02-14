@@ -4,19 +4,13 @@ const SHARED_TOPBAR_HTML = `
             <a href="/public/" class="site-nav__link"><h1 class="title">screenplaye</h1></a>
         </div>
         <nav class="site-nav">
-            <a href="/public/" class="site-nav__link">All</a>
-            <a href="/mine/" class="site-nav__link">Mine</a>
+            <a href="/mine/" class="site-nav__link">My Scripts</a>
         </nav>
-        <div class="token-watch-widget hidden" aria-live="polite">
-            <span class="token-watch__tokens" aria-label="token usage">x tokens</span>
-            <span>&mdash;</span>
-            <span class="token-watch__cost" aria-label="cost">&mdash;</span>
-        </div>
         <div class="auth-widget">
             <div class="user-info auth-user" aria-live="polite" style="display: none;">
-                <span class="auth-avatar" aria-hidden="true"></span>
+                <a href="/profile" class="site-nav__link hidden"><span class="auth-avatar" aria-hidden="true"></span></a>
                 <span class="auth-identity">
-                    <span class="auth-name"></span>
+                    <a href="/profile" class="site-nav__link"><span class="auth-name"></span></a>
                     <span style="display:none;" class="auth-email"></span>
                 </span>
             </div>
@@ -38,6 +32,11 @@ export const renderSharedTopBar = (containerId = 'shared-topbar') => {
         return;
     }
 
+    const existingHeader = container.querySelector('.site-header');
+    if (existingHeader) {
+        return;
+    }
+
     container.innerHTML = SHARED_TOPBAR_HTML;
 };
 
@@ -47,7 +46,7 @@ export const getTopBarElements = () => {
         formsContainer: root.querySelector('.auth-forms'),
         logoutButton: root.querySelector('.logout-button'),
         userInfo: root.querySelector('.auth-user'),
-        tokenWatchContainer: root.querySelector('.token-watch-widget'),
+        tokenWatchContainer: null,
         messagesContainer: null
     };
 };

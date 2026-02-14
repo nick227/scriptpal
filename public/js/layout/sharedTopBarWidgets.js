@@ -4,7 +4,7 @@ import { TokenWatchWidget } from '../widgets/ui/TokenWatchWidget.js';
 
 import { getTopBarElements } from './sharedLayout.js';
 
-export const initAuthWidget = async (api, user, stateManager, eventManager, topBarElements = null) => {
+export const initAuthWidget = async (api, user, stateManager, eventManager, topBarElements = null, options = {}) => {
     const sharedElements = topBarElements || getTopBarElements();
     const elements = {
         ...sharedElements,
@@ -20,7 +20,8 @@ export const initAuthWidget = async (api, user, stateManager, eventManager, topB
     }
 
     const authWidget = new AuthWidget(elements, stateManager, user, eventManager, {
-        redirectOnLogout: true
+        redirectOnLogout: true,
+        ...options
     });
 
     await authWidget.initialize(elements);
@@ -41,7 +42,14 @@ export const initTokenWatchWidget = async (container, api, stateManager, eventMa
     return widget;
 };
 
-export const initSharedTopBarWidgets = async (api, user, stateManager, eventManager, topBarElements = null) => {
+export const initSharedTopBarWidgets = async (
+    api,
+    user,
+    stateManager,
+    eventManager,
+    topBarElements = null,
+    options = {}
+) => {
     const sharedElements = topBarElements || getTopBarElements();
     const tokenWatchWidget = await initTokenWatchWidget(
         sharedElements.tokenWatchContainer,
@@ -49,7 +57,7 @@ export const initSharedTopBarWidgets = async (api, user, stateManager, eventMana
         stateManager,
         eventManager
     );
-    const authWidget = await initAuthWidget(api, user, stateManager, eventManager, sharedElements);
+    const authWidget = await initAuthWidget(api, user, stateManager, eventManager, sharedElements, options);
 
     return {
         authWidget,

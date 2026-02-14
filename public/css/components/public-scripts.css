@@ -1,7 +1,7 @@
 .public-scripts-page {
     width: var(--max-width);
     max-width: 100%;
-    margin: var(--top-bar-height) auto;
+    margin: 0 auto;
     min-height: calc(100vh - var(--top-bar-height));
 }
 
@@ -60,7 +60,7 @@
     padding: 20px;
     width: var(--max-width);
     max-width: 100%;
-    margin: var(--top-bar-height) auto;
+    margin: 0 auto;
 }
 
 .public-script-card {

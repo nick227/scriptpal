@@ -52,7 +52,8 @@ export class ScriptWidget extends BaseWidget {
 
         panelContainer.appendChild(header);
         panelContainer.appendChild(listContainer);
-        panelContainer.appendChild(createButton);
+        //panelContainer.appendChild(createButton);
+        panelContainer.insertAdjacentElement('afterend', createButton);
 
         this.renderer = RendererFactory.createScriptRenderer(listContainer);
 

@@ -11,6 +11,10 @@ export const validateSession = async(req, res, next) => {
 
     const cached = sessionCache.get(sessionToken);
     if (cached) {
+      if (cached.user?.deletedAt) {
+        sessionCache.delete(sessionToken);
+        return res.status(401).json({ error: 'Invalid or expired session' });
+      }
       req.userId = cached.userId;
       req.user = cached.user;
       return next();
@@ -23,6 +27,7 @@ export const validateSession = async(req, res, next) => {
 
     const resolved = await sessionRepository.getUserByValidToken(sessionToken);
     if (!resolved) {
+      sessionCache.delete(sessionToken);
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 

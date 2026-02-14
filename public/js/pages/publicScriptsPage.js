@@ -5,16 +5,18 @@ import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js
 import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
 import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
 import { PublicScriptsWidget } from '../widgets/script/PublicScriptsWidget.js';
+import { initPageFrameNavigation, registerPageFrameCleanup } from '../layout/pageFrameNavigation.js';
 
-const initPublicScriptsPage = async () => {
+export const mountPublicScriptsPage = async ({ preserveTopBar = false } = {}) => {
     const auth = await requireAuth();
     if (!auth.authenticated) {
-        return;
+        return () => {};
     }
 
-    renderSharedTopBar();
+    if (!preserveTopBar) {
+        renderSharedTopBar();
+    }
 
-    const elements = getTopBarElements();
     const api = auth.user?.api || new ScriptPalAPI();
     const stateManager = new StateManager();
     const eventManager = new EventManager();
@@ -22,16 +24,26 @@ const initPublicScriptsPage = async () => {
 
     bindAuthenticatedStateGuard(stateManager, user);
 
-    await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
+    if (!preserveTopBar) {
+        const elements = getTopBarElements();
+        await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
+    }
 
     const widget = new PublicScriptsWidget({ api });
     await widget.initialize();
+
+    return () => {};
 };
 
-initPublicScriptsPage().catch((error) => {
-    console.error('[PublicScriptsPage] Initialization failed:', error);
-    const list = document.querySelector('.public-scripts-list');
-    if (list) {
-        list.innerHTML = '<div class="public-script-error">Unable to initialize page.</div>';
-    }
-});
+mountPublicScriptsPage()
+    .then((cleanup) => {
+        registerPageFrameCleanup(cleanup);
+        initPageFrameNavigation();
+    })
+    .catch((error) => {
+        console.error('[PublicScriptsPage] Initialization failed:', error);
+        const list = document.querySelector('.public-scripts-list');
+        if (list) {
+            list.innerHTML = '<div class="public-script-error">Unable to initialize page.</div>';
+        }
+    });

@@ -29,7 +29,7 @@
 .toolbar-separator,
 .page-counter,
 .prompt-helper-section,
-.token-watch-widget,
+.site-header .token-watch-widget,
 .auth-avatar,
 .auth-forms .logo-image {
     display:none !important;

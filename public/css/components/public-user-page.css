@@ -1,0 +1,185 @@
+.public-user-page__main {
+    max-width: 1080px;
+    margin: 28px auto 40px;
+    padding: 0 18px;
+    display: grid;
+    gap: 18px;
+}
+
+.writer-profile-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    border-radius: 20px;
+    padding: 20px;
+}
+
+.writer-profile-hero__identity {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+.writer-profile-hero__monogram {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #f4f2ec;
+    background: linear-gradient(145deg, #1b2b4e 0%, #243d68 65%, #395f93 100%);
+}
+
+.writer-profile-hero__label {
+    margin: 0;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #5f6773;
+}
+
+.writer-profile-hero h1 {
+    margin: 2px 0 2px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(1.85rem, 3.5vw, 2.6rem);
+    line-height: 1;
+    color: #111a25;
+}
+
+.writer-profile-hero__handle {
+    margin: 0;
+    color: #49515e;
+    font-weight: 500;
+}
+
+.writer-profile-hero__stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 10px;
+    width: min(320px, 100%);
+}
+
+.writer-profile-stat {
+    border: 1px solid rgba(35, 44, 58, 0.12);
+    background: rgba(250, 249, 246, 0.8);
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+.writer-profile-stat__label {
+    display: block;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #676f7a;
+}
+
+.writer-profile-stat__value {
+    display: block;
+    margin-top: 2px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #172030;
+}
+
+.public-user-content {
+    border-radius: 20px;
+    padding: 20px;
+}
+
+.public-user-content__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.public-user-content__header h2 {
+    margin: 0;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.7rem;
+    color: #151e2b;
+}
+
+.public-user-content__header p {
+    margin: 0;
+    color: #5c6570;
+    font-size: 0.95rem;
+}
+
+.public-user-page__status {
+    margin: 6px 0 12px;
+    color: #4f5866;
+}
+
+.public-user-page__status--error {
+    color: #b00020;
+}
+
+#public-user-error,
+#public-user-empty {
+    display: none;
+}
+
+.public-user-page__scripts {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.public-user-script-card {
+    border: 1px solid rgba(30, 39, 53, 0.15);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 8px 18px rgba(23, 31, 44, 0.06);
+}
+
+.public-user-script-card__meta {
+    margin: 0;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6d7582;
+}
+
+.public-user-script-card h3 {
+    margin: 6px 0 8px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.45rem;
+}
+
+.public-user-script-card a {
+    color: #121d2c;
+    text-decoration: none;
+}
+
+.public-user-script-card a:hover {
+    text-decoration: underline;
+}
+
+.public-user-script-card__summary {
+    margin: 0;
+    color: #4e5764;
+    line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+    .writer-profile-hero {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .writer-profile-hero__stats {
+        width: 100%;
+    }
+
+    .public-user-content__header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { generateDefaultUsername } from '../lib/defaultUsername.js';
+import { validateUsername } from '../lib/username.js';
 import sessionRepository from '../repositories/sessionRepository.js';
 import userRepository from '../repositories/userRepository.js';
 
@@ -44,9 +46,17 @@ const userModel = {
 
   createUser: async(user) => {
     const { hash, salt } = hashPassword(user.password);
+    const username = await generateDefaultUsername({
+      isTaken: async(candidate) => {
+        const existing = await userRepository.getByNormalizedUsername(candidate);
+        return Boolean(existing);
+      }
+    });
     try {
       return await userRepository.create({
         email: user.email,
+        username,
+        usernameNormalized: username,
         passwordHash: hash,
         passwordSalt: salt
       });
@@ -71,7 +81,7 @@ const userModel = {
 
   login: async(email, password) => {
     try {
-      const user = await userRepository.getByEmail(email);
+      let user = await userRepository.getByEmail(email);
       if (!user || !user.passwordHash || !user.passwordSalt) {
         return null;
       }
@@ -79,6 +89,10 @@ const userModel = {
       const isValid = verifyPassword(password, user.passwordSalt, user.passwordHash);
       if (!isValid) {
         return null;
+      }
+
+      if (!user.username || !user.usernameNormalized) {
+        user = await userModel.ensureUsername(user.id);
       }
 
       // Create a session token
@@ -93,12 +107,122 @@ const userModel = {
       return {
         id: user.id,
         email: user.email,
+        username: user.username,
         sessionToken
       };
     } catch (error) {
       console.error('Login error:', error);
       throw error;
     }
+  },
+
+  updateProfile: async(id, { username }) => {
+    const validation = validateUsername(username);
+    if (!validation.valid) {
+      const error = new Error(validation.error);
+      error.code = 'INVALID_USERNAME';
+      throw error;
+    }
+
+    const existing = await userRepository.getByNormalizedUsername(validation.normalized);
+    if (existing && existing.id !== Number(id)) {
+      const error = new Error('Username already exists');
+      error.code = 'ER_DUP_ENTRY';
+      throw error;
+    }
+
+    try {
+      return await userRepository.updateProfile(Number(id), {
+        username: validation.normalized,
+        usernameNormalized: validation.normalized
+      });
+    } catch (error) {
+      if (error?.code === 'P2002') {
+        error.code = 'ER_DUP_ENTRY';
+      }
+      throw error;
+    }
+  },
+
+  changePassword: async(id, { currentPassword, newPassword }) => {
+    if (!currentPassword || !newPassword) {
+      const error = new Error('Current password and new password are required');
+      error.code = 'INVALID_PASSWORD_CHANGE_PAYLOAD';
+      throw error;
+    }
+
+    if (newPassword.length < 8) {
+      const error = new Error('New password must be at least 8 characters');
+      error.code = 'WEAK_PASSWORD';
+      throw error;
+    }
+
+    const user = await userRepository.getById(Number(id));
+    if (!user || user.deletedAt) {
+      return null;
+    }
+
+    const isValid = verifyPassword(currentPassword, user.passwordSalt, user.passwordHash);
+    if (!isValid) {
+      const error = new Error('Current password is incorrect');
+      error.code = 'INVALID_CURRENT_PASSWORD';
+      throw error;
+    }
+
+    const { hash, salt } = hashPassword(newPassword);
+    await userRepository.updatePassword(Number(id), {
+      passwordHash: hash,
+      passwordSalt: salt
+    });
+
+    // Invalidate all sessions so password changes immediately force re-authentication.
+    await sessionRepository.deleteByUserId(Number(id));
+
+    return true;
+  },
+
+  softDeleteUser: async(id, { password, deleteReason } = {}) => {
+    if (!password) {
+      const error = new Error('Password is required');
+      error.code = 'PASSWORD_REQUIRED';
+      throw error;
+    }
+
+    const user = await userRepository.getById(Number(id));
+    if (!user || user.deletedAt) {
+      return null;
+    }
+
+    const isValid = verifyPassword(password, user.passwordSalt, user.passwordHash);
+    if (!isValid) {
+      const error = new Error('Invalid credentials');
+      error.code = 'INVALID_CREDENTIALS';
+      throw error;
+    }
+
+    await userRepository.softDelete(Number(id), { deleteReason });
+    await sessionRepository.deleteByUserId(Number(id));
+    return true;
+  },
+
+  ensureUsername: async(id) => {
+    const user = await userRepository.getById(Number(id));
+    if (!user || user.deletedAt) return null;
+    if (user.username && user.usernameNormalized) {
+      return user;
+    }
+
+    const username = await generateDefaultUsername({
+      isTaken: async(candidate) => {
+        const existing = await userRepository.getByNormalizedUsername(candidate);
+        return Boolean(existing);
+      }
+    });
+
+    return userRepository.updateProfile(Number(id), {
+      username,
+      usernameNormalized: username
+    });
   },
 
   logout: async(sessionToken) => {
@@ -114,7 +238,11 @@ const userModel = {
     const session = await sessionRepository.getByToken(sessionToken);
     if (!session) return null;
 
-    return await userRepository.getById(session.userId);
+    const user = await userRepository.getById(session.userId);
+    if (!user || user.deletedAt) {
+      return null;
+    }
+    return user;
   }
 };
 

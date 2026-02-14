@@ -23,7 +23,9 @@
 @import 'components/authentication.css';
 @import 'components/site-header.css';
 @import 'components/public-scripts.css';
+@import 'components/public-user-page.css';
 @import 'components/mini-chat-widget.css';
+@import 'components/profile-page.css';
 
 /* Imports */
 

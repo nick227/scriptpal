@@ -10,6 +10,9 @@ const sanitizeUser = (user) => {
     passwordSalt: _passwordSalt,
     password_hash: _passwordHashLegacy,
     password_salt: _passwordSaltLegacy,
+    usernameNormalized: _usernameNormalized,
+    deletedAt: _deletedAt,
+    deleteReason: _deleteReason,
     ...safeUser
   } = user;
   return safeUser;
@@ -78,11 +81,98 @@ const userController = {
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-      res.json(user);
+      res.json(sanitizeUser(user));
     } catch (error) {
       console.error('Error updating user:', error);
       if (error.code === 'ER_DUP_ENTRY' || error.code === 'P2002') {
         return res.status(409).json({ error: 'Email already exists' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  updateCurrentProfile: async(req, res) => {
+    try {
+      const { username } = req.body || {};
+      const user = await userModel.updateProfile(req.userId, { username });
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json(sanitizeUser(user));
+    } catch (error) {
+      console.error('Error updating current profile:', error);
+      if (error.code === 'INVALID_USERNAME') {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.code === 'ER_DUP_ENTRY' || error.code === 'P2002') {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  changePassword: async(req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body || {};
+      await userModel.changePassword(req.userId, { currentPassword, newPassword });
+
+      const { sessionToken } = req.cookies || {};
+      sessionCache.deleteByUserId(req.userId);
+      if (sessionToken) {
+        sessionCache.delete(sessionToken);
+      }
+      res.clearCookie('sessionToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/'
+      });
+      res.json({ message: 'Password updated. Please sign in again.' });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      if (error.code === 'INVALID_PASSWORD_CHANGE_PAYLOAD' || error.code === 'WEAK_PASSWORD') {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.code === 'INVALID_CURRENT_PASSWORD') {
+        return res.status(401).json({ error: error.message });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  softDeleteCurrentUser: async(req, res) => {
+    try {
+      const { password, confirm, deleteReason } = req.body || {};
+      if (confirm !== 'DELETE') {
+        return res.status(400).json({ error: 'Account deletion confirmation required' });
+      }
+
+      const result = await userModel.softDeleteUser(req.userId, { password, deleteReason });
+      if (!result) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const { sessionToken } = req.cookies || {};
+      sessionCache.deleteByUserId(req.userId);
+      if (sessionToken) {
+        sessionCache.delete(sessionToken);
+      }
+
+      res.clearCookie('sessionToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/'
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error soft deleting current user:', error);
+      if (error.code === 'PASSWORD_REQUIRED') {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.code === 'INVALID_CREDENTIALS') {
+        return res.status(401).json({ error: error.message });
       }
       res.status(500).json({ error: 'Internal server error' });
     }
@@ -153,7 +243,11 @@ const userController = {
       if (!req.user) {
         return res.status(401).json({ error: 'Invalid session' });
       }
-      res.json(sanitizeUser(req.user));
+      let currentUser = req.user;
+      if (!currentUser.username || !currentUser.usernameNormalized) {
+        currentUser = await userModel.ensureUsername(currentUser.id);
+      }
+      res.json(sanitizeUser(currentUser));
     } catch (error) {
       console.error('Error getting current user:', error);
       res.status(500).json({ error: 'Internal server error' });

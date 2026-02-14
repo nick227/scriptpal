@@ -444,6 +444,14 @@ class ScriptPalServer {
 
     // Frontend routes
     this.app.get('/public', (req, res) => sendClientFile(res, 'public-scripts.html'));
+    this.app.get('/u/:username', (req, res) => {
+      const rawUsername = String(req.params.username || '');
+      const normalizedUsername = rawUsername.toLowerCase();
+      if (rawUsername && rawUsername !== normalizedUsername) {
+        return res.redirect(301, `/u/${encodeURIComponent(normalizedUsername)}`);
+      }
+      return sendClientFile(res, 'public-user.html');
+    });
     this.app.get('/public/:slug', asyncHandler(async (req, res) => {
       const slug = req.params.slug;
       if (!slug) {
@@ -469,6 +477,7 @@ class ScriptPalServer {
     this.app.get('/mine', validateSession, (req, res) => sendClientFile(res, 'index.html'));
     this.app.get('/mine/:slug', validateSession, (req, res) => sendClientFile(res, 'index.html'));
     this.app.get('/brainstorm', validateSession, (req, res) => sendClientFile(res, 'brainstorm.html'));
+    this.app.get('/profile', validateSession, (req, res) => sendClientFile(res, 'profile.html'));
 
     // Legacy redirects
     this.app.get('/public-script.html', asyncHandler(async (req, res) => {

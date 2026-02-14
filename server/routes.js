@@ -30,6 +30,7 @@ import scriptUpdateRateLimit from './middleware/scriptUpdateRateLimit.js';
 import chatController from './controllers/chat/chat.controller.js';
 import publicScriptController from './controllers/public/public-script.controller.js';
 import publicScriptCommentController from './controllers/public/public-script-comment.controller.js';
+import publicUserController from './controllers/public/public-user.controller.js';
 
 const scriptOwnership = [validateSession, requireScriptOwnership({ getScriptId: (req) => Number(req.params.scriptId) })];
 
@@ -86,6 +87,11 @@ const routes = [
     method: 'post',
     handler: publicScriptController.cloneByPublicId,
     middleware: [validateSession]
+  },
+  {
+    path: '/public/users/:username',
+    method: 'get',
+    handler: publicUserController.getByUsername
   },
   {
     path: '/public/scripts/slug/:slug',
@@ -145,6 +151,24 @@ const routes = [
     path: '/user/current',
     method: 'get',
     handler: userController.getCurrentUser,
+    middleware: [validateSession]
+  },
+  {
+    path: '/user/current/profile',
+    method: 'patch',
+    handler: userController.updateCurrentProfile,
+    middleware: [validateSession]
+  },
+  {
+    path: '/user/current/password',
+    method: 'post',
+    handler: userController.changePassword,
+    middleware: [validateSession]
+  },
+  {
+    path: '/user/current',
+    method: 'delete',
+    handler: userController.softDeleteCurrentUser,
     middleware: [validateSession]
   },
   {

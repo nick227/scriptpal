@@ -67,6 +67,15 @@ class SessionCache {
     this.store.delete(token);
   }
 
+  deleteByUserId(userId) {
+    if (!userId) return;
+    for (const [token, entry] of this.store.entries()) {
+      if (entry?.userId === userId) {
+        this.store.delete(token);
+      }
+    }
+  }
+
   clear() {
     this.store.clear();
   }

@@ -29,6 +29,11 @@ const sessionRepository = {
         token,
         expiresAt: {
           gt: new Date()
+        },
+        user: {
+          is: {
+            deletedAt: null
+          }
         }
       },
       include: {
@@ -51,6 +56,13 @@ const sessionRepository = {
       where: { token }
     });
     return result.count > 0;
+  },
+
+  deleteByUserId: async(userId) => {
+    const result = await prisma.session.deleteMany({
+      where: { userId }
+    });
+    return result.count;
   }
 };
 

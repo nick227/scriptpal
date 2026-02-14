@@ -135,4 +135,27 @@ export class PublicScriptService {
             data: { content: content.trim() }
         });
     }
+
+    /**
+     * Get a public user profile by username
+     * @param {string} username
+     * @param {{ page?: number, pageSize?: number }} options
+     * @returns {Promise<object>}
+     */
+    async getPublicUserProfile(username, options = {}) {
+        if (!username) {
+            throw new ValidationError('USERNAME_REQUIRED');
+        }
+
+        const params = new URLSearchParams();
+        if (options.page) params.set('page', String(options.page));
+        if (options.pageSize) params.set('pageSize', String(options.pageSize));
+
+        const query = params.toString();
+        const endpoint = query
+            ? `${API_ENDPOINTS.PUBLIC_USERS}/${encodeURIComponent(username)}?${query}`
+            : `${API_ENDPOINTS.PUBLIC_USERS}/${encodeURIComponent(username)}`;
+
+        return this.http.request(endpoint, { method: 'GET' });
+    }
 }

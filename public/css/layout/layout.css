@@ -26,7 +26,6 @@
     
     .container-main {
         display: flex;
-        margin-top: var(--top-bar-height);
     }
     
 .container-main {
@@ -53,9 +52,9 @@
 }
 .chatbot-container {
     width: 22vw;
-    height: 80vh;
+    height: 98vh;
     position: fixed;
-    right: 50px;
+    right: 20px;
     z-index: 222;
     bottom: 0;
     border: 1px solid rgba(0, 0, 0, 0.1);
@@ -72,6 +71,7 @@
     background: white;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     padding: 1.2rem;
     border-radius: 10px;
     border: 10px solid lightgray;
@@ -96,6 +96,18 @@
     0% { opacity: 0; }
     15% { opacity: 1; }
     100% { opacity: 1; }
+}
+
+main {
+    transition: opacity 120ms ease;
+}
+
+body.frame-nav-pending .site-header {
+    pointer-events: none;
+}
+
+body.frame-nav-pending main {
+    opacity: 0.72;
 }
 
     /* Rows and Columns */

@@ -19,7 +19,11 @@ export const API_ENDPOINTS = {
     MEDIA_JOBS: '/media/jobs'
 };
 API_ENDPOINTS.USER_TOKEN_WATCH = '/user/token-watch';
+API_ENDPOINTS.USER_CURRENT = '/user/current';
+API_ENDPOINTS.USER_CURRENT_PROFILE = '/user/current/profile';
+API_ENDPOINTS.USER_CURRENT_PASSWORD = '/user/current/password';
 API_ENDPOINTS.PUBLIC_SCRIPTS = '/public/scripts';
+API_ENDPOINTS.PUBLIC_USERS = '/public/users';
 API_ENDPOINTS.PUBLIC_SCRIPTS_SLUG = '/public/scripts/slug';
 API_ENDPOINTS.PUBLIC_SCRIPT_BY_PUBLIC_ID = (publicId) => `/public/scripts/public/${publicId}`;
 API_ENDPOINTS.PUBLIC_SCRIPT_CLONE = (publicId) => `/public/scripts/public/${publicId}/clone`;
