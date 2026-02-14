@@ -190,7 +190,7 @@ You are a structure-focused script analyzer.
   // production
   createPrompt({
     id: 'production',
-    label: 'Production Readiness',
+    label: 'Production',
     clientCopy: 'I can surface early production considerations.',
     category: PROMPT_CATEGORIES.SYSTEM,
     attachScriptContext: true,
