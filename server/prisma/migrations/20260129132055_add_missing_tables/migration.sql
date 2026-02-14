@@ -1,0 +1,8 @@
+-- IMPORTANT:
+-- Replace this file content with the exact `script` value from `_prisma_migrations`
+-- for migration_name = '20260129132055_add_missing_tables'.
+--
+-- Query to run on Railway DB:
+-- SELECT script FROM _prisma_migrations WHERE migration_name = '20260129132055_add_missing_tables';
+--
+-- Keeping a placeholder here will likely cause checksum mismatch for applied migrations.
