@@ -17,12 +17,12 @@ export class AuthFormsView {
      */
     render () {
         this.container.innerHTML = `
+            <h1>screenplaye</h1>
+            <p>AI assisted script writing</p>
             <div class="auth-toggle">
                 <button type="button" class="auth-toggle-button is-active" data-auth-mode="login">Login</button>
                 <button type="button" class="auth-toggle-button" data-auth-mode="register">Register</button>
             </div>
-            <div class="row">
-            <img src="/images/dezgo2c70.webp" alt="ScriptPal" class="logo-image" style="">
             <div>
             <form id="login-form" class="login-form auth-form auth-form--login">
             <h2>Login</h2>
@@ -50,7 +50,6 @@ export class AuthFormsView {
                 <div class="auth-feedback" data-auth-feedback="register" aria-live="polite"></div>
                 <button type="submit" class="auth-submit auth-submit--secondary">Create account</button>
             </form>
-            </div>
             </div>
         `;
 

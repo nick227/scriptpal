@@ -17,7 +17,7 @@ button:disabled {
 
 button.is-active,
 button:hover:not(:disabled) {
-    background-color: var(--chat-ink);
+    background-color: var(--accent-color);
     color: white;
 }
 
