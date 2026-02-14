@@ -351,7 +351,6 @@
             width: auto;
             margin-left: var(--dialog-left);
             margin-right: var(--dialog-right);
-            padding-top: 0;
         }
         
         .script-line.format-directions {
