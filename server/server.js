@@ -119,6 +119,34 @@ const generate404Page = (fileName) => {
 </html>`;
 };
 
+const injectCspNonceIntoHtml = (html, nonce) => {
+  if (!nonce || typeof html !== 'string' || html.length === 0) {
+    return html;
+  }
+
+  let output = html;
+
+  // Expose the nonce to client code if it ever needs to create scripts dynamically.
+  if (!/<meta[^>]+name=["']csp-nonce["']/i.test(output)) {
+    const metaTag = `<meta name="csp-nonce" content="${nonce}">`;
+    if (/<head[^>]*>/i.test(output)) {
+      output = output.replace(/<head[^>]*>/i, (match) => `${match}\n    ${metaTag}`);
+    } else if (/<\/head>/i.test(output)) {
+      output = output.replace(/<\/head>/i, `    ${metaTag}\n</head>`);
+    } else {
+      output = `${metaTag}\n${output}`;
+    }
+  }
+
+  // Add nonce to inline scripts (no src attribute) so CSP doesn't block them.
+  output = output.replace(
+    /<script(?![^>]*\bsrc=)(?![^>]*\bnonce=)([^>]*)>/gi,
+    (match, attrs) => `<script${attrs} nonce="${nonce}">`
+  );
+
+  return output;
+};
+
 /**
  * Async error handler wrapper for Express routes
  * @param {Function} fn - Async function to wrap
@@ -370,6 +398,36 @@ class ScriptPalServer {
       maxAge: '1d'
     }));
 
+    // Serve HTML with the per-request CSP nonce injected into any inline scripts.
+    // This keeps strict CSP (nonce-based) while allowing local inline script blocks on test/dev pages.
+    this.app.use(async (req, res, next) => {
+      try {
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          return next();
+        }
+        if (!req.path || !req.path.toLowerCase().endsWith('.html')) {
+          return next();
+        }
+
+        const safeName = path.basename(req.path);
+        const filePath = path.join(clientBuildPath, safeName);
+        const resolvedPath = path.resolve(filePath);
+        const basePath = path.resolve(clientBuildPath);
+
+        if (!resolvedPath.startsWith(basePath)) {
+          return res.status(403).send('Forbidden');
+        }
+
+        const rawHtml = await fs.promises.readFile(resolvedPath, 'utf8');
+        const nonce = res?.locals?.cspNonce;
+        res.set('Cache-Control', 'no-store');
+        return res.type('html').send(injectCspNonceIntoHtml(rawHtml, nonce));
+      } catch (error) {
+        // Fall back to express.static / route handlers when the file isn't found.
+        return next();
+      }
+    });
+
     this.app.use(express.static(clientBuildPath, {
       maxAge: '1d',
       etag: true,
@@ -405,11 +463,15 @@ class ScriptPalServer {
         return res.status(403).send('Forbidden');
       }
 
-      res.sendFile(filePath, (err) => {
-        if (err) {
+      fs.promises.readFile(resolvedPath, 'utf8')
+        .then((rawHtml) => {
+          const nonce = res?.locals?.cspNonce;
+          res.set('Cache-Control', 'no-store');
+          res.type('html').send(injectCspNonceIntoHtml(rawHtml, nonce));
+        })
+        .catch(() => {
           res.status(404).send(generate404Page(fileName));
-        }
-      });
+        });
     };
 
     /**
