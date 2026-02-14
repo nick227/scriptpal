@@ -54,7 +54,7 @@
             --dialog-right: clamp(15%, 2.5vw, 20%);
             --speaker-left: clamp(40%, 4vw, 35%);
             --speaker-right: clamp(15%, 2.5vw, 20%);
-            --directions-left: clamp(40%, 5vw, 50%);
+            --directions-left: clamp(50%, 10vw, 70%);
             /* Toolbar */
             --toolbar-height: clamp(48px);
             --toolbar-bg: var(--color-bg-toolbar);
@@ -360,6 +360,7 @@
             color: var(--color-text-dim);
             text-align: right;
             padding-right: 80px;
+            text-transform: uppercase;
         }
         
         .script-line.format-break {

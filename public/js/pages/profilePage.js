@@ -2,7 +2,7 @@ import { EventManager } from '../core/EventManager.js';
 import { StateManager } from '../core/StateManager.js';
 import { bindAuthenticatedStateGuard, requireAuth } from '../auth/authGate.js';
 import { renderSharedTopBar, getTopBarElements } from '../layout/sharedLayout.js';
-import { initSharedTopBarWidgets } from '../layout/sharedTopBarWidgets.js';
+import { initSharedTopBarWidgets, initTokenWatchWidget } from '../layout/sharedTopBarWidgets.js';
 import { ScriptPalAPI } from '../services/api/ScriptPalAPI.js';
 import { initPageFrameNavigation, registerPageFrameCleanup } from '../layout/pageFrameNavigation.js';
 
@@ -50,6 +50,13 @@ export const mountProfilePage = async({ preserveTopBar = false } = {}) => {
         const elements = getTopBarElements();
         await initSharedTopBarWidgets(api, user, stateManager, eventManager, elements);
     }
+    const profileTokenWatchContainer = document.getElementById('profile-token-watch');
+    const profileTokenWatchWidget = await initTokenWatchWidget(
+        profileTokenWatchContainer,
+        api,
+        stateManager,
+        eventManager
+    );
 
     const currentUser = user.getCurrentUser();
 
@@ -66,7 +73,7 @@ export const mountProfilePage = async({ preserveTopBar = false } = {}) => {
     const deleteFeedback = document.getElementById('profile-delete-feedback');
 
     if (emailInput) {
-        emailInput.value = currentUser?.email || '';
+        emailInput.innerHTML = currentUser?.email || '';
     }
     if (usernameInput) {
         usernameInput.value = currentUser?.username || '';
@@ -150,7 +157,11 @@ export const mountProfilePage = async({ preserveTopBar = false } = {}) => {
             setFeedback(deleteFeedback, error?.message || 'Failed to delete account.', 'error');
         }
     });
-    return () => {};
+    return () => {
+        if (profileTokenWatchWidget) {
+            profileTokenWatchWidget.destroy();
+        }
+    };
 };
 
 mountProfilePage()

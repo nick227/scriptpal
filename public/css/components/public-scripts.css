@@ -210,33 +210,6 @@
     gap: 0;
 }
 
-.editor-page.public-script-viewer {
-    width: 100%;
-    max-width: none;
-    margin: 0 auto;
-    padding: 0;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    background: transparent;
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-}
-
-.editor-page-content {
-    padding: 0 90px;
-}
-
-.editor-page.public-script-viewer .editor-page-content {
-    min-height: 320px;
-    border-radius: 12px;
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-    border: 1px solid var(--border-color);
-}
-
 .public-scripts-footer {
     display: flex;
     align-items: center;

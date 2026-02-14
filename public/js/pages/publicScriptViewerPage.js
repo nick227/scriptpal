@@ -8,9 +8,9 @@ import { initPageFrameNavigation, registerPageFrameCleanup } from '../layout/pag
 import { LineFormatter } from '../widgets/editor/LineFormatter.js';
 import { ScriptDocument } from '../widgets/editor/model/ScriptDocument.js';
 import { MAX_LINES_PER_PAGE } from '../widgets/editor/constants.js';
+import { PageFactory } from '../widgets/editor/page/PageFactory.js';
 import {
     chunkLines,
-    createPageShell,
     redistributeOverflowingContent
 } from '../utils/pageRedistribution.js';
 
@@ -80,14 +80,28 @@ const renderScriptTags = (container, tags) => {
     container.hidden = false;
 };
 
-const createPublicPage = (container) => {
-    const { page, content } = createPageShell();
+const pageFactory = new PageFactory();
+
+const createPublicPage = (container, { includeLeadingIndicator = false } = {}) => {
+    const pageIndex = container.querySelectorAll('.editor-page').length;
+    const pageId = `public-page-${pageIndex + 1}`;
+    const page = pageFactory.createPageElement({
+        pageIndex,
+        pageId,
+        isLoaded: true
+    });
+    const content = page.querySelector('.editor-page-content') || page.querySelector('.page-content');
+
     page.classList.add('public-script-viewer__page');
-    const indicator = document.createElement('div');
-    indicator.className = 'page-break-indicator';
-    container.appendChild(indicator);
+
+    if (includeLeadingIndicator) {
+        const indicator = document.createElement('div');
+        indicator.className = 'page-break-indicator';
+        container.appendChild(indicator);
+    }
+
     container.appendChild(page);
-    return page;
+    return { page, content };
 };
 
 const renderStaticScriptLines = (container, content) => {
@@ -104,8 +118,7 @@ const renderStaticScriptLines = (container, content) => {
     const chunks = chunkLines(lines, maxPerPage);
 
     for (let i = 0; i < chunks.length; i++) {
-        const { page, content: contentEl } = createPageShell();
-        page.classList.add('public-script-viewer__page');
+        const { content: contentEl } = createPublicPage(container);
 
         chunks[i].forEach((line) => {
             const lineElement = LineFormatter.createStaticLine({
@@ -114,8 +127,6 @@ const renderStaticScriptLines = (container, content) => {
             });
             contentEl.appendChild(lineElement);
         });
-
-        container.appendChild(page);
 
         if (i < chunks.length - 1) {
             const indicator = document.createElement('div');
@@ -126,7 +137,7 @@ const renderStaticScriptLines = (container, content) => {
 
     redistributeOverflowingContent({
         getPages: () => Array.from(container.querySelectorAll('.editor-page')),
-        createNewPage: () => createPublicPage(container)
+        createNewPage: () => createPublicPage(container, { includeLeadingIndicator: true }).page
     });
 };
 

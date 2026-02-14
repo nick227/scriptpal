@@ -22,7 +22,7 @@ This document outlines the architectural differences between the script editor (
   - Fetches script content via API.
   - Parses content using `ScriptDocument`.
   - Chunks lines using `chunkLines`.
-  - Creates page shells using `createPageShell`.
+  - Creates page shells using `PageFactory` (shared with editor).
   - Redistributes content using `redistributeOverflowingContent` (shared utility).
 - **Primary Goal**: Fast, read-only presentation.
 
@@ -33,9 +33,10 @@ Despite the divergent goals (editing vs. viewing), significant logic is shared:
 1.  **`LineFormatter.js`**: Both systems use this to generate the HTML for individual script lines (Dialogue, Character, Action, etc.). This ensures consistent styling.
 2.  **`ScriptDocument.js`**: Shared model for data parsing and serialization.
 3.  **`utils/pageRedistribution.js`**: 
-    - `createPageShell`: Creates the standardized `.editor-page` DOM structure.
     - `redistributeOverflowingContent`: Shared logic to handle content overflowing a page's height. This ensures the viewer matches the editor's pagination logic.
-4.  **CSS**: Both rely on common classes (`.editor-page`, `.script-line`, `.page-break-indicator`) defined in main CSS files.
+4.  **`PageFactory.js`**:
+    - Provides the standardized `.editor-page`/`.editor-page-content` structure and inline page metrics used by both views.
+5.  **CSS**: Both rely on common classes (`.editor-page`, `.script-line`, `.page-break-indicator`) defined in main CSS files.
 
 ## Feasibility: Optional Page Breaks
 
@@ -63,3 +64,25 @@ The request to make page breaks "optional" (i.e., a continuous scrolling view) h
 1.  **Refactor Rendering Options**: Update `publicScriptViewerPage.js` to accept a `viewMode` parameter ('paged' vs 'continuous').
 2.  **Shared Continuous Class**: Create a shared CSS utility class (e.g., `.script-viewer--continuous`) that removes page margins and shadows.
 3.  **Editor Toggle**: Add a toggle in the Editor toolbar that switches between "Page View" and "Continuous View" by toggling the CSS class on the editor container.
+
+## Root Cause of Public vs Mine Drift
+
+The mismatch in "lines per page" and wrapping came from two concrete differences:
+
+1. **Different page-shell authority**
+   - `/mine` builds pages via `PageFactory.createPageElement()`, which applies inline page/content metrics (height + padding).
+   - `/public` was building pages directly from `createPageShell()`, skipping those metrics.
+
+2. **Public-only CSS altered core page geometry**
+   - Public styles were overriding `.editor-page` and `.editor-page-content` padding/margins.
+   - This changed available content width/height and therefore line wrapping and overflow pagination.
+
+## Sync Contract (Ideal + Implemented)
+
+To keep pagination deterministic between `/mine` and `/public`:
+
+1. Use the same page builder (`PageFactory`) in both flows.
+2. Treat `.editor-page` / `.editor-page-content` as shared layout primitives and do not override their geometry in public-only CSS.
+3. Restrict public styling to outer wrappers (`.public-script-viewer__*`) and non-metric visuals only.
+
+This ensures `redistributeOverflowingContent()` operates on equivalent measurable dimensions in both views.

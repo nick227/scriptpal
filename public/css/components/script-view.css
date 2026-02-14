@@ -1,20 +1,3 @@
-.public-script-viewer__page {
-    margin: 10px auto !important;
-    padding-bottom: 0 !important;
-    padding-top: 30px;
-    padding-left: 0 !important;
-    padding-right: 20px !important;
-
-}
-.public-script-viewer__page .editor-page-content {
-    padding-left: 40px;
-    padding-top: 10px;
-
-}
-.public-script-viewer__page:first-child {
-    margin-top: 20px !important;
-}
-
 .public-script-viewer__page .script-line:focus,
 .public-script-viewer__page .script-line:focus-within,
 .public-script-viewer__page .script-line.active {

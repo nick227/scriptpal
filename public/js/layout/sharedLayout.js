@@ -1,10 +1,12 @@
 const SHARED_TOPBAR_HTML = `
     <header class="site-header">
         <div class="site-brand">
-            <a href="/public/" class="site-nav__link"><h1 class="title">screenplaye</h1></a>
-        </div>
+            <a href="/public/" class="site-nav__link"><h1 class="title">screenplayx</h1></a>
+        </div> 
+        <div class="row">
+        
         <nav class="site-nav">
-            <a href="/mine/" class="site-nav__link">My Scripts</a>
+            <a href="/mine/" class="site-nav__link">script manager</a>&nbsp;/&nbsp;&nbsp;
         </nav>
         <div class="auth-widget">
             <div class="user-info auth-user" aria-live="polite" style="display: none;">
@@ -18,6 +20,7 @@ const SHARED_TOPBAR_HTML = `
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
             <div class="user-forms auth-forms"></div>
+        </div>
         </div>
     </header>
 `;

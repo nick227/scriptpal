@@ -43,7 +43,7 @@ export const VALID_TAGS_BLOCK = `VALID TAGS
 <action>   Description of what happens
 <speaker>  Character name in CAPS
 <dialog>   Spoken words
-<directions> Parenthetical (beat), (pause), (sotto)`;
+`;
 
 export const SCREENPLAY_GRAMMAR_V1 = `SCREENPLAY GRAMMAR (enforced)
 1. <speaker> MUST be followed by <dialog>
