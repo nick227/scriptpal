@@ -18,6 +18,18 @@ describe('outcomeRouting', () => {
     expect(result.intent).toBe(APPEND_SCRIPT_INTENT);
   });
 
+  it('maps WRITE_FROM_SCENES to orchestrator intent', () => {
+    expect(outcomeToIntent(CHAT_OUTCOME.WRITE_FROM_SCENES)).toBe(INTENT_TYPES.WRITE_FROM_SCENES);
+  });
+
+  it('exposes WRITE_FROM_SCENES to client as append intent', () => {
+    const result = resolveResponseIntent(
+      CHAT_OUTCOME.WRITE_FROM_SCENES,
+      { intent: INTENT_TYPES.WRITE_FROM_SCENES }
+    );
+    expect(result.intent).toBe(APPEND_SCRIPT_INTENT);
+  });
+
   it('exposes REWRITE to client as REWRITE', () => {
     const result = resolveResponseIntent(CHAT_OUTCOME.REWRITE, { intent: INTENT_TYPES.REWRITE });
     expect(result.intent).toBe(INTENT_TYPES.REWRITE);

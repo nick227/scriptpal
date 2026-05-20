@@ -4,6 +4,7 @@ export const INTENT_TYPES = {
   SCRIPT_REFLECTION: 'SCRIPT_REFLECTION',
   DISCUSS_SCENES: 'DISCUSS_SCENES',
   WRITE_SCENE: 'WRITE_SCENE',
+  WRITE_FROM_SCENES: 'WRITE_FROM_SCENES',
   REWRITE: 'REWRITE',
   GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',
   SCENE_IDEA: 'SCENE_IDEA',
@@ -138,6 +139,12 @@ export const OUTPUT_CONTRACTS = {
     scriptRequired: true,
     minLines: 1,
     maxLines: 80
+  },
+  WRITE_FROM_SCENES: {
+    responseFields: ['message'],
+    scriptRequired: true,
+    minLines: 1,
+    maxLines: 400
   },
   DISCUSS_SCENES: {
     responseFields: ['message'],

@@ -37,6 +37,18 @@ describe('resolveOutcome', () => {
     expect(result.editorOperation).toBeNull();
   });
 
+  it('routes write-all-scenes to WRITE_FROM_SCENES', () => {
+    const result = resolveOutcome('Generate the script from my scene outline', baseContext);
+    expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_FROM_SCENES);
+    expect(result.contextProfile).toBe(CONTEXT_PROFILE.SCENES_OUTLINE);
+    expect(result.editorOperation).toBe(EDITOR_OPERATION.APPEND);
+  });
+
+  it('routes generateFromScenes flag to WRITE_FROM_SCENES', () => {
+    const result = resolveOutcome('Go', { ...baseContext, generateFromScenes: true });
+    expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_FROM_SCENES);
+  });
+
   it('routes write scene requests to WRITE_SCENE with scenes outline', () => {
     const result = resolveOutcome('Write scene 3 from my outline', baseContext);
     expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_SCENE);

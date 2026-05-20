@@ -15,6 +15,8 @@ export const outcomeToIntent = (outcome) => {
       return INTENT_TYPES.DISCUSS_SCENES;
     case CHAT_OUTCOME.WRITE_SCENE:
       return INTENT_TYPES.WRITE_SCENE;
+    case CHAT_OUTCOME.WRITE_FROM_SCENES:
+      return INTENT_TYPES.WRITE_FROM_SCENES;
     case CHAT_OUTCOME.REWRITE:
       return INTENT_TYPES.REWRITE;
     case CHAT_OUTCOME.CHAT_CONTROL:
@@ -24,7 +26,9 @@ export const outcomeToIntent = (outcome) => {
 };
 
 export const shouldRemapResponseToAppend = (outcome) =>
-  outcome === CHAT_OUTCOME.WRITE_CONTINUE || outcome === CHAT_OUTCOME.WRITE_SCENE;
+  outcome === CHAT_OUTCOME.WRITE_CONTINUE
+  || outcome === CHAT_OUTCOME.WRITE_SCENE
+  || outcome === CHAT_OUTCOME.WRITE_FROM_SCENES;
 
 /**
  * API / client intent label (editor routing).
@@ -33,6 +37,7 @@ export const resolveResponseIntent = (outcome, intentResult) => {
   switch (outcome) {
     case CHAT_OUTCOME.WRITE_CONTINUE:
     case CHAT_OUTCOME.WRITE_SCENE:
+    case CHAT_OUTCOME.WRITE_FROM_SCENES:
       return { ...intentResult, intent: APPEND_SCRIPT_INTENT };
     case CHAT_OUTCOME.REWRITE:
       return { ...intentResult, intent: INTENT_TYPES.REWRITE };

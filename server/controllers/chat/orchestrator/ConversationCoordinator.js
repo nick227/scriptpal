@@ -7,6 +7,8 @@ import { assembleContextFromResolution } from '../context/assembleContext.js';
 import { resolveOutcome } from '../intent/resolveOutcome.js';
 import { outcomeToIntent, resolveResponseIntent, shouldRemapResponseToAppend } from '../intent/outcomeRouting.js';
 import { buildChatChainConfig } from '../chain/config.js';
+import { CHAT_OUTCOME } from '../intent/outcomes.js';
+import { SceneWriteOrchestrator } from './SceneWriteOrchestrator.js';
 
 export class ConversationCoordinator {
   static CHAT_ERRORS = {
@@ -64,7 +66,9 @@ export class ConversationCoordinator {
         intent
       );
 
-      const response = await router.route(intentResult, preparedContext, prompt);
+      const response = resolution.outcome === CHAT_OUTCOME.WRITE_FROM_SCENES
+        ? await new SceneWriteOrchestrator({ scriptId: this.scriptId }).run(preparedContext, prompt)
+        : await router.route(intentResult, preparedContext, prompt);
 
       const savedHistory = (await this.historyManager.saveInteraction(
         prompt,

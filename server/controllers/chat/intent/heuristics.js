@@ -69,6 +69,21 @@ export const isReflectionRequest = (prompt) => {
 
 const ATTACH_HISTORY_PATTERN = /\b(that|what you (wrote|said)|last (version|time|response)|change (it|that)|like you suggested|you (just |)(wrote|said)|previous (message|reply))\b/i;
 
+const WRITE_FROM_SCENES_PATTERNS = [
+  /\b(write|generate|draft|create)\b[\s\S]{0,50}\b(all|every)\b[\s\S]{0,30}\bscenes?\b/i,
+  /\b(write|generate|draft|create)\b[\s\S]{0,50}\b(script|screenplay)\b[\s\S]{0,50}\bfrom\b[\s\S]{0,30}\b(scenes?|outline)\b/i,
+  /\b(write|generate)\b[\s\S]{0,40}\bfrom\s+my\s+(scenes?|outline)\b(?!\s*(#|\d))/i,
+  /\bgenerate\s+(the\s+)?(script|screenplay)\s+from\s+(my\s+)?(scenes?|outline)\b/i
+];
+
+export const isWriteFromScenesRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return WRITE_FROM_SCENES_PATTERNS.some((pattern) => pattern.test(prompt));
+};
+
 export const isAttachHistoryRequest = (prompt) => {
   if (!prompt || typeof prompt !== 'string') {
     return false;

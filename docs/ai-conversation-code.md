@@ -45,8 +45,12 @@ sequenceDiagram
         Router->>Chain: run(context, prompt)
     else General chat
         ChatController->>Coordinator: processMessage(prompt, context)
-        Coordinator->>Coordinator: IntentClassifier + heuristics
-        Coordinator->>Router: route(intent, ...)
+        Coordinator->>Coordinator: resolveOutcome (regex-first)
+        alt WRITE_FROM_SCENES
+            Coordinator->>Coordinator: SceneWriteOrchestrator (per-scene WriteSceneChain)
+        else Other outcomes
+            Coordinator->>Router: route(intent, ...)
+        end
         Router->>Chain: run(context, prompt)
         Coordinator->>DB: HistoryManager.saveInteraction
     end

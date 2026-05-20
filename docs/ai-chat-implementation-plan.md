@@ -1,6 +1,6 @@
 # AI Chat — High-Value Implementation & Refactor Plan
 
-> **Status:** Approved (with tightening revisions, May 2026)  
+> **Status:** Implemented (P1–P6 + P5, May 2026)  
 > **Companion docs:** `docs/ai-conversation-code.md` (current behavior), `docs/AI_CHAT_FLOW_E2E.md` (chain detail)  
 > **Principle:** Script-generation engine with a short conversational control layer — not a long-form sidebar chatbot.
 
@@ -336,7 +336,7 @@ See **[Phase 1 — Hard gate](#phase-1--hard-gate-must-pass-before-p2)** above. 
 
 ---
 
-### Phase 3 — Outcome router (simplify routing)
+### Phase 3 — Outcome router (simplify routing) ✅
 
 **P3a (shipped):** `resolveOutcome()`, outcome constants, profile mapping, `DiscussScenesChain`, coordinator regex-first routing.
 
@@ -357,7 +357,7 @@ See **[Phase 1 — Hard gate](#phase-1--hard-gate-must-pass-before-p2)** above. 
 
 ---
 
-### Phase 6 — Shared validation/repair (**before P4 / P5**)
+### Phase 6 — Shared validation/repair (**before P4 / P5**) ✅
 
 **Goal:** Reliable `script` output before new write intents and orchestration. Run in parallel with late P3 or immediately after P3 — **not** after P5.
 
@@ -376,7 +376,7 @@ See **[Phase 1 — Hard gate](#phase-1--hard-gate-must-pass-before-p2)** above. 
 
 ---
 
-### Phase 4 — WRITE_SCENE & REWRITE
+### Phase 4 — WRITE_SCENE & REWRITE ✅
 
 **Depends on:** P1 gate, P6 validation on existing WRITE paths.
 
@@ -398,23 +398,24 @@ See **[Phase 1 — Hard gate](#phase-1--hard-gate-must-pass-before-p2)** above. 
 
 ---
 
-### Phase 5 — WRITE_FROM_SCENES orchestration
+### Phase 5 — WRITE_FROM_SCENES orchestration ✅
 
 **Depends on:** P4 `WriteSceneChain`, P6 validation.
 
 **Goal:** Full script from scene list without giant responses.
 
-| Task | Files (primary) |
-|------|-----------------|
-| `SceneWriteOrchestrator` (server) | New: `server/controllers/chat/orchestrator/SceneWriteOrchestrator.js` |
-| `startChat` flag or dedicated route (`generateFromScenes`) | `chat.controller.js` or `routes.js` |
-| Loop scenes via `WriteSceneChain`; aggregate short messages | Orchestrator |
-| Client progress UI (optional) | `ChatManager.js` / events |
-| Rate-limit / max scenes per request | Config |
+| Task | Files (primary) | Status |
+|------|-----------------|--------|
+| `SceneWriteOrchestrator` (server) | `server/controllers/chat/orchestrator/SceneWriteOrchestrator.js` | Done |
+| `generateFromScenes` on request context | `resolveOutcome.js` + client context | Done |
+| Loop scenes via `WriteSceneChain`; aggregate short messages | Orchestrator | Done |
+| Client progress UI (optional) | `ChatManager.js` / events | Deferred |
+| Rate-limit / max scenes per request | `MAX_SCENES_PER_REQUEST` (10) | Done |
 
 **Exit criteria:**
 
-- 8-scene outline → 8 validated appends; chat never receives full screenplay in `message`.
+- [x] N-scene outline → N `WriteSceneChain` calls; combined `script` append; short summary in `message` only.
+- [x] Chat never receives full screenplay in `message` on WRITE_FROM_SCENES.
 
 ---
 
@@ -521,4 +522,4 @@ P0 spec
 
 ---
 
-*When implementation starts, update `docs/ai-conversation-code.md` § “Design direction” with a link to this plan and mark phases complete in this file.*
+*Phases P1–P6 and P5 are implemented. See `docs/ai-conversation-code.md` for current behavior.*
