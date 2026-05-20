@@ -2,7 +2,8 @@ const APPEND_PAGE_PATTERNS = [
   /\bnext page\b/i,
   /\bnext scene\b/i,
   /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bpage\b/i,
-  /\b(add|write|generate|continue|append)\b[\s\S]{0,40}\bscene\b/i,
+  /\b(add|append|continue|write)\b[\s\S]{0,30}\bscene\b[\s\S]{0,25}\b(to|into|in)?\s*(the\s+)?(script|screenplay)\b/i,
+  /\b(write|continue)\b[\s\S]{0,30}\bnext\s+scene\b/i,
   /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscript\b/i,
   /\b(add|write|generate|continue)\b[\s\S]{0,40}\bscreenplay\b/i
 ];
@@ -29,6 +30,10 @@ export const isAppendPageRequest = (prompt) => {
   }
 
   if (NEXT_FIVE_LINES_PATTERN.test(prompt)) {
+    return false;
+  }
+
+  if (isAddSceneOutlineRequest(prompt)) {
     return false;
   }
 
@@ -71,10 +76,40 @@ const ATTACH_HISTORY_PATTERN = /\b(that|what you (wrote|said)|last (version|time
 
 const WRITE_FROM_SCENES_PATTERNS = [
   /\b(write|generate|draft|create)\b[\s\S]{0,50}\b(all|every)\b[\s\S]{0,30}\bscenes?\b/i,
-  /\b(write|generate|draft|create)\b[\s\S]{0,50}\b(script|screenplay)\b[\s\S]{0,50}\bfrom\b[\s\S]{0,30}\b(scenes?|outline)\b/i,
+  /\b(write|generate|draft|create|complete|finish|start)\b[\s\S]{0,50}\b(script|screenplay)\b[\s\S]{0,50}\bfrom\b[\s\S]{0,30}\b(scenes?|scene\s*list|outline)\b/i,
   /\b(write|generate)\b[\s\S]{0,40}\bfrom\s+my\s+(scenes?|outline)\b(?!\s*(#|\d))/i,
-  /\bgenerate\s+(the\s+)?(script|screenplay)\s+from\s+(my\s+)?(scenes?|outline)\b/i
+  /\bgenerate\s+(the\s+)?(script|screenplay)\s+from\s+(my\s+)?(scenes?|outline)\b/i,
+  /\b(use|using)\b[\s\S]{0,40}\b(current\s+)?scenes?\b[\s\S]{0,50}\b(write|complete|finish)\b/i,
+  /\b(use|using)\b[\s\S]{0,40}\b(current\s+)?scenes?\b[\s\S]{0,50}\b(our|the|my)?\s*(script|screenplay)\b/i,
+  /\bstart\s+writing\b[\s\S]{0,40}\b(the\s+)?(script|screenplay)\b[\s\S]{0,40}\bfrom\b/i
 ];
+
+/** Add a scene row to the outline/list — not screenplay append */
+export const isAddSceneOutlineRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return /\b(add|create|insert|include)\b[\s\S]{0,35}\b(?:a\s+)?scene\b/i.test(prompt)
+    && !/\b(add|write|generate|continue|append)\b[\s\S]{0,40}\b(script|screenplay|page)\b/i.test(prompt);
+};
+
+/** Write screenplay content for one scene (numbered or "about X") */
+export const isWriteSceneScreenplayRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string' || isAddSceneOutlineRequest(prompt)) {
+    return false;
+  }
+
+  if (/\b(write|generate|draft|create)\b[\s\S]{0,40}\bscene\s*(?:#?\s*)?\d+\b/i.test(prompt)) {
+    return true;
+  }
+
+  return /\b(write|generate|draft|create|start)\b[\s\S]{0,40}\b(?:a\s+)?scene\b/i.test(prompt)
+    && !/\b(scene\s*list|scene\s*outline|character\s*list)\b/i.test(prompt)
+    && !/\bto\s+(?:our|my|the)\s+scene\s*list\b/i.test(prompt)
+    && !/\bfrom\s+(?:the\s+)?scene\s*list\b/i.test(prompt)
+    && !/\b(script|screenplay)\b[\s\S]{0,30}\bfrom\b/i.test(prompt);
+};
 
 export const isWriteFromScenesRequest = (prompt) => {
   if (!prompt || typeof prompt !== 'string') {
@@ -134,10 +169,33 @@ const hasStrongWriteIntent = (prompt) => (
   isAppendPageRequest(prompt) ||
   isFullScriptRequest(prompt) ||
   isWriteFromScenesRequest(prompt) ||
-  /\b(write|generate|draft|create)\b[\s\S]{0,40}\bscene\s*(?:#?\s*)?\d+\b/i.test(prompt) ||
+  isWriteSceneScreenplayRequest(prompt) ||
   /\b(continue|keep going|next lines|more lines|write more|add more)\b/i.test(prompt) ||
   /\b(rewrite|rephrase|revise)\b/i.test(prompt)
 );
+
+/** Discuss/compare scenes vs plan or script — chat only */
+export const isDiscussScenesRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  if (isWriteFromScenesRequest(prompt) || isWriteSceneScreenplayRequest(prompt)) {
+    return false;
+  }
+
+  const generateTypes = resolveGenerateCollectionTypes(prompt);
+  if (isPrimaryGenerateCollectionsRequest(prompt, generateTypes)) {
+    return false;
+  }
+
+  return (
+    /\b(are\s+we|do\s+we|should\s+we|is\s+there)\b[\s\S]{0,40}\b(missing|lack|need)\b[\s\S]{0,40}\bscenes?\b/i.test(prompt)
+    || /\b(missing|gap|gaps|coverage)\b[\s\S]{0,50}\b(scenes?|scene\s*list|plan|outline)\b/i.test(prompt)
+    || /\bscenes?\b[\s\S]{0,40}\b(in\s+)?(script|plan|outline)\b[\s\S]{0,30}\b(from|vs|versus|match)\b/i.test(prompt)
+    || /\b(scene\s*list|scene\s*outline|my\s+scenes)\b[\s\S]{0,40}\b(work|fit|match)\b/i.test(prompt)
+  );
+};
 
 export const isPrimaryGenerateCollectionsRequest = (prompt, generateTypes = []) => {
   if (!generateTypes.length) {

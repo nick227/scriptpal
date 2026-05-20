@@ -5,6 +5,8 @@ import {
   isGeneralConversation,
   isAttachHistoryRequest,
   isWriteFromScenesRequest,
+  isWriteSceneScreenplayRequest,
+  isDiscussScenesRequest,
   resolveGenerateCollectionTypes,
   isAttachEntityContextRequest,
   isExtractEntitiesFromScriptRequest,
@@ -13,9 +15,6 @@ import {
 import { CHAT_OUTCOME, CONTEXT_PROFILE, EDITOR_OPERATION } from './outcomes.js';
 
 const REWRITE_PATTERN = /\b(rewrite|rephrase|revise|fix|improve|tighten|polish)\b/i;
-
-const WRITE_SCENE_PATTERN = /\b(write|generate|draft|create)\b[\s\S]{0,40}\bscene\s*(?:#?\s*)?\d+\b/i;
-const SCENE_NUMBER_WRITE_PATTERN = /\b(write|generate|draft)\b[\s\S]{0,20}\bscene\s*#?\s*\d+\b/i;
 
 const SCENE_TOPIC_PATTERN = /\b(scene list|scene outline|outline|beats?|beat sheet|my scenes|scene\s*\d+|act\s*\d+|sequence)\b/i;
 
@@ -109,7 +108,7 @@ export const resolveOutcome = (prompt, context = {}) => {
     });
   }
 
-  if (WRITE_SCENE_PATTERN.test(normalizedPrompt) || SCENE_NUMBER_WRITE_PATTERN.test(normalizedPrompt)) {
+  if (isWriteSceneScreenplayRequest(normalizedPrompt)) {
     return buildResolution({
       outcome: CHAT_OUTCOME.WRITE_SCENE,
       contextProfile: resolveContextProfile({
@@ -135,6 +134,18 @@ export const resolveOutcome = (prompt, context = {}) => {
       attachEntityContext,
       generateCollections,
       editorOperation: EDITOR_OPERATION.APPEND
+    });
+  }
+
+  if (isDiscussScenesRequest(normalizedPrompt)) {
+    return buildResolution({
+      outcome: CHAT_OUTCOME.DISCUSS_SCENES,
+      contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
+      attachHistory,
+      attachScenes: true,
+      attachEntityContext: false,
+      generateCollections: [],
+      editorOperation: null
     });
   }
 

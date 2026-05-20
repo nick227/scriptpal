@@ -392,6 +392,19 @@ After each chat turn, `ChatManager.handleResponseEffects`:
 
 Stores are injected via `ChatManager` constructor options (`ChatIntegration` passes `this.stores`).
 
+### Example prompt → outcome (best-effort)
+
+| User prompt | Outcome | `response.script` | `response.collections` |
+|-------------|---------|-------------------|--------------------------|
+| Use the current scenes to write/complete the script | `WRITE_FROM_SCENES` | Yes (orchestrated per scene) | — |
+| Are we missing any scenes in the script from the plan? | `DISCUSS_SCENES` | No | — |
+| Add two new characters Bob and Jane to our character list | `GENERATE_COLLECTIONS` | No | `characters` |
+| Add a scene about Jessica | `GENERATE_COLLECTIONS` | No | `scenes` |
+| Write a scene about Jessica | `WRITE_SCENE` | Yes | — |
+| Start writing the script from the scene list | `WRITE_FROM_SCENES` | Yes | — |
+
+All paths still return a short `response.message` for the chat bubble.
+
 ---
 
 *For exhaustive chain validation (grammar repair, function calling, retries), see `docs/AI_CHAT_FLOW_E2E.md`.*
