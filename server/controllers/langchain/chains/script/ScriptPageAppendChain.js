@@ -3,6 +3,7 @@ import { VALID_FORMAT_VALUES } from '../../constants.js';
 import { getPromptById } from '../../../../../shared/promptRegistry.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
+import { sanitizeChatMessage } from '../helpers/WritingResponseNormalizer.js';
 
 export const APPEND_PAGE_INTENT = 'SCRIPT_APPEND_PAGE';
 
@@ -246,8 +247,9 @@ Only introduce a <header> if the context clearly implies a scene change.`
         continue;
       }
 
-      const message = payload.assistantResponse?.trim()
+      const rawMessage = payload.assistantResponse?.trim()
         || `Added ${finalLines.length} lines to your script.`;
+      const message = sanitizeChatMessage(rawMessage, script);
 
       const metadata = {
         ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),

@@ -193,14 +193,15 @@ describe('ScriptContextManager - Script Context Management', () => {
             expect(aiContext).toHaveProperty('scriptId', 'script-1');
             expect(aiContext).toHaveProperty('ai');
             expect(aiContext.ai).toHaveProperty('timestamp');
-            expect(aiContext.ai).toHaveProperty('contextVersion', '1.0');
+            expect(aiContext.ai).toHaveProperty('contextVersion', '2.0');
+            expect(aiContext).toHaveProperty('attachHistory', false);
         });
 
         test('should get AI chat context with options', async () => {
             const options = { includeHistory: true, maxTokens: 1000 };
             const aiContext = await scriptContextManager.getAIChatContext(options);
 
-            expect(aiContext.ai).toHaveProperty('includeHistory', true);
+            expect(aiContext).toHaveProperty('attachHistory', true);
             expect(aiContext.ai).toHaveProperty('maxTokens', 1000);
         });
     });

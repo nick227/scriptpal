@@ -7,8 +7,8 @@ import { IntentClassifier } from '../../langchain/chains/system/IntentClassifier
 import { buildAiResponse, createIntentResult } from '../../common/ai-response.service.js';
 import { filterContextOverrides } from '../context/overrides.js';
 import { buildScriptInfo } from '../context/script.js';
-import { buildScriptContextBundle } from '../../script/context-builder.service.js';
-import { isGeneralConversation, isReflectionRequest } from '../intent/heuristics.js';
+import { assembleContext, resolveCoordinatorProfile } from '../context/assembleContext.js';
+import { isGeneralConversation, isReflectionRequest, isAttachHistoryRequest } from '../intent/heuristics.js';
 import { buildChatChainConfig } from '../chain/config.js';
 
 export class ConversationCoordinator {
@@ -82,7 +82,13 @@ export class ConversationCoordinator {
 
       const response = await router.route(intentResult, preparedContext, prompt);
 
-      const savedHistory = (await this.historyManager.saveInteraction(prompt, response, this.scriptId, intent)) || [];
+      const savedHistory = (await this.historyManager.saveInteraction(
+        prompt,
+        response,
+        this.scriptId,
+        intent,
+        { chatRequestId: context?.chatRequestId || null }
+      )) || [];
 
       console.log('\n=== Operation Complete ===');
       const responseIntentResult = intent === INTENT_TYPES.SCRIPT_CONVERSATION
@@ -132,54 +138,23 @@ export class ConversationCoordinator {
   }
 
   async buildContext(script, enhancedContext, prompt, intent) {
-    const allowStructuredExtraction = [
-      INTENT_TYPES.SCRIPT_CONVERSATION,
-      INTENT_TYPES.SCRIPT_REFLECTION,
-      INTENT_TYPES.NEXT_FIVE_LINES
-    ].includes(intent);
-    const includeScriptContext = [
-      INTENT_TYPES.SCRIPT_CONVERSATION,
-      INTENT_TYPES.SCRIPT_REFLECTION
-    ].includes(intent);
-    const {
-      scriptTitle,
-      scriptDescription,
-      scriptContent,
-      scriptMetadata,
-      scriptCollections
-    } = await buildScriptContextBundle({
-      scriptId: this.scriptId,
+    const profile = resolveCoordinatorProfile(intent);
+    const attachHistory = Boolean(enhancedContext?.attachHistory)
+      || isAttachHistoryRequest(prompt);
+
+    const context = await assembleContext({
+      profile,
       script,
-      includeScriptContext,
-      allowStructuredExtraction,
-      updatedAtKey: 'lastUpdated'
-    });
-
-    const context = {
-      userId: this.userId,
       scriptId: this.scriptId,
+      userId: this.userId,
       intent,
-      includeScriptContext,
-      scriptContent,
-      scriptTitle,
-      scriptDescription,
-      disableHistory: true,
-      scriptMetadata,
-      scriptCollections,
-      chainConfig: buildChatChainConfig(),
-      prompt
-    };
-
-    if (intent === INTENT_TYPES.GENERAL_CONVERSATION) {
-      context.chatHistory = [];
-      context.disableHistory = true;
-    } else {
-      const history = await this.historyManager.getHistory(3, this.scriptId);
-      context.chatHistory = history.map(msg => ({
-        role: msg.type === 'user' ? 'user' : 'assistant',
-        content: msg.content
-      }));
-    }
+      prompt,
+      attachHistory,
+      chatRequestId: enhancedContext?.chatRequestId || null,
+      overrides: {
+        chainConfig: buildChatChainConfig()
+      }
+    });
 
     if (enhancedContext && Object.keys(enhancedContext).length > 0) {
       const protectedKeys = [
@@ -187,8 +162,11 @@ export class ConversationCoordinator {
         'scriptTitle',
         'scriptContent',
         'scriptMetadata',
+        'scriptCollections',
         'intent',
-        'userId'
+        'userId',
+        'chatHistory',
+        'disableHistory'
       ];
       const safeOverrides = filterContextOverrides(enhancedContext, protectedKeys);
       Object.assign(context, safeOverrides);

@@ -12,8 +12,16 @@ jest.mock('../../../server/controllers/script-services/scriptRequestUtils.js', (
   loadScriptOrThrow: jest.fn()
 }));
 
-jest.mock('../../../server/controllers/script/context-builder.service.js', () => ({
-  buildPromptContext: jest.fn()
+jest.mock('../../../server/controllers/chat/context/assembleContext.js', () => ({
+  buildWritingChainContext: jest.fn(),
+  assembleContext: jest.fn()
+}));
+
+jest.mock('../../../server/repositories/chatMessageRepository.js', () => ({
+  __esModule: true,
+  default: {
+    listByUser: jest.fn().mockResolvedValue([])
+  }
 }));
 
 jest.mock('../../../server/controllers/chat/response/validation.js', () => ({
@@ -23,7 +31,8 @@ jest.mock('../../../server/controllers/chat/response/validation.js', () => ({
 jest.mock('../../../server/controllers/chat/intent/heuristics.js', () => ({
   isFullScriptRequest: jest.fn().mockReturnValue(false),
   isNextFiveLinesRequest: jest.fn().mockReturnValue(true),
-  isAppendPageRequest: jest.fn().mockReturnValue(false)
+  isAppendPageRequest: jest.fn().mockReturnValue(false),
+  isAttachHistoryRequest: jest.fn().mockReturnValue(false)
 }));
 
 jest.mock('../../../server/controllers/chat/orchestrator/ConversationCoordinator.js', () => {
@@ -42,7 +51,7 @@ jest.mock('../../../server/controllers/chat/orchestrator/ConversationCoordinator
 describe('next five lines chat route', () => {
   const { router } = jest.requireMock('../../../server/controllers/langchain/router/index.js');
   const { loadScriptOrThrow } = jest.requireMock('../../../server/controllers/script-services/scriptRequestUtils.js');
-  const { buildPromptContext } = jest.requireMock('../../../server/controllers/script/context-builder.service.js');
+  const { buildWritingChainContext } = jest.requireMock('../../../server/controllers/chat/context/assembleContext.js');
   const { buildValidatedChatResponse } = jest.requireMock('../../../server/controllers/chat/response/validation.js');
   const heuristics = jest.requireMock('../../../server/controllers/chat/intent/heuristics.js');
   const { ConversationCoordinator } = jest.requireMock('../../../server/controllers/chat/orchestrator/ConversationCoordinator.js');
@@ -51,15 +60,20 @@ describe('next five lines chat route', () => {
     jest.clearAllMocks();
     router.route.mockResolvedValue({
       message: 'Line response',
-      script: '<action>Line</action>',
+      script: '<action>Line one</action>\n<action>Line two</action>',
       metadata: {
         generationMode: INTENT_TYPES.NEXT_FIVE_LINES
       }
     });
     buildValidatedChatResponse.mockReturnValue({
       valid: true,
+      validation: { valid: true, errors: [] },
       responsePayload: {
         success: true,
+        intent: INTENT_TYPES.NEXT_FIVE_LINES,
+        scriptId: 2,
+        scriptTitle: 'Test Script',
+        timestamp: new Date().toISOString(),
         response: {
           message: 'Line response',
           script: '<action>Line</action>',
@@ -76,11 +90,14 @@ describe('next five lines chat route', () => {
         title: 'Test Script'
       }
     });
-    buildPromptContext.mockResolvedValue({
+    buildWritingChainContext.mockImplementation(async ({ chatRequestId } = {}) => ({
       scriptTitle: 'Test Script',
       scriptContent: '',
-      scriptCollections: []
-    });
+      scriptCollections: null,
+      disableHistory: true,
+      chatHistory: [],
+      chatRequestId: chatRequestId || null
+    }));
     ConversationCoordinator.mockClear();
   });
 
@@ -106,12 +123,13 @@ describe('next five lines chat route', () => {
       expect.any(String)
     );
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
       success: true,
       response: expect.objectContaining({
         message: 'Line response'
-      })
-    });
+      }),
+      history: []
+    }));
   });
 
   it('passes chatRequestId through handler context', async () => {

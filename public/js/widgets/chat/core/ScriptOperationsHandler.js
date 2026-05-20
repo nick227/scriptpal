@@ -1,5 +1,4 @@
 import { validateAiResponse } from '../../../../../shared/langchainConstants.js';
-import { MESSAGE_TYPES } from '../../../constants.js';
 import { EventManager } from '../../../core/EventManager.js';
 
 export class ScriptOperationsHandler {
@@ -64,10 +63,6 @@ export class ScriptOperationsHandler {
             }
 
             const analysis = data.response;
-            if (this.renderMessage) {
-                await this.renderMessage(analysis, MESSAGE_TYPES.ASSISTANT);
-            }
-
             if (this.eventManager) {
                 this.eventManager.publish(EventManager.EVENTS.SCRIPT.ANALYSIS_COMPLETE, {
                     analysis,

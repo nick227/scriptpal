@@ -1,5 +1,5 @@
 export const buildChatChainConfig = () => ({
-  shouldGenerateQuestions: true,
+  shouldGenerateQuestions: false,
   modelConfig: {
     temperature: 0.7,
     response_format: { type: 'text' }

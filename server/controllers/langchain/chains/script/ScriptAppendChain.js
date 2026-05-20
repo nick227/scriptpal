@@ -4,6 +4,7 @@ import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
+import { normalizeWritingResponse } from '../helpers/WritingResponseNormalizer.js';
 
 const VALID_TAGS = VALID_FORMAT_VALUES.join(', ');
 const SYSTEM_INSTRUCTION = `You are a scriptwriting assistant tasked specifically with appending or continuing scripts.
@@ -49,19 +50,23 @@ export class ScriptAppendChain extends BaseChain {
     }
 
     formatResponse (response) {
-        const responseText = typeof response === 'string' ? response : response.response || response;
+        const responseText = typeof response === 'string'
+            ? response
+            : (response?.response || response?.content || '');
+        const script = typeof responseText === 'string' ? responseText.trim() : '';
         const metadata = {
             ...this.extractMetadata(response, ['scriptId', 'scriptTitle']),
             appendWithScript: true,
             timestamp: new Date().toISOString()
         };
-        const canonical = {
-            message: responseText,
-            script: responseText,
-            metadata
-        };
+        const canonical = normalizeWritingResponse({
+            assistantMessage: null,
+            formattedScript: script,
+            metadata,
+            type: INTENT_TYPES.SCRIPT_CONVERSATION
+        });
 
-        Object.assign(metadata, buildContractMetadata(INTENT_TYPES.SCRIPT_CONVERSATION, canonical));
+        Object.assign(canonical.metadata, buildContractMetadata(INTENT_TYPES.SCRIPT_CONVERSATION, canonical));
 
         return this.ensureCanonicalResponse(canonical);
     }
@@ -77,7 +82,7 @@ export class ScriptAppendChain extends BaseChain {
             const formattedResponse = await this.formatResponse(response);
             return {
                 ...formattedResponse,
-                questions: this.resolveQuestions(response)
+                questions: []
             };
         } catch (error) {
             console.error('ScriptAppendChain execution error:', error);
@@ -97,7 +102,7 @@ export class ScriptAppendChain extends BaseChain {
             const canonicalFallback = this.ensureCanonicalResponse(fallback);
             return {
                 ...canonicalFallback,
-                questions: this.getDefaultQuestions()
+                questions: []
             };
         }
     }

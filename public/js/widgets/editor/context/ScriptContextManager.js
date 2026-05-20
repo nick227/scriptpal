@@ -358,19 +358,31 @@ export class ScriptContextManager {
      * @returns {Promise<object>} - AI chat context
      */
     async getAIChatContext (options = {}) {
+        const {
+            includeContent = false,
+            includeAnalysis = false,
+            includeMetadata = true,
+            includeHistory = false,
+            ...aiOptions
+        } = options;
+
         const context = await this.getScriptContext({
-            includeContent: true,
-            includeAnalysis: true,
-            includeMetadata: true
+            includeContent,
+            includeAnalysis,
+            includeMetadata
         });
 
-        // Add AI-specific context
+        const scriptId = context.scriptId || this.getCurrentScriptId();
+
         return {
-            ...context,
+            scriptId,
+            scriptTitle: context.scriptTitle || context.title || null,
+            scriptVersion: context.version ?? null,
+            attachHistory: includeHistory,
             ai: {
                 timestamp: new Date().toISOString(),
-                contextVersion: '1.0',
-                ...options
+                contextVersion: '2.0',
+                ...aiOptions
             }
         };
     }

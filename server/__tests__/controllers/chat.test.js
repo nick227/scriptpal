@@ -61,7 +61,8 @@ describe('Chat intent response mapping', () => {
       reason: 'append the script'
     });
     mockRoute.mockResolvedValue({
-      response: '<action>Appended line</action>',
+      message: 'Added 1 line to your script.',
+      script: '<action>Appended line</action>',
       metadata: {}
     });
 
@@ -69,7 +70,8 @@ describe('Chat intent response mapping', () => {
     const result = await chat.processMessage('Continue the script', {});
 
     expect(result.intent).toBe(APPEND_SCRIPT_INTENT);
-    expect(result.response.content).toBe('<action>Appended line</action>');
+    expect(result.response.script).toBe('<action>Appended line</action>');
+    expect(result.response.message).not.toMatch(/<action>/);
   });
 
   it('keeps NEXT_FIVE_LINES intent unchanged', async() => {

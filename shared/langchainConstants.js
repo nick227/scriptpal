@@ -97,6 +97,8 @@ const extractFormattedScript = (payload) => {
 };
 
 // OUTPUT CONTRACTS (v2) - uses canonical fields
+const SCREENPLAY_TAG_IN_MESSAGE = /<(header|action|speaker|dialog|directions|chapter-break)\b/i;
+
 export const OUTPUT_CONTRACTS = {
   NEXT_FIVE_LINES: {
     responseFields: ['message'],
@@ -156,6 +158,10 @@ export const validateAiResponse = (intent, response) => {
   }
   if (typeof contract.maxLines === 'number' && lineCount > contract.maxLines) {
     errors.push(`Script line count ${lineCount} above maximum ${contract.maxLines}`);
+  }
+
+  if (contract.scriptRequired && normalized.message && SCREENPLAY_TAG_IN_MESSAGE.test(normalized.message)) {
+    errors.push('message must not contain screenplay XML tags');
   }
 
   return {

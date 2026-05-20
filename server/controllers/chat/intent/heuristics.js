@@ -66,3 +66,13 @@ export const isReflectionRequest = (prompt) => {
 
   return REFLECTION_REQUEST_PATTERN.test(prompt);
 };
+
+const ATTACH_HISTORY_PATTERN = /\b(that|what you (wrote|said)|last (version|time|response)|change (it|that)|like you suggested|you (just |)(wrote|said)|previous (message|reply))\b/i;
+
+export const isAttachHistoryRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return ATTACH_HISTORY_PATTERN.test(prompt);
+};

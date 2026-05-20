@@ -2,6 +2,7 @@ import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, VALID_FORMAT_VALUES } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { buildContractMetadata, validateAiResponse } from '../helpers/ChainOutputGuards.js';
+import { sanitizeChatMessage } from '../helpers/WritingResponseNormalizer.js';
 
 // Function schema: structural only (behavioral guidance lives in prompt/system)
 const NEXT_FIVE_FUNCTIONS = [{
@@ -362,9 +363,10 @@ export class ScriptNextLinesChain extends BaseChain {
     const extractedMeta = this.extractMetadata(response, ['scriptId', 'scriptTitle']);
 
     const defaultMessage = `Added ${safeLines.length} lines to your script.`;
-    const chatMessage = validated.assistantResponse && validated.assistantResponse.trim()
+    const rawAssistant = validated.assistantResponse && validated.assistantResponse.trim()
       ? validated.assistantResponse.trim()
       : defaultMessage;
+    const chatMessage = sanitizeChatMessage(rawAssistant, script);
 
     const metadata = {
       ...(response?.metadata || {}),

@@ -10,7 +10,7 @@ import { isAppendPageRequest, isNextFiveLinesRequest, isFullScriptRequest } from
 import { buildNextFiveLinesChainConfig } from './chain/config.js';
 import { buildValidatedChatResponse } from './response/validation.js';
 import { loadScriptOrThrow } from '../script-services/scriptRequestUtils.js';
-import { buildPromptContext } from '../script/context-builder.service.js';
+import { buildWritingChainContext } from './context/assembleContext.js';
 import { ChatMessageSerializer } from '../../serializers/chatMessageSerializer.js';
 
 const NEXT_FIVE_LINES_PROMPT = getPromptById('next-five-lines');
@@ -29,40 +29,19 @@ const SCRIPT_INTENT_HANDLERS = {
   fullScript: async ({ context, req, baseContext, ownedScript }) => {
     const { scriptId, prompt, chatRequestId } = context;
     console.log('[ChatController] full script intent detected', { scriptId, chatRequestId });
-    const chainContext = await buildPromptContext({
-      scriptId,
+    const chainContext = await buildWritingChainContext({
       script: ownedScript,
+      scriptId,
       userId: req.userId,
       intent: APPEND_SCRIPT_INTENT,
-      includeScriptContext: true,
-      allowStructuredExtraction: true,
-      updatedAtKey: 'updatedAt',
+      prompt,
+      chatRequestId,
+      baseContext,
       chainConfig: {
         shouldGenerateQuestions: false,
         chatRequestId
-      },
-      overrides: {
-        ...baseContext,
-        disableHistory: true
-      },
-      protectedKeys: [
-        'chatRequestId',
-        'scriptId',
-        'scriptTitle',
-        'scriptContent',
-        'includeScriptContext',
-        'attachScriptContext',
-        'expectsFormattedScript',
-        'scriptMetadata',
-        'scriptCollections',
-        'chainConfig',
-        'intent',
-        'userId'
-      ]
+      }
     });
-
-    chainContext.chatRequestId = chatRequestId;
-    chainContext.originalUserPrompt = context.prompt;
 
     const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
     const response = await router.route(intentResult, chainContext, prompt);
@@ -76,29 +55,22 @@ const SCRIPT_INTENT_HANDLERS = {
   },
 
   nextFiveLines: async ({ context, req, baseContext, ownedScript }) => {
-    const { scriptId, chatRequestId } = context;
+    const { scriptId, chatRequestId, prompt } = context;
     console.log('[ChatController] next-five-lines intent detected', { scriptId, chatRequestId });
-    const chainContext = await buildPromptContext({
-      scriptId,
+    const chainContext = await buildWritingChainContext({
       script: ownedScript,
+      scriptId,
       userId: req.userId,
       intent: INTENT_TYPES.NEXT_FIVE_LINES,
+      prompt,
+      chatRequestId,
+      baseContext,
       promptDefinition: NEXT_FIVE_LINES_PROMPT,
-      includeScriptContext: NEXT_FIVE_LINES_PROMPT.attachScriptContext ?? false,
-      allowStructuredExtraction: true,
-      updatedAtKey: 'updatedAt',
       chainConfig: {
         ...buildNextFiveLinesChainConfig(),
         chatRequestId
-      },
-      overrides: {
-        ...baseContext,
-        disableHistory: true
       }
     });
-
-    chainContext.chatRequestId = chatRequestId;
-    chainContext.originalUserPrompt = context.prompt;
 
     const intentResult = createIntentResult(INTENT_TYPES.NEXT_FIVE_LINES);
     const response = await router.route(intentResult, chainContext, NEXT_FIVE_LINES_PROMPT.userPrompt);
@@ -114,27 +86,20 @@ const SCRIPT_INTENT_HANDLERS = {
   appendPage: async ({ context, req, baseContext, ownedScript }) => {
     const { scriptId, prompt, chatRequestId } = context;
     console.log('[ChatController] append-page intent detected', { scriptId, chatRequestId });
-    const chainContext = await buildPromptContext({
-      scriptId,
+    const chainContext = await buildWritingChainContext({
       script: ownedScript,
+      scriptId,
       userId: req.userId,
       intent: APPEND_SCRIPT_INTENT,
+      prompt,
+      chatRequestId,
+      baseContext,
       promptDefinition: APPEND_PAGE_PROMPT,
-      includeScriptContext: APPEND_PAGE_PROMPT.attachScriptContext ?? true,
-      allowStructuredExtraction: true,
-      updatedAtKey: 'updatedAt',
       chainConfig: {
         shouldGenerateQuestions: false,
         chatRequestId
-      },
-      overrides: {
-        ...baseContext,
-        disableHistory: true
       }
     });
-
-    chainContext.chatRequestId = chatRequestId;
-    chainContext.originalUserPrompt = context.prompt;
 
     const intentResult = createIntentResult(APPEND_SCRIPT_INTENT);
     const response = await router.route(intentResult, chainContext, prompt);
@@ -229,7 +194,7 @@ function handleChatError(error) {
   } else if (error.message?.includes('Script not found')) {
     errorResponse.status = 404;
     errorResponse.body.error = 'Script not found';
-  } else if (error.message?.includes(ConversationCoordinator.CHAT_ERRORS.INVALID_INTENT)) {
+  } else if (error.message?.includes('INVALID_INTENT')) {
     errorResponse.status = 400;
     errorResponse.body.error = 'Invalid intent';
   } else if (

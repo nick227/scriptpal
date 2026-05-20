@@ -1,3 +1,8 @@
+import {
+  isWritingIntent,
+  sanitizeChatMessageForResponse
+} from '../langchain/chains/helpers/WritingResponseNormalizer.js';
+
 /**
  * Normalize AI response to canonical shape (v2 - no legacy aliases).
  * Extracts message and script from canonical fields only.
@@ -84,6 +89,13 @@ export const buildAiResponse = ({
   const resolvedMode = mode || normalized.metadata?.generationMode || null;
   const resolvedValidation = validation || normalized.metadata?.contractValidation || null;
 
+  const writingKey = resolvedMode || resolvedIntent;
+  const safeMessage = sanitizeChatMessageForResponse(
+    normalized.message,
+    normalized.script,
+    writingKey
+  );
+
   // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
   return {
     success: true,
@@ -98,7 +110,7 @@ export const buildAiResponse = ({
     validation: resolvedValidation,
     metadata: metadata || null,
     response: {
-      message: normalized.message,
+      message: safeMessage,
       script: normalized.script,
       metadata: normalized.metadata,
       type: normalized.type
