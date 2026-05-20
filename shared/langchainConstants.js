@@ -5,6 +5,7 @@ export const INTENT_TYPES = {
   DISCUSS_SCENES: 'DISCUSS_SCENES',
   WRITE_SCENE: 'WRITE_SCENE',
   WRITE_FROM_SCENES: 'WRITE_FROM_SCENES',
+  GENERATE_COLLECTIONS: 'GENERATE_COLLECTIONS',
   REWRITE: 'REWRITE',
   GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',
   SCENE_IDEA: 'SCENE_IDEA',
@@ -72,21 +73,22 @@ const countScriptLines = (text) => {
  * Normalize AI response to canonical shape (v2).
  */
 const normalizeAiResponse = (response) => {
-  if (!response) return { message: null, script: null, metadata: {} };
+  if (!response) return { message: null, script: null, collections: null, metadata: {} };
   
   if (typeof response === 'string') {
-    return { message: response, script: null, metadata: {} };
+    return { message: response, script: null, collections: null, metadata: {} };
   }
 
   if (typeof response === 'object') { 
     return {
       message: response.message || null,
       script: response.script || null,
+      collections: Array.isArray(response.collections) ? response.collections : null,
       metadata: response.metadata || {}
     };
   }
 
-  return { message: null, script: null, metadata: {} };
+  return { message: null, script: null, collections: null, metadata: {} };
 };
 
 /**
@@ -149,12 +151,47 @@ export const OUTPUT_CONTRACTS = {
   DISCUSS_SCENES: {
     responseFields: ['message'],
     scriptRequired: false
+  },
+  GENERATE_COLLECTIONS: {
+    responseFields: ['message'],
+    scriptRequired: false,
+    collectionsRequired: true
   }
 };
 
 /**
  * Validate AI response against contract (v2 - canonical fields).
  */
+const validateCollectionsContract = (collections, contract) => {
+  const errors = [];
+  if (!contract?.collectionsRequired) {
+    return errors;
+  }
+
+  if (!Array.isArray(collections) || !collections.length) {
+    errors.push('Missing required collections');
+    return errors;
+  }
+
+  collections.forEach((group, groupIndex) => {
+    const type = typeof group?.type === 'string' ? group.type.trim() : '';
+    if (!type) {
+      errors.push(`collections[${groupIndex}]: missing type`);
+    }
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!items.length) {
+      errors.push(`collections[${groupIndex}]: items required`);
+    }
+    items.forEach((item, itemIndex) => {
+      if (!item?.title || !String(item.title).trim()) {
+        errors.push(`collections[${groupIndex}].items[${itemIndex}]: missing title`);
+      }
+    });
+  });
+
+  return errors;
+};
+
 export const validateAiResponse = (intent, response) => {
   const normalized = normalizeAiResponse(response);
   const contract = OUTPUT_CONTRACTS[intent];
@@ -188,6 +225,16 @@ export const validateAiResponse = (intent, response) => {
 
   if (contract.scriptRequired && normalized.message && SCREENPLAY_TAG_IN_MESSAGE.test(normalized.message)) {
     errors.push('message must not contain screenplay XML tags');
+  }
+
+  errors.push(...validateCollectionsContract(normalized.collections, contract));
+
+  if (
+    normalized.collections?.length &&
+    normalized.message &&
+    SCREENPLAY_TAG_IN_MESSAGE.test(normalized.message)
+  ) {
+    errors.push('message must not contain screenplay XML tags when collections are present');
   }
 
   return {

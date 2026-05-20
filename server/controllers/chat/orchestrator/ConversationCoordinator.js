@@ -9,6 +9,7 @@ import { outcomeToIntent, resolveResponseIntent, shouldRemapResponseToAppend } f
 import { buildChatChainConfig } from '../chain/config.js';
 import { CHAT_OUTCOME } from '../intent/outcomes.js';
 import { SceneWriteOrchestrator } from './SceneWriteOrchestrator.js';
+import { processResponseCollections } from '../collections/processCollections.js';
 
 export class ConversationCoordinator {
   static CHAT_ERRORS = {
@@ -54,6 +55,8 @@ export class ConversationCoordinator {
         contextProfile: resolution.contextProfile,
         attachHistory: resolution.attachHistory,
         attachScenes: resolution.attachScenes,
+        attachEntityContext: resolution.attachEntityContext,
+        generateCollections: resolution.generateCollections,
         editorOperation: resolution.editorOperation,
         intent
       });
@@ -66,9 +69,20 @@ export class ConversationCoordinator {
         intent
       );
 
-      const response = resolution.outcome === CHAT_OUTCOME.WRITE_FROM_SCENES
+      let response = resolution.outcome === CHAT_OUTCOME.WRITE_FROM_SCENES
         ? await new SceneWriteOrchestrator({ scriptId: this.scriptId }).run(preparedContext, prompt)
         : await router.route(intentResult, preparedContext, prompt);
+
+      response = await processResponseCollections({
+        response,
+        scriptId: this.scriptId,
+        resolution,
+        intent,
+        chatRequestId: context?.chatRequestId || null,
+        context: preparedContext,
+        prompt,
+        persist: true
+      });
 
       const savedHistory = (await this.historyManager.saveInteraction(
         prompt,
@@ -120,6 +134,9 @@ export class ConversationCoordinator {
         'scriptMetadata',
         'scriptCollections',
         'sceneOutline',
+        'entityOutline',
+        'generateCollections',
+        'attachEntityContext',
         'selection',
         'selectionRange',
         'intent',

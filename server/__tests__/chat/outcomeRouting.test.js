@@ -35,6 +35,18 @@ describe('outcomeRouting', () => {
     expect(result.intent).toBe(INTENT_TYPES.REWRITE);
   });
 
+  it('maps GENERATE_COLLECTIONS to GenerateCollections chain intent', () => {
+    expect(outcomeToIntent(CHAT_OUTCOME.GENERATE_COLLECTIONS)).toBe(INTENT_TYPES.GENERATE_COLLECTIONS);
+  });
+
+  it('exposes GENERATE_COLLECTIONS intent to client unchanged', () => {
+    const result = resolveResponseIntent(
+      CHAT_OUTCOME.GENERATE_COLLECTIONS,
+      { intent: INTENT_TYPES.GENERATE_COLLECTIONS }
+    );
+    expect(result.intent).toBe(INTENT_TYPES.GENERATE_COLLECTIONS);
+  });
+
   it('keeps DISCUSS_SCENES as discuss intent', () => {
     const result = resolveResponseIntent(CHAT_OUTCOME.DISCUSS_SCENES, { intent: INTENT_TYPES.DISCUSS_SCENES });
     expect(result.intent).toBe(INTENT_TYPES.DISCUSS_SCENES);

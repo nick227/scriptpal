@@ -160,6 +160,7 @@ Content-Type: application/json
   "response": {
     "message": "Here are five lines continuing the scene.",
     "script": "<speaker>JOHN</speaker>\n<dialog>Hello.</dialog>",
+    "collections": null,
     "metadata": { "lineCount": 5, "grammarValid": true },
     "type": "NEXT_FIVE_LINES"
   },
@@ -171,6 +172,7 @@ Content-Type: application/json
 |-------|----------|-------|
 | `response.message` | Chat UI | Display text only |
 | `response.script` | Editor append | XML-tagged screenplay lines; may be `null` |
+| `response.collections` | Sidebar stores | Optional entity groups (`scenes`, `characters`, `locations`, `themes`, `outlines`); server-normalized after AI |
 | `response.metadata` | Validation / debugging | Grammar, line count, contract validation |
 | `intent` | `ChatManager.handleScriptOperations` | Drives editor side effects |
 | `history` | Optional re-render | Recent DB rows serialized for the script |

@@ -84,6 +84,73 @@ export const isWriteFromScenesRequest = (prompt) => {
   return WRITE_FROM_SCENES_PATTERNS.some((pattern) => pattern.test(prompt));
 };
 
+const GENERATE_COLLECTION_VERBS = /\b(create|generate|add|suggest|make|draft|build)\b/i;
+const LIST_ENTITIES_PATTERN = /\b(?:make\s+(?:a\s+)?list\s+(?:of\s+)?|list\s+(?:of\s+)?)(characters?|locations?|scenes?|themes?|outlines?|story\s*elements)\b/i;
+
+const COLLECTION_NOUN_PATTERNS = {
+  characters: /\bcharacters?\b/i,
+  locations: /\blocations?\b/i,
+  scenes: /\b(scenes?|scene\s*list)\b/i,
+  themes: /\bthemes?\b/i,
+  outlines: /\b(outlines?|beat\s*sheet|story\s*beats?)\b/i
+};
+
+const ATTACH_ENTITY_CONTEXT_PATTERN = /\b(use|based on|from|existing|my|already have|what|keep)\b[\s\S]{0,50}\b(my\s+)?(characters?|locations?|scenes?|scene\s*list|themes?|outlines?)\b/i;
+
+const EXTRACT_ENTITIES_FROM_SCRIPT_PATTERN = /\b(pull|extract|find|identify)\b[\s\S]{0,50}\b(characters?|locations?|scenes?|entities|themes?)\b[\s\S]{0,50}\b(from|in)\b[\s\S]{0,50}\b(script|scene|page|wrote|written|screenplay)\b/i;
+
+const hasGenerateCollectionVerb = (prompt) => (
+  GENERATE_COLLECTION_VERBS.test(prompt) || LIST_ENTITIES_PATTERN.test(prompt)
+);
+
+export const resolveGenerateCollectionTypes = (prompt) => {
+  if (!prompt || typeof prompt !== 'string' || !hasGenerateCollectionVerb(prompt)) {
+    return [];
+  }
+
+  return Object.entries(COLLECTION_NOUN_PATTERNS)
+    .filter(([, pattern]) => pattern.test(prompt))
+    .map(([type]) => type);
+};
+
+export const isAttachEntityContextRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return ATTACH_ENTITY_CONTEXT_PATTERN.test(prompt);
+};
+
+export const isExtractEntitiesFromScriptRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  return EXTRACT_ENTITIES_FROM_SCRIPT_PATTERN.test(prompt);
+};
+
+const hasStrongWriteIntent = (prompt) => (
+  isNextFiveLinesRequest(prompt) ||
+  isAppendPageRequest(prompt) ||
+  isFullScriptRequest(prompt) ||
+  isWriteFromScenesRequest(prompt) ||
+  /\b(write|generate|draft|create)\b[\s\S]{0,40}\bscene\s*(?:#?\s*)?\d+\b/i.test(prompt) ||
+  /\b(continue|keep going|next lines|more lines|write more|add more)\b/i.test(prompt) ||
+  /\b(rewrite|rephrase|revise)\b/i.test(prompt)
+);
+
+export const isPrimaryGenerateCollectionsRequest = (prompt, generateTypes = []) => {
+  if (!generateTypes.length) {
+    return false;
+  }
+
+  if (!hasGenerateCollectionVerb(prompt)) {
+    return false;
+  }
+
+  return !hasStrongWriteIntent(prompt);
+};
+
 export const isAttachHistoryRequest = (prompt) => {
   if (!prompt || typeof prompt !== 'string') {
     return false;

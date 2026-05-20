@@ -10,6 +10,7 @@ import { ThemeIdeaChain } from './item/ThemeIdeaChain.js';
 import { DiscussScenesChain } from './discuss/DiscussScenesChain.js';
 import { WriteSceneChain } from './script/WriteSceneChain.js';
 import { RewriteChain } from './script/RewriteChain.js';
+import { GenerateCollectionsChain } from './collections/GenerateCollectionsChain.js';
 
 // Initialize the registry map
 const registry = new Map([
@@ -20,6 +21,7 @@ const registry = new Map([
   [INTENT_TYPES.DISCUSS_SCENES, DiscussScenesChain],
   [INTENT_TYPES.WRITE_SCENE, WriteSceneChain],
   [INTENT_TYPES.REWRITE, RewriteChain],
+  [INTENT_TYPES.GENERATE_COLLECTIONS, GenerateCollectionsChain],
   [INTENT_TYPES.SCENE_IDEA, SceneIdeaChain],
   [INTENT_TYPES.CHARACTER_IDEA, CharacterIdeaChain],
   [INTENT_TYPES.LOCATION_IDEA, LocationIdeaChain],

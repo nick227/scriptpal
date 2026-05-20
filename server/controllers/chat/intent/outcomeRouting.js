@@ -17,6 +17,8 @@ export const outcomeToIntent = (outcome) => {
       return INTENT_TYPES.WRITE_SCENE;
     case CHAT_OUTCOME.WRITE_FROM_SCENES:
       return INTENT_TYPES.WRITE_FROM_SCENES;
+    case CHAT_OUTCOME.GENERATE_COLLECTIONS:
+      return INTENT_TYPES.GENERATE_COLLECTIONS;
     case CHAT_OUTCOME.REWRITE:
       return INTENT_TYPES.REWRITE;
     case CHAT_OUTCOME.CHAT_CONTROL:
@@ -39,6 +41,8 @@ export const resolveResponseIntent = (outcome, intentResult) => {
     case CHAT_OUTCOME.WRITE_SCENE:
     case CHAT_OUTCOME.WRITE_FROM_SCENES:
       return { ...intentResult, intent: APPEND_SCRIPT_INTENT };
+    case CHAT_OUTCOME.GENERATE_COLLECTIONS:
+      return { ...intentResult, intent: INTENT_TYPES.GENERATE_COLLECTIONS };
     case CHAT_OUTCOME.REWRITE:
       return { ...intentResult, intent: INTENT_TYPES.REWRITE };
     case CHAT_OUTCOME.DISCUSS_SCENES:

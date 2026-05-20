@@ -4,6 +4,7 @@ export const CHAT_OUTCOME = {
   DISCUSS_SCENES: 'DISCUSS_SCENES',
   WRITE_SCENE: 'WRITE_SCENE',
   WRITE_FROM_SCENES: 'WRITE_FROM_SCENES',
+  GENERATE_COLLECTIONS: 'GENERATE_COLLECTIONS',
   REWRITE: 'REWRITE',
   CHAT_CONTROL: 'CHAT_CONTROL'
 };
@@ -12,6 +13,7 @@ export const CONTEXT_PROFILE = {
   MINIMAL: 'minimal',
   SCRIPT_TAIL: 'script_tail',
   SCENES_OUTLINE: 'scenes_outline',
+  ENTITY_OUTLINE: 'entity_outline',
   SELECTION: 'selection'
 };
 

@@ -7,11 +7,13 @@ const baseContext = { scriptId: 42 };
 describe('resolveOutcome', () => {
   it('routes continue writing to WRITE_CONTINUE with script tail', () => {
     const result = resolveOutcome('Please continue the script', baseContext);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       outcome: CHAT_OUTCOME.WRITE_CONTINUE,
       contextProfile: CONTEXT_PROFILE.SCRIPT_TAIL,
       attachHistory: false,
       attachScenes: false,
+      attachEntityContext: false,
+      generateCollections: [],
       editorOperation: EDITOR_OPERATION.APPEND
     });
   });
@@ -29,12 +31,20 @@ describe('resolveOutcome', () => {
     expect(result.editorOperation).toBeNull();
   });
 
-  it('routes scene list questions to DISCUSS_SCENES with scenes outline', () => {
+  it('routes scene list questions to DISCUSS_SCENES with entity context when referencing my scenes', () => {
     const result = resolveOutcome('Does scene 2 work in my scene list?', baseContext);
     expect(result.outcome).toBe(CHAT_OUTCOME.DISCUSS_SCENES);
-    expect(result.contextProfile).toBe(CONTEXT_PROFILE.SCENES_OUTLINE);
-    expect(result.attachScenes).toBe(true);
+    expect(result.contextProfile).toBe(CONTEXT_PROFILE.ENTITY_OUTLINE);
+    expect(result.attachEntityContext).toBe(true);
+    expect(result.attachScenes).toBe(false);
     expect(result.editorOperation).toBeNull();
+  });
+
+  it('routes create characters to GENERATE_COLLECTIONS', () => {
+    const result = resolveOutcome('Create 5 characters for this script', baseContext);
+    expect(result.outcome).toBe(CHAT_OUTCOME.GENERATE_COLLECTIONS);
+    expect(result.generateCollections).toContain('characters');
+    expect(result.attachScenes).toBe(false);
   });
 
   it('routes write-all-scenes to WRITE_FROM_SCENES', () => {

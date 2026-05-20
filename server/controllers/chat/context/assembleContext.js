@@ -9,6 +9,7 @@ import { CONTEXT_PROFILE } from '../intent/outcomes.js';
 import { buildChatChainConfig } from '../chain/config.js';
 import { SCRIPT_TAG_PATTERN } from '../../langchain/chains/helpers/WritingResponseNormalizer.js';
 import { getSceneOutline, formatSceneOutlineForPrompt } from './sceneOutline.js';
+import { loadEntityOutlineContext } from '../collections/formatEntityContext.js';
 
 export { CONTEXT_PROFILE };
 
@@ -79,12 +80,16 @@ export const assembleContext = async ({
   overrides = {},
   protectedKeys = DEFAULT_PROTECTED_KEYS,
   attachScenes = false,
+  attachEntityContext = false,
+  generateCollections = [],
   selection = null
 }) => {
   const useTail = profile === CONTEXT_PROFILE.SCRIPT_TAIL
     || profile === CONTEXT_PROFILE.SELECTION;
   const useScenesOutline = profile === CONTEXT_PROFILE.SCENES_OUTLINE
     || (attachScenes && profile !== CONTEXT_PROFILE.MINIMAL);
+  const useEntityOutline = profile === CONTEXT_PROFILE.ENTITY_OUTLINE
+    || attachEntityContext;
   const bundle = buildScriptContextPayload(script, {
     includeScriptContext: false,
     allowStructuredExtraction: true,
@@ -102,9 +107,14 @@ export const assembleContext = async ({
   const scriptMetadata = script ? buildScriptMetadata(script, { updatedAtKey: 'lastUpdated' }) : null;
 
   let sceneOutline = '';
-  if (useScenesOutline && scriptId) {
+  if (useScenesOutline && scriptId && !useEntityOutline) {
     const scenes = await getSceneOutline(scriptId);
     sceneOutline = formatSceneOutlineForPrompt(scenes);
+  }
+
+  let entityOutline = '';
+  if (useEntityOutline && scriptId) {
+    entityOutline = await loadEntityOutlineContext(scriptId);
   }
 
   let selectionBlock = '';
@@ -135,6 +145,9 @@ export const assembleContext = async ({
     scriptMetadata,
     scriptCollections: null,
     sceneOutline,
+    entityOutline,
+    generateCollections,
+    attachEntityContext,
     selection: selectionBlock || null,
     selectionRange,
     includeScriptContext: useTail,
@@ -217,6 +230,8 @@ export const assembleContextFromResolution = async ({
   prompt,
   attachHistory: resolution.attachHistory,
   attachScenes: resolution.attachScenes,
+  attachEntityContext: resolution.attachEntityContext,
+  generateCollections: resolution.generateCollections,
   chatRequestId,
   selection,
   overrides

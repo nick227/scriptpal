@@ -37,6 +37,10 @@ jest.mock('../../controllers/langchain/router/index.js', () => ({
   }
 }));
 
+jest.mock('../../controllers/chat/collections/processCollections.js', () => ({
+  processResponseCollections: jest.fn(async ({ response }) => response)
+}));
+
 describe('Chat intent response mapping', () => {
   let Chat;
 
@@ -59,6 +63,27 @@ describe('Chat intent response mapping', () => {
     expect(result.intent).toBe(APPEND_SCRIPT_INTENT);
     expect(result.response.script).toBe('<action>Appended line</action>');
     expect(result.response.message).not.toMatch(/<action>/);
+  });
+
+  it('returns collections on GENERATE_COLLECTIONS outcome', async() => {
+    mockRoute.mockResolvedValue({
+      message: 'Generated three characters.',
+      script: null,
+      collections: [{
+        type: 'characters',
+        items: [{ title: 'Mara Voss', description: 'A detective.' }]
+      }],
+      metadata: {}
+    });
+
+    const chat = new Chat(1, 1);
+    const result = await chat.processMessage('Create 3 characters for this script', {});
+
+    expect(result.outcome).toBe('GENERATE_COLLECTIONS');
+    expect(result.intent).toBe('GENERATE_COLLECTIONS');
+    expect(result.response.collections).toHaveLength(1);
+    expect(result.response.message).not.toMatch(/<speaker>/);
+    expect(result.response.script).toBeNull();
   });
 
   it('routes write-next-lines prompts through WRITE_CONTINUE to append intent', async() => {

@@ -4,7 +4,11 @@ import {
   isFullScriptRequest,
   isGeneralConversation,
   isAttachHistoryRequest,
-  isWriteFromScenesRequest
+  isWriteFromScenesRequest,
+  resolveGenerateCollectionTypes,
+  isAttachEntityContextRequest,
+  isExtractEntitiesFromScriptRequest,
+  isPrimaryGenerateCollectionsRequest
 } from './heuristics.js';
 import { CHAT_OUTCOME, CONTEXT_PROFILE, EDITOR_OPERATION } from './outcomes.js';
 
@@ -24,12 +28,16 @@ const buildResolution = ({
   contextProfile,
   attachHistory = false,
   attachScenes = false,
+  attachEntityContext = false,
+  generateCollections = [],
   editorOperation = null
 }) => ({
   outcome,
   contextProfile,
   attachHistory,
   attachScenes,
+  attachEntityContext,
+  generateCollections,
   editorOperation
 });
 
@@ -42,6 +50,24 @@ const hasSelection = (context) => {
   return typeof text === 'string' && text.trim().length > 0;
 };
 
+const resolveContextProfile = ({
+  attachEntityContext,
+  attachScenes,
+  extractFromScript,
+  defaultProfile
+}) => {
+  if (attachEntityContext) {
+    return CONTEXT_PROFILE.ENTITY_OUTLINE;
+  }
+  if (extractFromScript) {
+    return CONTEXT_PROFILE.SCRIPT_TAIL;
+  }
+  if (attachScenes) {
+    return CONTEXT_PROFILE.SCENES_OUTLINE;
+  }
+  return defaultProfile;
+};
+
 /**
  * Regex-first outcome resolution before context assembly or chain routing.
  */
@@ -49,6 +75,15 @@ export const resolveOutcome = (prompt, context = {}) => {
   const normalizedPrompt = typeof prompt === 'string' ? prompt.trim() : '';
   const attachHistory = Boolean(context.attachHistory) || isAttachHistoryRequest(normalizedPrompt);
   const hasScript = Boolean(context.scriptId);
+  const generateCollections = [
+    ...new Set([
+      ...resolveGenerateCollectionTypes(normalizedPrompt),
+      ...(Array.isArray(context.generateCollections) ? context.generateCollections : [])
+    ])
+  ];
+  const attachEntityContext = Boolean(context.attachEntityContext)
+    || isAttachEntityContextRequest(normalizedPrompt);
+  const extractFromScript = isExtractEntitiesFromScriptRequest(normalizedPrompt);
 
   if (!hasScript || isGeneralConversation(normalizedPrompt)) {
     return buildResolution({
@@ -56,6 +91,8 @@ export const resolveOutcome = (prompt, context = {}) => {
       contextProfile: CONTEXT_PROFILE.MINIMAL,
       attachHistory,
       attachScenes: false,
+      attachEntityContext: false,
+      generateCollections: [],
       editorOperation: null
     });
   }
@@ -66,6 +103,8 @@ export const resolveOutcome = (prompt, context = {}) => {
       contextProfile: CONTEXT_PROFILE.SELECTION,
       attachHistory,
       attachScenes: false,
+      attachEntityContext,
+      generateCollections,
       editorOperation: EDITOR_OPERATION.REPLACE
     });
   }
@@ -73,9 +112,16 @@ export const resolveOutcome = (prompt, context = {}) => {
   if (WRITE_SCENE_PATTERN.test(normalizedPrompt) || SCENE_NUMBER_WRITE_PATTERN.test(normalizedPrompt)) {
     return buildResolution({
       outcome: CHAT_OUTCOME.WRITE_SCENE,
-      contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
+      contextProfile: resolveContextProfile({
+        attachEntityContext,
+        attachScenes: true,
+        extractFromScript,
+        defaultProfile: CONTEXT_PROFILE.SCENES_OUTLINE
+      }),
       attachHistory,
       attachScenes: true,
+      attachEntityContext,
+      generateCollections,
       editorOperation: EDITOR_OPERATION.APPEND
     });
   }
@@ -86,7 +132,38 @@ export const resolveOutcome = (prompt, context = {}) => {
       contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
       attachHistory,
       attachScenes: true,
+      attachEntityContext,
+      generateCollections,
       editorOperation: EDITOR_OPERATION.APPEND
+    });
+  }
+
+  if (isPrimaryGenerateCollectionsRequest(normalizedPrompt, generateCollections)) {
+    return buildResolution({
+      outcome: CHAT_OUTCOME.GENERATE_COLLECTIONS,
+      contextProfile: resolveContextProfile({
+        attachEntityContext,
+        attachScenes: false,
+        extractFromScript,
+        defaultProfile: CONTEXT_PROFILE.MINIMAL
+      }),
+      attachHistory,
+      attachScenes: false,
+      attachEntityContext,
+      generateCollections,
+      editorOperation: null
+    });
+  }
+
+  if (attachEntityContext && !generateCollections.length && SCENE_TOPIC_PATTERN.test(normalizedPrompt)) {
+    return buildResolution({
+      outcome: CHAT_OUTCOME.DISCUSS_SCENES,
+      contextProfile: CONTEXT_PROFILE.ENTITY_OUTLINE,
+      attachHistory,
+      attachScenes: false,
+      attachEntityContext: true,
+      generateCollections: [],
+      editorOperation: null
     });
   }
 
@@ -96,6 +173,8 @@ export const resolveOutcome = (prompt, context = {}) => {
       contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
       attachHistory,
       attachScenes: true,
+      attachEntityContext,
+      generateCollections: [],
       editorOperation: null
     });
   }
@@ -110,9 +189,16 @@ export const resolveOutcome = (prompt, context = {}) => {
   ) {
     return buildResolution({
       outcome: CHAT_OUTCOME.WRITE_CONTINUE,
-      contextProfile: CONTEXT_PROFILE.SCRIPT_TAIL,
+      contextProfile: resolveContextProfile({
+        attachEntityContext,
+        attachScenes: false,
+        extractFromScript,
+        defaultProfile: CONTEXT_PROFILE.SCRIPT_TAIL
+      }),
       attachHistory,
       attachScenes: false,
+      attachEntityContext,
+      generateCollections,
       editorOperation: EDITOR_OPERATION.APPEND
     });
   }
@@ -120,18 +206,32 @@ export const resolveOutcome = (prompt, context = {}) => {
   if (DISCUSS_SCRIPT_PATTERN.test(normalizedPrompt)) {
     return buildResolution({
       outcome: CHAT_OUTCOME.DISCUSS_SCRIPT,
-      contextProfile: CONTEXT_PROFILE.SCRIPT_TAIL,
+      contextProfile: resolveContextProfile({
+        attachEntityContext,
+        attachScenes: false,
+        extractFromScript,
+        defaultProfile: CONTEXT_PROFILE.SCRIPT_TAIL
+      }),
       attachHistory,
       attachScenes: false,
+      attachEntityContext,
+      generateCollections: [],
       editorOperation: null
     });
   }
 
   return buildResolution({
     outcome: CHAT_OUTCOME.WRITE_CONTINUE,
-    contextProfile: CONTEXT_PROFILE.SCRIPT_TAIL,
+    contextProfile: resolveContextProfile({
+      attachEntityContext,
+      attachScenes: false,
+      extractFromScript,
+      defaultProfile: CONTEXT_PROFILE.SCRIPT_TAIL
+    }),
     attachHistory,
     attachScenes: false,
+    attachEntityContext,
+    generateCollections,
     editorOperation: EDITOR_OPERATION.APPEND
   });
 };

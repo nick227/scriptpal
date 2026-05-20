@@ -38,27 +38,45 @@ const extractMetadata = (payload) => {
   return { ...nested, ...direct };
 };
 
+const extractCollections = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  if (Array.isArray(payload.collections)) {
+    return payload.collections;
+  }
+
+  if (payload.response) {
+    return extractCollections(payload.response);
+  }
+
+  return null;
+};
+
 export const normalizeAiResponse = (response) => {
-  if (!response) return { message: null, script: null, metadata: {} };
+  if (!response) return { message: null, script: null, collections: null, metadata: {} };
 
   if (typeof response === 'string') {
-    return { message: response, script: null, metadata: {} };
+    return { message: response, script: null, collections: null, metadata: {} };
   }
 
   if (typeof response === 'object') {
     const message = extractField(response, 'message');
     const script = extractField(response, 'script');
+    const collections = extractCollections(response);
     const metadata = extractMetadata(response);
 
     return {
       message,
       script,
+      collections,
       metadata,
       type: response.type
     };
   }
 
-  return { message: null, script: null, metadata: {} };
+  return { message: null, script: null, collections: null, metadata: {} };
 };
 
 /**
@@ -112,6 +130,7 @@ export const buildAiResponse = ({
     response: {
       message: safeMessage,
       script: normalized.script,
+      collections: normalized.collections ?? null,
       metadata: normalized.metadata,
       type: normalized.type
     }
