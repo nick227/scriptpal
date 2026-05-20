@@ -8,12 +8,14 @@ import { ScriptContextManager } from '../../editor/context/ScriptContextManager.
 
 import { getInstance } from './ChatHistoryManager.js';
 import { validateSendConditions, validateHistoryConditions } from './ChatValidationService.js';
+import { ensureMessageId, normalizeMessageShape } from './MessageNormalizer.js';
 import {
     extractApiResponseContent,
     extractFormattedScriptFromResponse,
     extractRenderableContent
 } from './ResponseExtractor.js';
 import { ScriptOperationsHandler } from './ScriptOperationsHandler.js';
+import { buildChatRequestContext } from '../api/buildChatRequestContext.js';
 
 const createDefaultRenderer = () => {
     const container = typeof document !== 'undefined' && document.createElement
@@ -30,6 +32,68 @@ const createDefaultRenderer = () => {
 
 const PAGE_LOAD_WELCOME_MESSAGE = 'Welcome to ScriptPal. I can help you write, edit, and explore your script. Select or create a script to get started.';
 const CHAT_RESPONSE_TIMEOUT_MS = 30000;
+const generateChatRequestId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    return `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+};
+
+class ChatMessageIndex {
+    constructor (fingerprintContent) {
+        this.fingerprintContent = fingerprintContent;
+        this.recordsByKey = new Map();
+    }
+
+    clear () {
+        this.recordsByKey.clear();
+    }
+
+    getKey (message) {
+        const metadata = message.metadata || {};
+        const chatRequestId = metadata.chatRequestId || metadata.turnId || null;
+        if (chatRequestId && message.role) {
+            return `turn:${chatRequestId}:${message.role}`;
+        }
+        if (message.id) {
+            return `id:${message.id}`;
+        }
+        if (message.role && message.content) {
+            return `content:${message.role}:${this.fingerprintContent(message.content)}`;
+        }
+        return null;
+    }
+
+    get (message) {
+        const key = this.getKey(message);
+        return key ? this.recordsByKey.get(key) || null : null;
+    }
+
+    getByTurn (chatRequestId, role) {
+        if (!chatRequestId || !role) {
+            return null;
+        }
+        return this.recordsByKey.get(`turn:${chatRequestId}:${role}`) || null;
+    }
+
+    upsert (message, element = null) {
+        const key = this.getKey(message);
+        if (!key) {
+            return null;
+        }
+        const existing = this.recordsByKey.get(key);
+        const record = {
+            key,
+            message: {
+                ...(existing?.message || {}),
+                ...message
+            },
+            element: element || existing?.element || null
+        };
+        this.recordsByKey.set(key, record);
+        return record;
+    }
+}
 
 /**
  * ChatManager handles all chat-related functionality including:
@@ -60,6 +124,7 @@ export class ChatManager extends BaseManager {
         this.isProcessing = false;
         this.currentScriptId = null;
         this.appendQueue = new Map();
+        this.messageIndex = new ChatMessageIndex(this.fingerprintContent.bind(this));
         this._boundHandleScriptChange = this.handleScriptChange.bind(this);
         this._unsubHistoryUpdated = this.eventManager.subscribe(
             EventManager.EVENTS.CHAT.HISTORY_UPDATED,
@@ -122,7 +187,7 @@ export class ChatManager extends BaseManager {
         const currentScript = this.stateManager.getState(StateManager.KEYS.CURRENT_SCRIPT);
         if (currentScript?.id) {
             this.currentScriptId = currentScript.id;
-            this.renderer.clear();
+            this.clearRenderedMessages();
             this.renderer.render(`Now chatting about: ${currentScript.title}`, MESSAGE_TYPES.ASSISTANT);
             const history = this.chatHistoryManager.getCurrentScriptHistory();
             if (history.length > 0) {
@@ -165,7 +230,7 @@ export class ChatManager extends BaseManager {
         }
 
         if (isNewScript) {
-            this.renderer.clear();
+            this.clearRenderedMessages();
             this.renderer.render(`Now chatting about: ${script.title}`, MESSAGE_TYPES.ASSISTANT);
         }
 
@@ -196,12 +261,12 @@ export class ChatManager extends BaseManager {
             return;
         }
 
-        const remaining = [...queued];
-        while (remaining.length > 0) {
-            const payload = remaining[0];
+        let processedCount = 0;
+        for (let index = 0; index < queued.length; index += 1) {
+            const payload = queued[index];
             try {
                 await this.scriptOperationsHandler.handleIntent('APPEND_SCRIPT', payload);
-                remaining.shift();
+                processedCount += 1;
             } catch (_error) {
                 this.processAndRenderMessage(
                     'Append replay failed. Please try again.',
@@ -211,8 +276,8 @@ export class ChatManager extends BaseManager {
             }
         }
 
-        if (remaining.length > 0) {
-            this.appendQueue.set(scriptId, remaining);
+        if (processedCount < queued.length) {
+            this.appendQueue.set(scriptId, queued.slice(processedCount));
             return;
         }
 
@@ -339,7 +404,23 @@ export class ChatManager extends BaseManager {
             return null;
         }
 
+        const chatRequestId = generateChatRequestId();
+        const optimisticMessage = {
+            id: `client_${chatRequestId}`,
+            role: MESSAGE_TYPES.USER,
+            type: MESSAGE_TYPES.USER,
+            content: message.trim(),
+            status: 'sending',
+            timestamp: new Date().toISOString(),
+            metadata: {
+                chatRequestId,
+                optimistic: true
+            }
+        };
+
         try {
+            this.appendOrUpdateMessages([optimisticMessage]);
+
             // 2. State & UI Feedback (Orchestrator -> View)
             await this._setProcessingState(true);
             this.eventManager.publish(EventManager.EVENTS.CHAT.TYPING_INDICATOR_SHOW, {});
@@ -352,9 +433,10 @@ export class ChatManager extends BaseManager {
                 scriptTitle: currentScript?.title
             });
 
-            const data = await this.getApiResponseWithTimeout(message);
+            const data = await this.getApiResponseWithTimeout(message, chatRequestId);
             if (!data) {
                 console.warn('[ChatManager] Empty response received from API');
+                this.markTurnStatus(chatRequestId, MESSAGE_TYPES.USER, 'failed');
                 await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
                 return null;
             }
@@ -366,15 +448,17 @@ export class ChatManager extends BaseManager {
             });
 
             // 4. Presentation Logic (View)
-            await this._presentResponse(data);
+            await this._presentResponse(data, { chatRequestId });
+            this.markTurnStatus(chatRequestId, MESSAGE_TYPES.USER, 'sent');
 
             // 5. Side Effects & Events (Orchestration)
-            this.eventManager.publish(EventManager.EVENTS.CHAT.MESSAGE_SENT, { message });
+            this.eventManager.publish(EventManager.EVENTS.CHAT.MESSAGE_SENT, { message, chatRequestId });
             await this.handleScriptOperations(data);
 
             return data;
         } catch (error) {
             this.handleError(error, 'handleSend');
+            this.markTurnStatus(chatRequestId, MESSAGE_TYPES.USER, 'failed');
             await this.safeRenderMessage(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
             throw error;
         } finally {
@@ -419,7 +503,8 @@ export class ChatManager extends BaseManager {
      * Handles both history-style lists and single messages.
      * @param {object} data - API Response Data
      */
-    async _presentResponse (data) {
+    async _presentResponse (data, options = {}) {
+        const { chatRequestId = null } = options;
         console.log('[ChatManager] _presentResponse start', {
             hasHistory: Array.isArray(data?.history) && data.history.length > 0,
             hasMessages: Array.isArray(data?.messages) && data.messages.length > 0,
@@ -446,7 +531,16 @@ export class ChatManager extends BaseManager {
         });
         
         if (content) {
-            await this.processAndRenderMessage(content, MESSAGE_TYPES.ASSISTANT);
+            this.appendOrUpdateMessages([{
+                id: chatRequestId ? `assistant_${chatRequestId}` : undefined,
+                role: MESSAGE_TYPES.ASSISTANT,
+                type: MESSAGE_TYPES.ASSISTANT,
+                content,
+                timestamp: new Date().toISOString(),
+                metadata: {
+                    chatRequestId
+                }
+            }]);
             
             // Check for buttons in the single response
             this.processQuestionButtons(data.response || data);
@@ -469,9 +563,10 @@ export class ChatManager extends BaseManager {
     /**
      * Get API response with timeout handling and script context
      * @param {string} message - The message to send
+     * @param {string} chatRequestId - Stable client-side turn ID
      * @returns {Promise<object|null>} - The API response or null if failed
      */
-    async getApiResponseWithTimeout (message) {
+    async getApiResponseWithTimeout (message, chatRequestId = null) {
         const timeout = CHAT_RESPONSE_TIMEOUT_MS;
         const timeoutPromise = new Promise((_resolve, reject) => {
             setTimeout(() => reject(new Error('Request timeout')), timeout);
@@ -479,13 +574,11 @@ export class ChatManager extends BaseManager {
 
         try {
             // Get script context for AI
-            const scriptContext = await this.scriptContextManager.getAIChatContext({
-                includeHistory: true,
-                maxTokens: 1000
-            });
+            const scriptContext = await buildChatRequestContext(this.scriptContextManager);
             return await Promise.race([
                 this.api.getChatResponse(message, {
-                    ...scriptContext
+                    ...scriptContext,
+                    chatRequestId
                 }),
                 timeoutPromise
             ]);
@@ -518,17 +611,6 @@ export class ChatManager extends BaseManager {
                 return;
             }
             intent = 'APPEND_SCRIPT';
-            operationData = {
-                ...data,
-                response: {
-                    ...(data.response && typeof data.response === 'object' ? data.response : {}),
-                    content: formattedScript,
-                    metadata: {
-                        ...(data.response && typeof data.response === 'object' ? data.response.metadata : {}),
-                        formattedScript
-                    }
-                }
-            };
         }
 
         console.log('[ChatManager] handleScriptOperations', {
@@ -590,16 +672,10 @@ export class ChatManager extends BaseManager {
         try {
             const { skipClear = false } = options;
             if (!skipClear) {
-                this.renderer.clear();
+                this.clearRenderedMessages();
             }
 
-            for (const message of messages) {
-                const type = this.determineMessageType(message);
-                const content = message?.content ?? message?.message ?? '';
-                if (content) {
-                    await this.processAndRenderMessage(content, type);
-                }
-            }
+            this.appendOrUpdateMessages(messages);
         } catch (error) {
             this.handleError(error, 'loadChatHistory');
         }
@@ -645,7 +721,7 @@ export class ChatManager extends BaseManager {
             );
 
             if (result) {
-                this.renderer.clear();
+                this.clearRenderedMessages();
                 await this.loadCurrentScriptHistory();
             }
 
@@ -698,8 +774,116 @@ export class ChatManager extends BaseManager {
             return;
         }
 
-        await this.loadChatHistory(messages, { skipClear: true });
-        this.chatHistoryManager.appendHistory(messages);
+        this.appendOrUpdateMessages(messages);
+        this.chatHistoryManager.appendHistorySilently(messages);
+    }
+
+    appendOrUpdateMessages (messages = []) {
+        if (!Array.isArray(messages) || messages.length === 0) {
+            return [];
+        }
+
+        const rendered = [];
+        for (const rawMessage of messages) {
+            const normalized = this.normalizeChatMessage(rawMessage);
+            if (!normalized || !normalized.content) {
+                continue;
+            }
+
+            const existingRecord = this.messageIndex.get(normalized);
+            if (existingRecord) {
+                this.updateRenderedMessage(existingRecord, normalized);
+                rendered.push({ ...existingRecord.message, updated: true });
+                continue;
+            }
+
+            const element = this.renderer.render(normalized, normalized.type);
+            const isElement = typeof HTMLElement !== 'undefined' && element instanceof HTMLElement;
+            this.messageIndex.upsert(normalized, isElement ? element : null);
+            rendered.push(normalized);
+        }
+
+        return rendered;
+    }
+
+    normalizeChatMessage (message) {
+        const fallbackType = this.determineMessageType(message || {});
+        const normalized = ensureMessageId(normalizeMessageShape(message, fallbackType));
+        if (!normalized || !normalized.content) {
+            return null;
+        }
+
+        const role = normalized.role === MESSAGE_TYPES.ASSISTANT
+            ? MESSAGE_TYPES.ASSISTANT
+            : normalized.role === MESSAGE_TYPES.ERROR
+                ? MESSAGE_TYPES.ERROR
+                : MESSAGE_TYPES.USER;
+
+        return {
+            ...normalized,
+            role,
+            type: role,
+            metadata: normalized.metadata && typeof normalized.metadata === 'object'
+                ? normalized.metadata
+                : {}
+        };
+    }
+
+    fingerprintContent (content) {
+        return String(content)
+            .trim()
+            .replace(/\s+/g, ' ')
+            .toLowerCase()
+            .slice(0, 500);
+    }
+
+    markTurnStatus (chatRequestId, role, status) {
+        if (!chatRequestId) {
+            return;
+        }
+        const record = this.messageIndex.getByTurn(chatRequestId, role);
+        if (!record) {
+            return;
+        }
+        const updatedMessage = {
+            ...record.message,
+            status
+        };
+        this.updateRenderedMessage(record, updatedMessage);
+    }
+
+    updateRenderedMessage (record, message) {
+        const updatedRecord = this.messageIndex.upsert({
+            ...record.message,
+            ...message,
+            id: record.message.id
+        }, record.element);
+        const element = updatedRecord?.element;
+        if (!element) {
+            return;
+        }
+
+        const statusElement = element.querySelector('.message-status');
+        const metaElement = element.querySelector('.message-meta');
+        if (message.status) {
+            if (statusElement) {
+                statusElement.textContent = message.status;
+            } else if (metaElement) {
+                const nextStatus = document.createElement('span');
+                nextStatus.className = 'message-status';
+                nextStatus.textContent = message.status;
+                metaElement.appendChild(nextStatus);
+            }
+        } else if (statusElement) {
+            statusElement.remove();
+        }
+    }
+
+    clearRenderedMessages () {
+        if (this.renderer && this.renderer.container) {
+            this.renderer.clear();
+        }
+        this.messageIndex.clear();
     }
 
     /**
@@ -770,9 +954,7 @@ export class ChatManager extends BaseManager {
      * Methods for cleaning up and updating chat state
      */
     clearChat () {
-        if (this.renderer && this.renderer.container) {
-            this.renderer.clear();
-        }
+        this.clearRenderedMessages();
     }
 
     /**

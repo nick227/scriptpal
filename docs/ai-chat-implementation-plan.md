@@ -338,6 +338,8 @@ See **[Phase 1 — Hard gate](#phase-1--hard-gate-must-pass-before-p2)** above. 
 
 ### Phase 3 — Outcome router (simplify routing)
 
+**P3a (shipped):** `resolveOutcome()`, outcome constants, profile mapping, `DiscussScenesChain`, coordinator regex-first routing.
+
 **Goal:** Route by outcome before chain name.
 
 | Task | Files (primary) |

@@ -1,0 +1,20 @@
+export const CHAT_OUTCOME = {
+  WRITE_CONTINUE: 'WRITE_CONTINUE',
+  DISCUSS_SCRIPT: 'DISCUSS_SCRIPT',
+  DISCUSS_SCENES: 'DISCUSS_SCENES',
+  WRITE_SCENE: 'WRITE_SCENE',
+  REWRITE: 'REWRITE',
+  CHAT_CONTROL: 'CHAT_CONTROL'
+};
+
+export const CONTEXT_PROFILE = {
+  MINIMAL: 'minimal',
+  SCRIPT_TAIL: 'script_tail',
+  SCENES_OUTLINE: 'scenes_outline',
+  SELECTION: 'selection'
+};
+
+export const EDITOR_OPERATION = {
+  APPEND: 'append',
+  REPLACE: 'replace'
+};

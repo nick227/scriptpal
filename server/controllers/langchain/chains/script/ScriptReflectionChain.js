@@ -46,8 +46,14 @@ export class ScriptReflectionChain extends BaseChain {
   }
 
   formatResponse(response) {
+    const raw = typeof response === 'string'
+      ? response
+      : (response?.message || response?.response || '');
+    const message = typeof raw === 'string' ? raw.trim() : '';
+
     return {
-      response: typeof response === 'string' ? response : response.response || response,
+      message,
+      script: null,
       type: INTENT_TYPES.SCRIPT_REFLECTION,
       metadata: {
         ...this.extractMetadata(response, ['scriptId', 'scriptTitle']),
@@ -69,7 +75,7 @@ export class ScriptReflectionChain extends BaseChain {
       const questions = this.resolveQuestions(response);
       return {
         ...formattedResponse,
-        questions
+        questions: []
       };
     } catch (error) {
       console.error('ScriptReflectionChain execution error:', error);

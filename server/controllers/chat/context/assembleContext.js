@@ -5,13 +5,12 @@ import { filterContextOverrides } from './overrides.js';
 import { truncateScriptToTail } from './scriptTail.js';
 import { HistoryManager } from '../history/HistoryManager.js';
 import { isAttachHistoryRequest } from '../intent/heuristics.js';
+import { CONTEXT_PROFILE } from '../intent/outcomes.js';
 import { buildChatChainConfig } from '../chain/config.js';
 import { SCRIPT_TAG_PATTERN } from '../../langchain/chains/helpers/WritingResponseNormalizer.js';
+import { getSceneOutline, formatSceneOutlineForPrompt } from './sceneOutline.js';
 
-export const CONTEXT_PROFILE = {
-  MINIMAL: 'minimal',
-  SCRIPT_TAIL: 'script_tail'
-};
+export { CONTEXT_PROFILE };
 
 const DEFAULT_PROTECTED_KEYS = [
   'scriptId',
@@ -78,9 +77,14 @@ export const assembleContext = async ({
   attachHistory = false,
   chatRequestId = null,
   overrides = {},
-  protectedKeys = DEFAULT_PROTECTED_KEYS
+  protectedKeys = DEFAULT_PROTECTED_KEYS,
+  attachScenes = false,
+  selection = null
 }) => {
-  const useTail = profile === CONTEXT_PROFILE.SCRIPT_TAIL;
+  const useTail = profile === CONTEXT_PROFILE.SCRIPT_TAIL
+    || profile === CONTEXT_PROFILE.SELECTION;
+  const useScenesOutline = profile === CONTEXT_PROFILE.SCENES_OUTLINE
+    || (attachScenes && profile !== CONTEXT_PROFILE.MINIMAL);
   const bundle = buildScriptContextPayload(script, {
     includeScriptContext: false,
     allowStructuredExtraction: true,
@@ -97,6 +101,20 @@ export const assembleContext = async ({
 
   const scriptMetadata = script ? buildScriptMetadata(script, { updatedAtKey: 'lastUpdated' }) : null;
 
+  let sceneOutline = '';
+  if (useScenesOutline && scriptId) {
+    const scenes = await getSceneOutline(scriptId);
+    sceneOutline = formatSceneOutlineForPrompt(scenes);
+  }
+
+  let selectionBlock = '';
+  if (profile === CONTEXT_PROFILE.SELECTION && selection && typeof selection === 'object') {
+    const text = selection.text ?? selection.content ?? '';
+    if (typeof text === 'string' && text.trim()) {
+      selectionBlock = text.trim();
+    }
+  }
+
   const resolvedAttachHistory = attachHistory || isAttachHistoryRequest(prompt);
 
   const context = {
@@ -109,12 +127,16 @@ export const assembleContext = async ({
     scriptContent,
     scriptMetadata,
     scriptCollections: null,
+    sceneOutline,
+    selection: selectionBlock || null,
     includeScriptContext: useTail,
     attachScriptContext: useTail,
+    attachScenes: useScenesOutline,
     disableHistory: !resolvedAttachHistory,
     chatHistory: [],
     chainConfig: buildChatChainConfig(),
-    prompt
+    prompt,
+    contextProfile: profile
   };
 
   if (resolvedAttachHistory && userId && scriptId) {
@@ -168,9 +190,26 @@ export const buildWritingChainContext = async ({
   };
 };
 
-export const resolveCoordinatorProfile = (intent) => {
-  if (intent === INTENT_TYPES.GENERAL_CONVERSATION) {
-    return CONTEXT_PROFILE.MINIMAL;
-  }
-  return CONTEXT_PROFILE.SCRIPT_TAIL;
-};
+export const assembleContextFromResolution = async ({
+  resolution,
+  script,
+  scriptId,
+  userId,
+  intent,
+  prompt,
+  chatRequestId = null,
+  overrides = {},
+  selection = null
+}) => assembleContext({
+  profile: resolution.contextProfile,
+  script,
+  scriptId,
+  userId,
+  intent,
+  prompt,
+  attachHistory: resolution.attachHistory,
+  attachScenes: resolution.attachScenes,
+  chatRequestId,
+  selection,
+  overrides
+});

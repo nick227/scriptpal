@@ -30,15 +30,6 @@ jest.mock('../../controllers/chat/history/HistoryManager.js', () => ({
   }
 }));
 
-const mockClassify = jest.fn();
-jest.mock('../../controllers/langchain/chains/system/IntentClassifier.js', () => ({
-  IntentClassifier: class {
-    constructor () {
-      this.classify = mockClassify;
-    }
-  }
-}));
-
 const mockRoute = jest.fn();
 jest.mock('../../controllers/langchain/router/index.js', () => ({
   router: {
@@ -54,12 +45,7 @@ describe('Chat intent response mapping', () => {
     Chat = (await import('../../controllers/chat/orchestrator/ConversationCoordinator.js')).ConversationCoordinator;
   });
 
-  it('maps SCRIPT_CONVERSATION responses to APPEND_SCRIPT intent', async() => {
-    mockClassify.mockResolvedValue({
-      intent: INTENT_TYPES.SCRIPT_CONVERSATION,
-      confidence: 0.9,
-      reason: 'append the script'
-    });
+  it('maps WRITE_CONTINUE responses to APPEND_SCRIPT intent', async() => {
     mockRoute.mockResolvedValue({
       message: 'Added 1 line to your script.',
       script: '<action>Appended line</action>',
@@ -69,27 +55,24 @@ describe('Chat intent response mapping', () => {
     const chat = new Chat(1, 1);
     const result = await chat.processMessage('Continue the script', {});
 
+    expect(result.outcome).toBe('WRITE_CONTINUE');
     expect(result.intent).toBe(APPEND_SCRIPT_INTENT);
     expect(result.response.script).toBe('<action>Appended line</action>');
     expect(result.response.message).not.toMatch(/<action>/);
   });
 
-  it('keeps NEXT_FIVE_LINES intent unchanged', async() => {
-    mockClassify.mockResolvedValue({
-      intent: INTENT_TYPES.NEXT_FIVE_LINES,
-      confidence: 0.9,
-      reason: 'next five lines'
-    });
+  it('routes write-next-lines prompts through WRITE_CONTINUE to append intent', async() => {
     mockRoute.mockResolvedValue({
-      response: 'Reasoning response',
-      metadata: {
-        formattedScript: '<action>Line 1</action>'
-      }
+      message: 'Added lines.',
+      script: '<action>Line 1</action>',
+      metadata: {}
     });
 
     const chat = new Chat(1, 1);
-    const result = await chat.processMessage('Write next five lines', {});
+    const result = await chat.processMessage('Write the next five lines', {});
 
-    expect(result.intent).toBe(INTENT_TYPES.NEXT_FIVE_LINES);
+    expect(result.outcome).toBe('WRITE_CONTINUE');
+    expect(result.intent).toBe(APPEND_SCRIPT_INTENT);
+    expect(result.response.script).toBe('<action>Line 1</action>');
   });
 });
