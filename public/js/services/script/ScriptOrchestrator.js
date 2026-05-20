@@ -298,16 +298,124 @@ export class ScriptOrchestrator {
      * Internal: Replace range with AI lines
      * @private
      */
-    async _applyAiReplace (lineItems, { startId, endId, source }) {
+    async _applyAiReplace (lineItems, { startPosition, endPosition, source }) {
         const editorContent = this.editorWidgetInstance?.getComponent('content');
         if (!editorContent) {
             throw new Error('Editor content component not available');
         }
 
-        // For replace, we delete the range then insert new lines
-        // This is a future extension point
-        console.warn('[ScriptOrchestrator] Replace operation not yet implemented');
-        return { success: false, error: 'Replace not implemented' };
+        const lineCount = editorContent.getLineCount();
+        const safeStart = Math.max(0, startPosition);
+        const safeEnd = Math.min(lineCount - 1, endPosition);
+        if (safeStart > safeEnd || lineCount === 0) {
+            return { success: false, error: 'invalid_replace_range' };
+        }
+
+        const deleteCommands = [];
+        for (let index = safeEnd; index >= safeStart; index -= 1) {
+            deleteCommands.push({ command: 'DELETE', lineNumber: index });
+        }
+
+        const addCommands = lineItems.map((item, offset) => ({
+            command: 'ADD',
+            lineNumber: safeStart + offset,
+            data: { format: item.format, content: item.content }
+        }));
+
+        const result = await editorContent.applyCommands(
+            [...deleteCommands, ...addCommands],
+            { source }
+        );
+        return { success: result.success, linesAffected: lineItems.length };
+    }
+
+    /**
+     * Selection snapshot for chat requests (line indices + text).
+     */
+    getChatSelectionContext () {
+        const domHandler = this.editorWidgetInstance?.getComponent?.('domHandler');
+        const content = this.editorWidgetInstance?.getComponent?.('content');
+        if (!domHandler || !content) {
+            return null;
+        }
+
+        let lineElements = domHandler.getSelectedLines();
+        if (!lineElements.length) {
+            const sel = domHandler.getSelection();
+            if (!sel?.startLine) {
+                return null;
+            }
+            lineElements = [sel.startLine];
+            if (sel.endLine && sel.endLine !== sel.startLine) {
+                const editorArea = content.editorArea;
+                if (editorArea) {
+                    const allLines = Array.from(editorArea.querySelectorAll('.script-line'));
+                    const startIdx = allLines.indexOf(sel.startLine);
+                    const endIdx = allLines.indexOf(sel.endLine);
+                    if (startIdx >= 0 && endIdx >= startIdx) {
+                        lineElements = allLines.slice(startIdx, endIdx + 1);
+                    }
+                }
+            }
+        }
+
+        if (!lineElements.length) {
+            return null;
+        }
+
+        const indices = [];
+        const textParts = [];
+        lineElements.forEach((element) => {
+            const lineId = element.getAttribute('data-line-id');
+            const lineIndex = lineId ? content.getLineIndex(lineId) : -1;
+            if (lineIndex >= 0) {
+                indices.push(lineIndex);
+            }
+            const text = element.textContent?.trim();
+            if (text) {
+                textParts.push(text);
+            }
+        });
+
+        if (!indices.length) {
+            return null;
+        }
+
+        return {
+            startLine: Math.min(...indices),
+            endLine: Math.max(...indices),
+            text: textParts.join('\n')
+        };
+    }
+
+    /**
+     * Replace a line range with AI-generated screenplay content.
+     */
+    async handleScriptReplace (data) {
+        const metadata = data?.response?.metadata || {};
+        const startLine = metadata.replaceStartLine ?? metadata.startLine;
+        const endLine = metadata.replaceEndLine ?? metadata.endLine;
+        const content = data?.response?.script || data?.response?.content || '';
+
+        if (!Number.isInteger(startLine) || !Number.isInteger(endLine) || !content) {
+            console.warn('[ScriptOrchestrator] Replace skipped: missing range or content');
+            return { success: false };
+        }
+
+        const hygiened = this.splitLongAiLines(content);
+        const lineItems = this.normalizeScriptLines(hygiened)
+            .map((line) => this.buildLineItem(line))
+            .filter(Boolean);
+
+        if (!lineItems.length) {
+            return { success: false, error: 'no_lines' };
+        }
+
+        return this._applyAiReplace(lineItems, {
+            startPosition: startLine,
+            endPosition: endLine,
+            source: 'ai_rewrite'
+        });
     }
 
     // ==============================================

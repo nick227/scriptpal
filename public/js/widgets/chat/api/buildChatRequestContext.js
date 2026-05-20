@@ -7,14 +7,22 @@ export async function buildChatRequestContext (scriptContextManager, options = {
         includeContent = false,
         includeAnalysis = false,
         includeMetadata = true,
+        getSelection = null,
         ...rest
     } = options;
 
-    return scriptContextManager.getAIChatContext({
+    const base = await scriptContextManager.getAIChatContext({
         includeHistory,
         includeContent,
         includeAnalysis,
         includeMetadata,
         ...rest
     });
+
+    const selection = typeof getSelection === 'function' ? getSelection() : null;
+
+    return {
+        ...base,
+        selection
+    };
 }

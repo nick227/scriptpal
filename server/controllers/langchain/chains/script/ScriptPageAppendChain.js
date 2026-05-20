@@ -2,8 +2,7 @@ import { BaseChain } from '../base/BaseChain.js';
 import { VALID_FORMAT_VALUES } from '../../constants.js';
 import { getPromptById } from '../../../../../shared/promptRegistry.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
-import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
-import { sanitizeChatMessage } from '../helpers/WritingResponseNormalizer.js';
+import { buildWritingOutput, runWritingAttemptLoop } from '../helpers/writingChainRunner.js';
 
 export const APPEND_PAGE_INTENT = 'SCRIPT_APPEND_PAGE';
 
@@ -190,8 +189,6 @@ Only introduce a <header> if the context clearly implies a scene change.`
   }
 
   async run(context, prompt) {
-    let lastError = '';
-
     const shouldAttach = context?.attachScriptContext ?? ATTACH_SCRIPT_CONTEXT;
     const truncatedContent = shouldAttach
       ? truncateToRecentLines(context.scriptContent, MAX_CONTEXT_LINES)
@@ -202,81 +199,49 @@ Only introduce a <header> if the context clearly implies a scene change.`
       continuationHint: analyzeContinuationBias(truncatedContent)
     };
 
-    const maxAttempts =
-      Number.isInteger(context?.maxAttempts)
-        ? context.maxAttempts
-        : MAX_ATTEMPTS;
+    const maxAttempts = Number.isInteger(context?.maxAttempts)
+      ? context.maxAttempts
+      : MAX_ATTEMPTS;
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const retryNote = lastError
-        ? `Previous issue: ${lastError}. Please continue cleanly.`
-        : '';
-
-      const messages = await this.buildMessages(
-        context,
-        prompt,
-        retryNote,
-        precomputed
-      );
-
-      const response = await this.execute(messages, context, false);
-
-      let payload;
-      try {
-        payload = this.parseFunctionPayload(
+    return runWritingAttemptLoop({
+      maxAttempts,
+      runAttempt: async ({ retryNote }) => {
+        const messages = await this.buildMessages(context, prompt, retryNote, precomputed);
+        const response = await this.execute(messages, context, false);
+        const payload = this.parseFunctionPayload(
           response,
           { required: ['lines', 'assistantResponse'] },
           'Invalid append-page payload'
         );
-      } catch (err) {
-        lastError = err.message;
-        continue;
+
+        const lines = Array.isArray(payload.lines) ? payload.lines : [];
+        if (lines.length < LINE_MIN) {
+          throw new Error(`Too few lines (${lines.length}, expected ${LINE_MIN}-${LINE_MAX})`);
+        }
+
+        const finalLines = lines.slice(0, LINE_MAX);
+        const script = renderLines(finalLines);
+        if (!script.trim()) {
+          throw new Error('Empty script output');
+        }
+
+        const result = buildWritingOutput({
+          contractKey: APPEND_PAGE_INTENT,
+          type: APPEND_PAGE_INTENT,
+          assistantMessage: payload.assistantResponse,
+          formattedScript: script,
+          metadata: {
+            ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
+            appendPage: true,
+            lineCount: finalLines.length,
+            timestamp: new Date().toISOString()
+          }
+        });
+
+        this.ensureCanonicalResponse(result);
+        this.persistAssistantMessage(response, result.message);
+        return this.attachPersistedFlag(result, response);
       }
-
-      const lines = Array.isArray(payload.lines) ? payload.lines : [];
-      if (lines.length < LINE_MIN) {
-        lastError = `Too few lines (${lines.length}, expected ${LINE_MIN}-${LINE_MAX})`;
-        continue;
-      }
-
-      const finalLines = lines.slice(0, LINE_MAX);
-      const script = renderLines(finalLines);
-
-      if (!script.trim()) {
-        lastError = 'Empty script output';
-        continue;
-      }
-
-      const rawMessage = payload.assistantResponse?.trim()
-        || `Added ${finalLines.length} lines to your script.`;
-      const message = sanitizeChatMessage(rawMessage, script);
-
-      const metadata = {
-        ...this.extractMetadata(context, ['scriptId', 'scriptTitle']),
-        appendPage: true,
-        lineCount: finalLines.length,
-        timestamp: new Date().toISOString()
-      };
-
-      const result = {
-        message,
-        script,
-        type: APPEND_PAGE_INTENT,
-        metadata
-      };
-
-      Object.assign(
-        result.metadata,
-        buildContractMetadata(APPEND_PAGE_INTENT, result)
-      );
-
-      this.ensureCanonicalResponse(result);
-
-      this.persistAssistantMessage(response, message);
-
-      return this.attachPersistedFlag(result, response);
-    }
-
-    throw new Error(`append_page_failed: ${lastError}`);
+    });
   }
 }

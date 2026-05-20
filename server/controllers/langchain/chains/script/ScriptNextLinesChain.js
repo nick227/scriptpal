@@ -1,8 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES, VALID_FORMAT_VALUES } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
-import { buildContractMetadata, validateAiResponse } from '../helpers/ChainOutputGuards.js';
-import { sanitizeChatMessage } from '../helpers/WritingResponseNormalizer.js';
+import { buildWritingOutput } from '../helpers/writingChainRunner.js';
 
 // Function schema: structural only (behavioral guidance lives in prompt/system)
 const NEXT_FIVE_FUNCTIONS = [{
@@ -366,32 +365,23 @@ export class ScriptNextLinesChain extends BaseChain {
     const rawAssistant = validated.assistantResponse && validated.assistantResponse.trim()
       ? validated.assistantResponse.trim()
       : defaultMessage;
-    const chatMessage = sanitizeChatMessage(rawAssistant, script);
 
-    const metadata = {
-      ...(response?.metadata || {}),
-      ...extractedMeta,
-      lineCount: safeLines.length,
-      timestamp: new Date().toISOString()
-    };
-
-    const formattedResponse = {
-      message: chatMessage,
-      script,
+    const formattedResponse = buildWritingOutput({
+      contractKey: INTENT_TYPES.NEXT_FIVE_LINES,
       type: INTENT_TYPES.NEXT_FIVE_LINES,
-      metadata
-    };
-
-    const validation = validateAiResponse(INTENT_TYPES.NEXT_FIVE_LINES, formattedResponse);
-    if (!validation.valid) {
-      throw new Error(`ai_response_invalid: ${validation.errors.join('; ')}`);
-    }
-
-    Object.assign(formattedResponse.metadata, buildContractMetadata(INTENT_TYPES.NEXT_FIVE_LINES, formattedResponse));
+      assistantMessage: rawAssistant,
+      formattedScript: script,
+      metadata: {
+        ...(response?.metadata || {}),
+        ...extractedMeta,
+        lineCount: safeLines.length,
+        timestamp: new Date().toISOString()
+      }
+    });
 
     this.ensureCanonicalResponse(formattedResponse);
 
-    this.persistAssistantMessage(response, chatMessage);
+    this.persistAssistantMessage(response, formattedResponse.message);
 
     return this.attachPersistedFlag(formattedResponse, response);
   }

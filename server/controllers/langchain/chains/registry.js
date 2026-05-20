@@ -8,6 +8,8 @@ import { CharacterIdeaChain } from './item/CharacterIdeaChain.js';
 import { LocationIdeaChain } from './item/LocationIdeaChain.js';
 import { ThemeIdeaChain } from './item/ThemeIdeaChain.js';
 import { DiscussScenesChain } from './discuss/DiscussScenesChain.js';
+import { WriteSceneChain } from './script/WriteSceneChain.js';
+import { RewriteChain } from './script/RewriteChain.js';
 
 // Initialize the registry map
 const registry = new Map([
@@ -16,6 +18,8 @@ const registry = new Map([
   [INTENT_TYPES.NEXT_FIVE_LINES, ScriptNextLinesChain],
   [INTENT_TYPES.SCRIPT_REFLECTION, ScriptReflectionChain],
   [INTENT_TYPES.DISCUSS_SCENES, DiscussScenesChain],
+  [INTENT_TYPES.WRITE_SCENE, WriteSceneChain],
+  [INTENT_TYPES.REWRITE, RewriteChain],
   [INTENT_TYPES.SCENE_IDEA, SceneIdeaChain],
   [INTENT_TYPES.CHARACTER_IDEA, CharacterIdeaChain],
   [INTENT_TYPES.LOCATION_IDEA, LocationIdeaChain],

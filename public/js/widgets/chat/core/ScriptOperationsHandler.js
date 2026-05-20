@@ -19,8 +19,10 @@ export class ScriptOperationsHandler {
                 await this._handleScriptEdit(data);
             } else if (intent === 'ANALYZE_SCRIPT') {
                 await this._handleScriptAnalysis(data);
-            } else if (intent === 'APPEND_SCRIPT') {
+            } else if (intent === 'APPEND_SCRIPT' || intent === 'WRITE_SCENE') {
                 await this._handleScriptAppend(data);
+            } else if (intent === 'REWRITE') {
+                await this._handleScriptRewrite(data);
             }
         } catch (error) {
             this.onError(error, 'handleScriptIntent');
@@ -29,7 +31,7 @@ export class ScriptOperationsHandler {
 
     async _handleScriptEdit (data) {
         const orchestrator = this.getScriptOrchestrator && this.getScriptOrchestrator();
-        const content = data.response && data.response.content;
+        const content = this._extractScriptContent(data);
         const commands = data.response && data.response.commands;
         const versionNumber = data.response && (data.response.versionNumber ?? data.response.version_number);
 
@@ -75,6 +77,30 @@ export class ScriptOperationsHandler {
         }
     }
 
+    async _handleScriptRewrite (data) {
+        const orchestrator = this.getScriptOrchestrator && this.getScriptOrchestrator();
+        if (!orchestrator || typeof orchestrator.handleScriptReplace !== 'function') {
+            console.warn('[ScriptOperationsHandler] Replace not available');
+            return;
+        }
+
+        const validationIntent = 'REWRITE';
+        const aiValidation = validateAiResponse(validationIntent, data?.response);
+        if (!aiValidation.valid) {
+            this.onError(new Error('AI response format invalid for rewrite'), 'handleScriptRewrite');
+            return;
+        }
+
+        try {
+            const result = await orchestrator.handleScriptReplace(data);
+            if (!result?.success) {
+                this.onError(new Error('Script replace failed'), 'handleScriptRewrite');
+            }
+        } catch (error) {
+            this.onError(error, 'handleScriptRewrite');
+        }
+    }
+
     async _handleScriptAppend (data) {
         const orchestrator = this.getScriptOrchestrator && this.getScriptOrchestrator();
         const metadata = data?.response?.metadata || null;
@@ -93,7 +119,7 @@ export class ScriptOperationsHandler {
             return;
         }
 
-        const rawContent = this._extractAppendContent(data) || aiValidation.script || '';
+        const rawContent = this._extractScriptContent(data) || aiValidation.script || '';
         const content = this._sanitizeAppendContent(rawContent);
         if (!content || !content.trim()) {
             this._emitScriptBlockedEmpty({
@@ -148,10 +174,11 @@ export class ScriptOperationsHandler {
     }
 
     /**
-     * Extract script content from API response.
-     * CANONICAL SHAPE (v2): data.response.script
+     * Extract script/editor content from API response.
+     * Canonical shape: data.response.script.
+     * Legacy fallback: data.response.content.
      */
-    _extractAppendContent (data) {
+    _extractScriptContent (data) {
         if (!data?.response) {
             return '';
         }
@@ -160,8 +187,7 @@ export class ScriptOperationsHandler {
             return data.response;
         }
 
-        // CANONICAL field only (v2)
-        return data.response.script || '';
+        return data.response.script || data.response.content || '';
     }
 
     _sanitizeAppendContent (content) {
@@ -206,7 +232,11 @@ export class ScriptOperationsHandler {
     }
 
     _hasLineInsertionData (data) {
-        const content = data.response && data.response.content;
+        if (data?.response?.script) {
+            return false;
+        }
+
+        const content = data.response && (data.response.message || data.response.content);
         if (!content || typeof content !== 'string') {
             return false;
         }

@@ -3,6 +3,8 @@ export const INTENT_TYPES = {
   NEXT_FIVE_LINES: 'NEXT_FIVE_LINES',
   SCRIPT_REFLECTION: 'SCRIPT_REFLECTION',
   DISCUSS_SCENES: 'DISCUSS_SCENES',
+  WRITE_SCENE: 'WRITE_SCENE',
+  REWRITE: 'REWRITE',
   GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',
   SCENE_IDEA: 'SCENE_IDEA',
   CHARACTER_IDEA: 'CHARACTER_IDEA',
@@ -124,6 +126,22 @@ export const OUTPUT_CONTRACTS = {
     scriptRequired: true,
     minLines: 40,
     maxLines: 132
+  },
+  WRITE_SCENE: {
+    responseFields: ['message'],
+    scriptRequired: true,
+    minLines: 8,
+    maxLines: 48
+  },
+  REWRITE: {
+    responseFields: ['message'],
+    scriptRequired: true,
+    minLines: 1,
+    maxLines: 80
+  },
+  DISCUSS_SCENES: {
+    responseFields: ['message'],
+    scriptRequired: false
   }
 };
 

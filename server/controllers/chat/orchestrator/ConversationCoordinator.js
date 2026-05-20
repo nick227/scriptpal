@@ -1,19 +1,12 @@
 import { ScriptManager } from '../../script-services/ScriptManager.js';
 import { HistoryManager } from '../history/HistoryManager.js';
-import { INTENT_TYPES } from '../../langchain/constants.js';
-import { APPEND_SCRIPT_INTENT } from '../../script-services/AppendPageService.js';
 import { router } from '../../langchain/router/index.js';
 import { buildAiResponse, createIntentResult } from '../../common/ai-response.service.js';
 import { filterContextOverrides } from '../context/overrides.js';
 import { assembleContextFromResolution } from '../context/assembleContext.js';
 import { resolveOutcome } from '../intent/resolveOutcome.js';
-import { outcomeToIntent, shouldRemapResponseToAppend } from '../intent/outcomeRouting.js';
-import { CHAT_OUTCOME } from '../intent/outcomes.js';
+import { outcomeToIntent, resolveResponseIntent, shouldRemapResponseToAppend } from '../intent/outcomeRouting.js';
 import { buildChatChainConfig } from '../chain/config.js';
-
-const WRITE_SCENE_PENDING_INSTRUCTION = `The user wants to write or generate a specific scene from their outline.
-Scene-by-scene screenplay generation is not enabled in this path yet.
-Give a short, helpful reply about the requested scene using the outline only. Do not output screenplay XML.`;
 
 export class ConversationCoordinator {
   static CHAT_ERRORS = {
@@ -81,14 +74,13 @@ export class ConversationCoordinator {
         { chatRequestId: context?.chatRequestId || null }
       )) || [];
 
-      const responseIntentResult = shouldRemapResponseToAppend(resolution.outcome)
-        ? { ...intentResult, intent: APPEND_SCRIPT_INTENT }
-        : intentResult;
+      const responseIntentResult = resolveResponseIntent(resolution.outcome, intentResult);
 
       return {
         ...this.formatResponse(response, responseIntentResult),
         history: savedHistory,
-        outcome: resolution.outcome
+        outcome: resolution.outcome,
+        editorOperation: resolution.editorOperation
       };
 
     } catch (error) {
@@ -103,10 +95,6 @@ export class ConversationCoordinator {
       outcome: resolution.outcome,
       editorOperation: resolution.editorOperation
     };
-
-    if (resolution.outcome === CHAT_OUTCOME.WRITE_SCENE) {
-      overrides.systemInstruction = WRITE_SCENE_PENDING_INSTRUCTION;
-    }
 
     const context = await assembleContextFromResolution({
       resolution,
@@ -128,12 +116,15 @@ export class ConversationCoordinator {
         'scriptMetadata',
         'scriptCollections',
         'sceneOutline',
+        'selection',
+        'selectionRange',
         'intent',
         'userId',
         'chatHistory',
         'disableHistory',
         'contextProfile',
-        'outcome'
+        'outcome',
+        'editorOperation'
       ];
       const safeOverrides = filterContextOverrides(enhancedContext, protectedKeys);
       Object.assign(context, safeOverrides);

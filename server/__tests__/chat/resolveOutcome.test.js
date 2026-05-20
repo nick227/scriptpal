@@ -37,7 +37,7 @@ describe('resolveOutcome', () => {
     expect(result.editorOperation).toBeNull();
   });
 
-  it('routes write scene requests to WRITE_SCENE without implementing generation yet', () => {
+  it('routes write scene requests to WRITE_SCENE with scenes outline', () => {
     const result = resolveOutcome('Write scene 3 from my outline', baseContext);
     expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_SCENE);
     expect(result.attachScenes).toBe(true);

@@ -1,8 +1,9 @@
 import { INTENT_TYPES } from '../../langchain/constants.js';
+import { APPEND_SCRIPT_INTENT } from '../../script-services/AppendPageService.js';
 import { CHAT_OUTCOME } from './outcomes.js';
 
 /**
- * Map product outcome to chain registry intent (P3a: no WRITE_SCENE / REWRITE chains yet).
+ * Map product outcome to chain registry intent.
  */
 export const outcomeToIntent = (outcome) => {
   switch (outcome) {
@@ -13,13 +14,33 @@ export const outcomeToIntent = (outcome) => {
     case CHAT_OUTCOME.DISCUSS_SCENES:
       return INTENT_TYPES.DISCUSS_SCENES;
     case CHAT_OUTCOME.WRITE_SCENE:
-      return INTENT_TYPES.DISCUSS_SCENES;
+      return INTENT_TYPES.WRITE_SCENE;
     case CHAT_OUTCOME.REWRITE:
-      return INTENT_TYPES.SCRIPT_REFLECTION;
+      return INTENT_TYPES.REWRITE;
     case CHAT_OUTCOME.CHAT_CONTROL:
     default:
       return INTENT_TYPES.GENERAL_CONVERSATION;
   }
 };
 
-export const shouldRemapResponseToAppend = (outcome) => outcome === CHAT_OUTCOME.WRITE_CONTINUE;
+export const shouldRemapResponseToAppend = (outcome) =>
+  outcome === CHAT_OUTCOME.WRITE_CONTINUE || outcome === CHAT_OUTCOME.WRITE_SCENE;
+
+/**
+ * API / client intent label (editor routing).
+ */
+export const resolveResponseIntent = (outcome, intentResult) => {
+  switch (outcome) {
+    case CHAT_OUTCOME.WRITE_CONTINUE:
+    case CHAT_OUTCOME.WRITE_SCENE:
+      return { ...intentResult, intent: APPEND_SCRIPT_INTENT };
+    case CHAT_OUTCOME.REWRITE:
+      return { ...intentResult, intent: INTENT_TYPES.REWRITE };
+    case CHAT_OUTCOME.DISCUSS_SCENES:
+      return { ...intentResult, intent: INTENT_TYPES.DISCUSS_SCENES };
+    case CHAT_OUTCOME.DISCUSS_SCRIPT:
+      return { ...intentResult, intent: INTENT_TYPES.SCRIPT_REFLECTION };
+    default:
+      return intentResult;
+  }
+};

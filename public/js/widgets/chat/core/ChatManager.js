@@ -137,7 +137,6 @@ export class ChatManager extends BaseManager {
             renderMessage: (content, type) => this.processAndRenderMessage(content, type),
             onError: this.handleError.bind(this)
         });
-
         // Use singleton so all callers share one instance (single dedupe state for GET /chat/messages)
         this.chatHistoryManager = getInstance({
             api: this.api,
@@ -574,7 +573,9 @@ export class ChatManager extends BaseManager {
 
         try {
             // Get script context for AI
-            const scriptContext = await buildChatRequestContext(this.scriptContextManager);
+            const scriptContext = await buildChatRequestContext(this.scriptContextManager, {
+                getSelection: () => this.scriptOrchestrator?.getChatSelectionContext?.() ?? null
+            });
             return await Promise.race([
                 this.api.getChatResponse(message, {
                     ...scriptContext,

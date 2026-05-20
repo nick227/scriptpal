@@ -108,10 +108,17 @@ export const assembleContext = async ({
   }
 
   let selectionBlock = '';
+  let selectionRange = null;
   if (profile === CONTEXT_PROFILE.SELECTION && selection && typeof selection === 'object') {
     const text = selection.text ?? selection.content ?? '';
     if (typeof text === 'string' && text.trim()) {
       selectionBlock = text.trim();
+    }
+    if (Number.isInteger(selection.startLine) && Number.isInteger(selection.endLine)) {
+      selectionRange = {
+        startLine: selection.startLine,
+        endLine: selection.endLine
+      };
     }
   }
 
@@ -129,6 +136,7 @@ export const assembleContext = async ({
     scriptCollections: null,
     sceneOutline,
     selection: selectionBlock || null,
+    selectionRange,
     includeScriptContext: useTail,
     attachScriptContext: useTail,
     attachScenes: useScenesOutline,
