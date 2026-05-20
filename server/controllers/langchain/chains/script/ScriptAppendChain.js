@@ -4,7 +4,10 @@ import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { formatScriptCollections } from '../helpers/ScriptCollectionsFormatter.js';
 import { getDefaultQuestions } from '../helpers/ChainInputUtils.js';
 import { buildContractMetadata } from '../helpers/ChainOutputGuards.js';
-import { normalizeWritingResponse } from '../helpers/WritingResponseNormalizer.js';
+import {
+  normalizeWritingResponse,
+  rejectNonScreenplayScriptOutput
+} from '../helpers/WritingResponseNormalizer.js';
 
 const VALID_TAGS = VALID_FORMAT_VALUES.join(', ');
 const SYSTEM_INSTRUCTION = `You are a scriptwriting assistant tasked specifically with appending or continuing scripts.
@@ -65,6 +68,15 @@ export class ScriptAppendChain extends BaseChain {
             metadata,
             type: INTENT_TYPES.SCRIPT_CONVERSATION
         });
+
+        const rejected = rejectNonScreenplayScriptOutput({
+            message: canonical.message,
+            script: canonical.script,
+            metadata: canonical.metadata
+        });
+        if (rejected) {
+            Object.assign(canonical, rejected);
+        }
 
         Object.assign(canonical.metadata, buildContractMetadata(INTENT_TYPES.SCRIPT_CONVERSATION, canonical));
 

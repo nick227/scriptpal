@@ -1,5 +1,7 @@
 import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES } from '../../constants.js';
+import { looksLikeStructuredPayload } from '../../../../../shared/langchainConstants.js';
+import { collectionFeedbackChatMessage } from '../helpers/WritingResponseNormalizer.js';
 
 const SYSTEM_INSTRUCTION = `You are a script development assistant focused on the user's scene outline.
 - Discuss structure, order, pacing, and dramatic purpose of scenes.
@@ -46,7 +48,10 @@ export class DiscussScenesChain extends BaseChain {
     const raw = typeof response === 'string'
       ? response
       : (response?.message || response?.response || '');
-    const message = typeof raw === 'string' ? raw.trim() : '';
+    let message = typeof raw === 'string' ? raw.trim() : '';
+    if (looksLikeStructuredPayload(message)) {
+      message = collectionFeedbackChatMessage();
+    }
 
     return {
       message,

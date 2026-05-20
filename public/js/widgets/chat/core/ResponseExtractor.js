@@ -1,3 +1,5 @@
+import { looksLikeStructuredPayload } from '../../../../../shared/langchainConstants.js';
+
 /**
  * ResponseExtractor — Extract message content from API responses and history/DB shapes.
  *
@@ -122,21 +124,21 @@ function _findResponseMessage (payload) {
     }
 
     if (typeof payload.message === 'string' && payload.message.trim()) {
-        return payload.message;
+        const trimmed = payload.message.trim();
+        if (!looksLikeStructuredPayload(trimmed)) {
+            return trimmed;
+        }
     }
 
     if (typeof payload.assistantResponse === 'string' && payload.assistantResponse.trim()) {
-        return payload.assistantResponse;
+        const trimmed = payload.assistantResponse.trim();
+        if (!looksLikeStructuredPayload(trimmed)) {
+            return trimmed;
+        }
     }
 
     if (payload.response && payload.response !== payload) {
         return _findResponseMessage(payload.response);
-    }
-
-    if (typeof payload === 'object') {
-        console.warn('[ResponseExtractor] No message-like field in payload', {
-            keys: Object.keys(payload)
-        });
     }
 
     return null;
@@ -161,8 +163,12 @@ function _extractJsonAssistantMessage (rawMessage) {
             if (typeof parsed.message === 'string' && parsed.message.trim()) {
                 return parsed.message.trim();
             }
-            if (typeof parsed.formattedScript === 'string' && parsed.formattedScript.trim()) {
+            if (typeof parsed.formattedScript === 'string' && parsed.formattedScript.trim()
+                && !looksLikeStructuredPayload(parsed.formattedScript)) {
                 return parsed.formattedScript.trim();
+            }
+            if (Array.isArray(parsed.collections) && parsed.collections.length) {
+                return 'Updated your story lists.';
             }
             return _formatStructuredObjectForDisplay(parsed);
         }
@@ -191,6 +197,14 @@ function _tryParseJsonString (value) {
 
 function _formatStructuredObjectForDisplay (value) {
     if (!value || typeof value !== 'object') {
+        return '';
+    }
+
+    if (typeof value.message === 'string' && value.message.trim() && !looksLikeStructuredPayload(value.message)) {
+        return value.message.trim();
+    }
+
+    if (typeof value.script === 'string' && value.script.trim()) {
         return '';
     }
 

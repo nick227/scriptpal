@@ -1,6 +1,8 @@
 import {
-  isWritingIntent,
-  sanitizeChatMessageForResponse
+  looksLikeStructuredPayload,
+  sanitizeChatMessage,
+  sanitizeChatMessageForResponse,
+  stripStructuredScriptOutput
 } from '../langchain/chains/helpers/WritingResponseNormalizer.js';
 
 /**
@@ -107,12 +109,26 @@ export const buildAiResponse = ({
   const resolvedMode = mode || normalized.metadata?.generationMode || null;
   const resolvedValidation = validation || normalized.metadata?.contractValidation || null;
 
-  const writingKey = resolvedMode || resolvedIntent;
-  const safeMessage = sanitizeChatMessageForResponse(
+  const writingKey = (resolvedMode && resolvedMode !== 'chat') ? resolvedMode : resolvedIntent;
+  let safeScript = stripStructuredScriptOutput(normalized.script || '');
+  let safeMessage = sanitizeChatMessageForResponse(
     normalized.message,
-    normalized.script,
+    safeScript,
     writingKey
   );
+
+  if (looksLikeStructuredPayload(safeMessage)) {
+    safeMessage = sanitizeChatMessage(null, '');
+  }
+  if (!safeMessage && safeScript) {
+    safeMessage = sanitizeChatMessage(null, safeScript);
+  }
+  if (!safeScript || looksLikeStructuredPayload(safeScript)) {
+    safeScript = null;
+    if (!safeMessage) {
+      safeMessage = 'I could not apply that to your script.';
+    }
+  }
 
   // CANONICAL RESPONSE SHAPE (v2 - no legacy aliases)
   return {
@@ -129,7 +145,7 @@ export const buildAiResponse = ({
     metadata: metadata || null,
     response: {
       message: safeMessage,
-      script: normalized.script,
+      script: safeScript,
       collections: normalized.collections ?? null,
       metadata: normalized.metadata,
       type: normalized.type

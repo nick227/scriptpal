@@ -1,4 +1,4 @@
-import { validateAiResponse } from '../../../../../shared/langchainConstants.js';
+import { looksLikeStructuredPayload, validateAiResponse } from '../../../../../shared/langchainConstants.js';
 import { EventManager } from '../../../core/EventManager.js';
 
 export class ScriptOperationsHandler {
@@ -120,6 +120,13 @@ export class ScriptOperationsHandler {
         }
 
         const rawContent = this._extractScriptContent(data) || aiValidation.script || '';
+        if (looksLikeStructuredPayload(rawContent)) {
+            this._emitScriptBlockedEmpty({
+                intent: 'APPEND_SCRIPT',
+                reason: 'structured_json_not_screenplay'
+            });
+            return;
+        }
         const content = this._sanitizeAppendContent(rawContent);
         if (!content || !content.trim()) {
             this._emitScriptBlockedEmpty({

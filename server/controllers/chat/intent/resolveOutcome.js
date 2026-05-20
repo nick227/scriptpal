@@ -10,7 +10,8 @@ import {
   resolveGenerateCollectionTypes,
   isAttachEntityContextRequest,
   isExtractEntitiesFromScriptRequest,
-  isPrimaryGenerateCollectionsRequest
+  isPrimaryGenerateCollectionsRequest,
+  isCollectionFeedbackRequest
 } from './heuristics.js';
 import { CHAT_OUTCOME, CONTEXT_PROFILE, EDITOR_OPERATION } from './outcomes.js';
 
@@ -142,6 +143,18 @@ export const resolveOutcome = (prompt, context = {}) => {
       outcome: CHAT_OUTCOME.DISCUSS_SCENES,
       contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
       attachHistory,
+      attachScenes: true,
+      attachEntityContext: false,
+      generateCollections: [],
+      editorOperation: null
+    });
+  }
+
+  if (isCollectionFeedbackRequest(normalizedPrompt)) {
+    return buildResolution({
+      outcome: CHAT_OUTCOME.DISCUSS_SCENES,
+      contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
+      attachHistory: true,
       attachScenes: true,
       attachEntityContext: false,
       generateCollections: [],

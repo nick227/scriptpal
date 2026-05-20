@@ -31,7 +31,7 @@ export class ConversationCoordinator {
       intentResult,
       scriptId: this.scriptId,
       response,
-      mode: 'chat'
+      mode: intentResult?.intent || null
     });
   }
 

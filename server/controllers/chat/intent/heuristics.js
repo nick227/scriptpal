@@ -216,3 +216,23 @@ export const isAttachHistoryRequest = (prompt) => {
 
   return ATTACH_HISTORY_PATTERN.test(prompt);
 };
+
+/** User rejecting prior collection/scene suggestions — chat only, no script append */
+export const isCollectionFeedbackRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  const types = resolveGenerateCollectionTypes(prompt);
+  if (isPrimaryGenerateCollectionsRequest(prompt, types)) {
+    return false;
+  }
+
+  if (hasStrongWriteIntent(prompt)) {
+    return false;
+  }
+
+  const rejection = /\b(too obvious|not good enough|try again|start over|redo|do over|wrong ones|bad ones|don't like)\b/i;
+  const deleteish = /\b(delete|remove|drop|clear|undo|get rid of)\b[\s\S]{0,40}\b(those|these|them|all)\b/i;
+  return rejection.test(prompt) || deleteish.test(prompt);
+};

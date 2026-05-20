@@ -58,9 +58,66 @@ export const SCREENPLAY_GRAMMAR_V1 = `SCREENPLAY GRAMMAR (enforced)
 
 export const JSON_ESCAPE_RULE = 'Output JSON only — no markdown, no extra text.';
 
+const SCREENPLAY_TAG_LINE = /^<(header|action|speaker|dialog|directions|chapter-break)(\s|>|\/)/i;
+
+const isCollectionLikeObject = (parsed) => {
+  if (!parsed || typeof parsed !== 'object') {
+    return false;
+  }
+  if (Array.isArray(parsed.collections)) {
+    return true;
+  }
+  if (Array.isArray(parsed) && parsed.some((entry) => entry?.type && Array.isArray(entry?.items))) {
+    return true;
+  }
+  if (Array.isArray(parsed) && parsed.length > 0
+    && parsed.every((entry) => entry && typeof entry === 'object' && entry.title && entry.description)) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * True when text looks like collection/function JSON — not idea nudges or status payloads.
+ */
+export const looksLikeStructuredPayload = (text) => {
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return isCollectionLikeObject(parsed);
+    } catch {
+      return /\b"collections"\s*:/i.test(trimmed)
+        && !/\b"idea_nudges"\s*:/i.test(trimmed)
+        && !/\b"current_state_summary"\s*:/i.test(trimmed);
+    }
+  }
+  return false;
+};
+
+export const countScreenplayTaggedLines = (text) => {
+  if (!text || typeof text !== 'string') {
+    return 0;
+  }
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => SCREENPLAY_TAG_LINE.test(line)).length;
+};
+
 const countScriptLines = (text) => {
   if (!text || typeof text !== 'string') {
     return 0;
+  }
+  const tagged = countScreenplayTaggedLines(text);
+  if (tagged > 0) {
+    return tagged;
   }
   return text
     .split(/\r?\n/)
@@ -115,12 +172,21 @@ export const OUTPUT_CONTRACTS = {
   APPEND_SCRIPT: {
     responseFields: [],
     scriptRequired: true,
+    requiresScreenplayXml: true,
+    minLines: 12,
+    maxLines: 16
+  },
+  SCRIPT_CONVERSATION: {
+    responseFields: [],
+    scriptRequired: true,
+    requiresScreenplayXml: true,
     minLines: 12,
     maxLines: 16
   },
   SCRIPT_APPEND_PAGE: {
     responseFields: [],
     scriptRequired: true,
+    requiresScreenplayXml: true,
     minLines: 12,
     maxLines: 26
   },
@@ -215,7 +281,15 @@ export const validateAiResponse = (intent, response) => {
 
   // Validate line count
   const script = extractFormattedScript(normalized);
+  if (script && looksLikeStructuredPayload(script)) {
+    errors.push('Script field must not be JSON or structured data');
+  }
+
+  const taggedLineCount = countScreenplayTaggedLines(script);
   const lineCount = countScriptLines(script);
+  if (contract.requiresScreenplayXml && script && taggedLineCount < 1) {
+    errors.push('Script must use screenplay XML tags');
+  }
   if (typeof contract.minLines === 'number' && lineCount < contract.minLines) {
     errors.push(`Script line count ${lineCount} below minimum ${contract.minLines}`);
   }

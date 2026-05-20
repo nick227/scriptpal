@@ -2,7 +2,10 @@ import { BaseChain } from '../base/BaseChain.js';
 import { INTENT_TYPES } from '../../constants.js';
 import { buildScriptHeader } from '../helpers/ScriptPromptUtils.js';
 import { COLLECTION_TYPES } from '../../../chat/collections/collectionTypes.js';
-import { sanitizeChatMessage } from '../helpers/WritingResponseNormalizer.js';
+import {
+  looksLikeStructuredPayload,
+  sanitizeChatMessage
+} from '../helpers/WritingResponseNormalizer.js';
 
 const COLLECTION_TYPE_ENUM = [...COLLECTION_TYPES];
 
@@ -132,7 +135,10 @@ export class GenerateCollectionsChain extends BaseChain {
       requestedTypes
     );
 
-    const message = sanitizeChatMessage(payload.assistantResponse, null);
+    const assistantText = looksLikeStructuredPayload(payload.assistantResponse)
+      ? ''
+      : payload.assistantResponse;
+    const message = sanitizeChatMessage(assistantText, null);
 
     return {
       message,
