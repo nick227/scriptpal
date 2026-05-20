@@ -1,8 +1,10 @@
 import { INTENT_TYPES } from '../../constants.js';
-import { APPEND_SCRIPT_INTENT } from '../../../script-services/AppendPageService.js';
 
 export const SCRIPT_TAG_PATTERN = /<(header|action|speaker|dialog|directions|chapter-break)\b/i;
 export const MAX_CHAT_MESSAGE_LENGTH = 240;
+
+/** Keep in sync with AppendPageService.APPEND_SCRIPT_INTENT — not imported to avoid ESM cycle. */
+const APPEND_SCRIPT_INTENT = 'APPEND_SCRIPT';
 
 const WRITING_INTENTS = new Set([
   INTENT_TYPES.SCRIPT_CONVERSATION,
