@@ -8,8 +8,8 @@ export const buildChatChainConfig = () => ({
 
 export const buildNextFiveLinesChainConfig = () => ({
   shouldGenerateQuestions: false,
+  maxAttempts: 3,
   modelConfig: {
-    temperature: 0.3,
-    response_format: { type: 'json_object' }
+    temperature: 0.4
   }
 });

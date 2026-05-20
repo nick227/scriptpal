@@ -210,6 +210,16 @@ function handleChatError(error) {
     errorResponse.body.error = 'Insufficient content for analysis';
   } else if (error.message?.includes('Chain execution failed')) {
     errorResponse.body.error = 'Chain execution failed';
+  } else if (
+    error.message?.includes('script_lines_invalid')
+    || error.message?.includes('script_lines_missing')
+    || error.message?.includes('leading_chapter_break')
+    || error.message?.includes('consecutive_chapter_breaks')
+    || error.message?.includes('writing_attempt_failed')
+  ) {
+    errorResponse.status = 422;
+    errorResponse.body.error = 'Could not format the next script lines';
+    errorResponse.body.details = 'The AI response did not match the screenplay format. Please try again.';
   }
 
   return errorResponse;
