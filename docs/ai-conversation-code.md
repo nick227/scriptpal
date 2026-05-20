@@ -63,9 +63,12 @@ sequenceDiagram
     ScriptPalAPI-->>ChatManager: JSON
 
     ChatManager->>ChatManager: _presentResponse (chat bubble)
-    ChatManager->>ChatManager: handleScriptOperations
-    opt intent APPEND_SCRIPT / NEXT_FIVE_LINES remapped
-        ChatManager->>Editor: ScriptOperationsHandler → append lines
+    ChatManager->>ChatManager: handleResponseEffects
+    opt response.script
+        ChatManager->>Editor: ScriptOperationsHandler → append / rewrite
+    end
+    opt response.collections
+        ChatManager->>ChatManager: AiCollectionsHandler → merge stores + reload
     end
 ```
 
@@ -174,7 +177,7 @@ Content-Type: application/json
 | `response.script` | Editor append | XML-tagged screenplay lines; may be `null` |
 | `response.collections` | Sidebar stores | Optional entity groups (`scenes`, `characters`, `locations`, `themes`, `outlines`); server-normalized after AI |
 | `response.metadata` | Validation / debugging | Grammar, line count, contract validation |
-| `intent` | `ChatManager.handleScriptOperations` | Drives editor side effects |
+| `intent` | `ChatManager.handleResponseEffects` | Editor + collection side effects |
 | `history` | Optional re-render | Recent DB rows serialized for the script |
 
 Normalization is centralized in `server/controllers/common/ai-response.service.js` (`buildAiResponse`, `normalizeAiResponse`).  
@@ -310,7 +313,7 @@ Edit patterns in `server/controllers/chat/intent/heuristics.js` (`NEXT_FIVE_LINE
 2. Create chain under `server/controllers/langchain/chains/` extending `BaseChain`  
 3. Register in `chains/registry.js`  
 4. Teach `IntentClassifier` or `ConversationCoordinator.determineIntent` to return the new intent  
-5. If the UI must mutate the editor, handle the intent in `ChatManager.handleScriptOperations` / `ScriptOperationsHandler`
+5. If the UI must mutate the editor or sidebar, extend `ChatManager.handleResponseEffects` (`ScriptOperationsHandler`, `AiCollectionsHandler`)
 
 ### Change chat bubble text only
 
@@ -333,7 +336,7 @@ Usually `response.message` from chain `formatResponse` or `buildAiResponse` — 
 
 ## Design Rules (do not break casually)
 
-1. **v2 response shape** — `message` + `script` only; avoid reviving legacy aliases (`content`, `formattedScript` at top level) without updating `ResponseExtractor` and tests.  
+1. **v2 response shape** — `message` + `script` + optional `collections`; avoid reviving legacy aliases (`content`, `formattedScript` at top level) without updating `ResponseExtractor` and tests.  
 2. **Script mutations bypass general chat** — regex fast path prevents accidental fallback to `DefaultChain` mid-append.  
 3. **`NEXT_FIVE_LINES` → `APPEND_SCRIPT` on the client** — server returns distinct intent; frontend remaps before `ScriptOperationsHandler`.  
 4. **Ownership** — script-scoped routes verify `verifyScriptOwnership` / `requireScriptOwnership`.  
@@ -369,7 +372,25 @@ Usually `response.message` from chain `formatResponse` or `buildAiResponse` — 
 | **Intent** | String label routing to a chain (`NEXT_FIVE_LINES`, etc.) |
 | **Fast path** | Controller-level regex routing for script mutations |
 | **Context bundle** | Script text, collections, chat history, system prompt passed into chains |
-| **Canonical response** | API object with `response.message` and `response.script` |
+| **Canonical response** | API object with `response.message`, `response.script`, and optional `response.collections` |
+
+---
+
+## Client: `response.collections` side effects
+
+After each chat turn, `ChatManager.handleResponseEffects`:
+
+1. `handleScriptOperations` — editor append / rewrite (`response.script`)  
+2. `handleCollectionsFromResponse` — sidebar entities (`response.collections`)
+
+`AiCollectionsHandler` (`public/js/widgets/chat/core/AiCollectionsHandler.js`):
+
+- **Server-persisted items** (with `id`): merge into the matching `ScriptItemStore`, then `loadItems(scriptId, { force: true })`  
+- **No `createItem`** when `id` is present (avoids duplicate rows after server persist)  
+- **Idempotency**: `chatRequestId` + `type` + `id` (or normalized `title`) — replays of the same turn are skipped  
+- **Script change**: `clearAppliedKeys` when switching scripts  
+
+Stores are injected via `ChatManager` constructor options (`ChatIntegration` passes `this.stores`).
 
 ---
 

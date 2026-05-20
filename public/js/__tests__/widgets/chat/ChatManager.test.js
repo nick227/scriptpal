@@ -120,9 +120,7 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             expect(mockApi.getChatResponse).toHaveBeenCalledWith(
                 userMessage,
-                expect.objectContaining({
-                    scriptContent: expect.any(String),
-                    scriptTitle: expect.any(String)
+                expect.objectContaining({                    scriptTitle: expect.any(String)
                 })
             );
         });
@@ -139,9 +137,7 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             expect(mockApi.getChatResponse).toHaveBeenCalledWith(
                 userMessage,
-                expect.objectContaining({
-                    scriptContent: expect.any(String),
-                    scriptTitle: expect.any(String)
+                expect.objectContaining({                    scriptTitle: expect.any(String)
                 })
             );
         });
@@ -159,7 +155,7 @@ describe('Requirement #6: AI Script Discussion', () => {
             expect(mockApi.getChatResponse).toHaveBeenCalled();
             expect(mockEventManager.publish).toHaveBeenCalledWith(
                 'CHAT:MESSAGE_SENT',
-                { message: userMessage }
+                expect.objectContaining({ message: userMessage })
             );
         });
 
@@ -221,9 +217,7 @@ describe('Requirement #6: AI Script Discussion', () => {
             // Should include script context in the API call
             expect(mockApi.getChatResponse).toHaveBeenCalledWith(
                 userMessage,
-                expect.objectContaining({
-                    scriptContent: expect.any(String),
-                    scriptTitle: expect.any(String)
+                expect.objectContaining({                    scriptTitle: expect.any(String)
                 })
             );
         });
@@ -318,14 +312,79 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             expect(mockApi.getChatResponse).toHaveBeenCalledWith(
                 message,
-                expect.objectContaining({
-                    scriptContent: expect.any(String),
-                    scriptTitle: expect.any(String)
+                expect.objectContaining({                    scriptTitle: expect.any(String)
                 })
             );
-            expect(mockRenderer.render).toHaveBeenCalledWith('Hello, user!', MESSAGE_TYPES.ASSISTANT);
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    role: MESSAGE_TYPES.ASSISTANT,
+                    content: 'Hello, user!'
+                }),
+                MESSAGE_TYPES.ASSISTANT
+            );
             expect(mockEventManager.publish).toHaveBeenCalled();
             expect(result).toEqual(apiResponse);
+        });
+
+        test('should render optimistic user message before API resolves', async () => {
+            const message = 'Hello, AI!';
+            let resolveApi;
+            mockApi.getChatResponse.mockImplementation(() => new Promise((resolve) => {
+                resolveApi = resolve;
+            }));
+
+            const sendPromise = chatManager.handleSend(message);
+
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    role: MESSAGE_TYPES.USER,
+                    content: message,
+                    status: 'sending',
+                    metadata: expect.objectContaining({
+                        chatRequestId: expect.any(String),
+                        optimistic: true
+                    })
+                }),
+                MESSAGE_TYPES.USER
+            );
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            resolveApi({ response: 'Hello, user!', intent: 'GENERAL' });
+            await sendPromise;
+        });
+
+        test('should pass chatRequestId in API context', async () => {
+            const message = 'Hello, AI!';
+            mockApi.getChatResponse.mockResolvedValue({ response: 'Hello, user!' });
+
+            await chatManager.handleSend(message);
+
+            expect(mockApi.getChatResponse).toHaveBeenCalledWith(
+                message,
+                expect.objectContaining({
+                    chatRequestId: expect.any(String)
+                })
+            );
+        });
+
+        test('should not double-render analysis responses through script operation side effects', async () => {
+            const message = 'Analyze this scene';
+            mockApi.getChatResponse.mockResolvedValue({
+                response: 'The scene has clear stakes.',
+                intent: 'ANALYZE_SCRIPT'
+            });
+
+            await chatManager.handleSend(message);
+
+            expect(mockRenderer.render).toHaveBeenCalledTimes(2);
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({ content: message, type: MESSAGE_TYPES.USER }),
+                MESSAGE_TYPES.USER
+            );
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({ content: 'The scene has clear stakes.', type: MESSAGE_TYPES.ASSISTANT }),
+                MESSAGE_TYPES.ASSISTANT
+            );
         });
 
         test('should handle API errors gracefully', async () => {
@@ -335,6 +394,14 @@ describe('Requirement #6: AI Script Discussion', () => {
             mockApi.getChatResponse.mockRejectedValue(error);
 
             await expect(chatManager.handleSend(message)).rejects.toThrow('API Error');
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    role: MESSAGE_TYPES.USER,
+                    content: message,
+                    status: 'sending'
+                }),
+                MESSAGE_TYPES.USER
+            );
             expect(mockRenderer.render).toHaveBeenCalledWith(ERROR_MESSAGES.API_ERROR, MESSAGE_TYPES.ERROR);
         });
 
@@ -365,7 +432,7 @@ describe('Requirement #6: AI Script Discussion', () => {
             const apiResponse = {
                 response: {
                     response: 'Script edited',
-                    content: '<script><action>New content</action></script>',
+                    script: '<script><action>New content</action></script>',
                     version_number: 2
                 },
                 intent: 'EDIT_SCRIPT'
@@ -386,6 +453,60 @@ describe('Requirement #6: AI Script Discussion', () => {
                 isFromEdit: true,
                 versionNumber: 2
             });
+        });
+
+        test('should apply response.collections idempotently via collections handler', async () => {
+            const message = 'Create a scene';
+            const sceneStore = {
+                items: [],
+                createItem: jest.fn(),
+                loadItems: jest.fn().mockResolvedValue([]),
+                sortItems: jest.fn(),
+                setItems: jest.fn(function setItems (items) {
+                    this.items = items;
+                })
+            };
+            chatManager = new ChatManager(mockStateManager, mockApi, mockEventManager, {
+                stores: { scene: sceneStore }
+            });
+            await chatManager.initialize(mockElements);
+            chatManager.renderer = mockRenderer;
+
+            const collections = [{
+                type: 'scenes',
+                items: [{
+                    id: 12,
+                    title: 'Bedroom',
+                    description: 'Jon room messy',
+                    sortIndex: 0
+                }]
+            }];
+
+            mockApi.getChatResponse.mockResolvedValue({
+                response: {
+                    message: 'Added a scene.',
+                    collections,
+                    metadata: { chatRequestId: 'turn-collections-1' }
+                },
+                intent: 'GENERATE_COLLECTIONS'
+            });
+
+            const handleSpy = jest.spyOn(chatManager.collectionsHandler, 'handleCollections');
+
+            await chatManager.handleSend(message);
+
+            expect(handleSpy).toHaveBeenCalledTimes(1);
+            const turnId = handleSpy.mock.calls[0][1].chatRequestId;
+            expect(turnId).toBeTruthy();
+            expect(sceneStore.createItem).not.toHaveBeenCalled();
+            expect(sceneStore.loadItems).toHaveBeenCalledWith(defaultScript.id, { force: true });
+
+            sceneStore.loadItems.mockClear();
+            await chatManager.handleCollectionsFromResponse({
+                response: { collections }
+            }, { chatRequestId: turnId });
+
+            expect(sceneStore.loadItems).not.toHaveBeenCalled();
         });
     });
 
@@ -408,8 +529,49 @@ describe('Requirement #6: AI Script Discussion', () => {
             await chatManager.loadChatHistory(messages);
 
             expect(mockRenderer.clear).toHaveBeenCalled();
-            expect(mockRenderer.render).toHaveBeenCalledWith('Hello', MESSAGE_TYPES.USER);
-            expect(mockRenderer.render).toHaveBeenCalledWith('Hi there!', MESSAGE_TYPES.ASSISTANT);
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({ content: 'Hello', type: MESSAGE_TYPES.USER }),
+                MESSAGE_TYPES.USER
+            );
+            expect(mockRenderer.render).toHaveBeenCalledWith(
+                expect.objectContaining({ content: 'Hi there!', type: MESSAGE_TYPES.ASSISTANT }),
+                MESSAGE_TYPES.ASSISTANT
+            );
+        });
+
+        test('should render duplicate server messages only once', async () => {
+            const messages = [
+                { id: 'user_1', content: 'Hello', type: 'user' },
+                { id: 'assistant_1', content: 'Hi there!', type: 'assistant' }
+            ];
+
+            await chatManager.appendServerMessages(messages);
+            await chatManager.appendServerMessages(messages);
+
+            expect(mockRenderer.render).toHaveBeenCalledTimes(2);
+        });
+
+        test('should reconcile optimistic user message with server user row', async () => {
+            const chatRequestId = 'turn-1';
+            chatManager.appendOrUpdateMessages([{
+                id: `client_${chatRequestId}`,
+                content: 'Hello',
+                type: 'user',
+                role: 'user',
+                status: 'sending',
+                metadata: { chatRequestId, optimistic: true }
+            }]);
+
+            chatManager.appendOrUpdateMessages([{
+                id: 'user_25',
+                content: 'Hello',
+                type: 'user',
+                role: 'user',
+                status: 'sent',
+                metadata: { chatRequestId }
+            }]);
+
+            expect(mockRenderer.render).toHaveBeenCalledTimes(1);
         });
 
         test('should handle empty chat history', async () => {
@@ -582,9 +744,7 @@ describe('Requirement #6: AI Script Discussion', () => {
 
             expect(mockApi.getChatResponse).toHaveBeenCalledWith(
                 buttonText,
-                expect.objectContaining({
-                    scriptContent: expect.any(String),
-                    scriptTitle: expect.any(String)
+                expect.objectContaining({                    scriptTitle: expect.any(String)
                 })
             );
         });

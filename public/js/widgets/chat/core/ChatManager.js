@@ -15,6 +15,7 @@ import {
     extractRenderableContent
 } from './ResponseExtractor.js';
 import { ScriptOperationsHandler } from './ScriptOperationsHandler.js';
+import { AiCollectionsHandler } from './AiCollectionsHandler.js';
 import { buildChatRequestContext } from '../api/buildChatRequestContext.js';
 
 const createDefaultRenderer = () => {
@@ -114,13 +115,14 @@ export class ChatManager extends BaseManager {
      * @param api
      * @param eventManager
      */
-    constructor (stateManager, api, eventManager) {
+    constructor (stateManager, api, eventManager, options = {}) {
         super(stateManager);
         if (!api || !eventManager) {
             throw new Error('API and EventManager are required for ChatManager');
         }
         this.api = api;
         this.eventManager = eventManager;
+        this.stores = options.stores || {};
         this.isProcessing = false;
         this.currentScriptId = null;
         this.appendQueue = new Map();
@@ -136,6 +138,11 @@ export class ChatManager extends BaseManager {
             eventManager: this.eventManager,
             renderMessage: (content, type) => this.processAndRenderMessage(content, type),
             onError: this.handleError.bind(this)
+        });
+        this.collectionsHandler = new AiCollectionsHandler({
+            stores: this.stores,
+            stateManager: this.stateManager,
+            eventManager: this.eventManager
         });
         // Use singleton so all callers share one instance (single dedupe state for GET /chat/messages)
         this.chatHistoryManager = getInstance({
@@ -231,6 +238,7 @@ export class ChatManager extends BaseManager {
         if (isNewScript) {
             this.clearRenderedMessages();
             this.renderer.render(`Now chatting about: ${script.title}`, MESSAGE_TYPES.ASSISTANT);
+            this.collectionsHandler?.clearAppliedKeys(previousScriptId);
         }
 
         this.dropQueueForOtherScripts(script.id);
@@ -452,7 +460,7 @@ export class ChatManager extends BaseManager {
 
             // 5. Side Effects & Events (Orchestration)
             this.eventManager.publish(EventManager.EVENTS.CHAT.MESSAGE_SENT, { message, chatRequestId });
-            await this.handleScriptOperations(data);
+            await this.handleResponseEffects(data, { chatRequestId });
 
             return data;
         } catch (error) {
@@ -589,6 +597,28 @@ export class ChatManager extends BaseManager {
             }
             throw error;
         }
+    }
+
+    /**
+     * Apply script editor ops and sidebar collection side effects from one chat turn.
+     */
+    async handleResponseEffects (data, options = {}) {
+        await this.handleScriptOperations(data);
+        await this.handleCollectionsFromResponse(data, options);
+    }
+
+    async handleCollectionsFromResponse (data, options = {}) {
+        const collections = data?.response?.collections;
+        if (!Array.isArray(collections) || collections.length === 0) {
+            return [];
+        }
+
+        const chatRequestId = options.chatRequestId
+            || data?.response?.metadata?.chatRequestId
+            || data?.metadata?.chatRequestId
+            || null;
+
+        return this.collectionsHandler.handleCollections(collections, { chatRequestId });
     }
 
     /**
