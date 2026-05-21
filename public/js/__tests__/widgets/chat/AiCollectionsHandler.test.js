@@ -76,16 +76,16 @@ describe('AiCollectionsHandler', () => {
 
         await handler.handleCollections([
             {
-                type: 'characters',
-                items: [{ id: 2, title: 'Bob', description: 'Lead' }]
+                type: 'scenes',
+                items: [{ id: 12, title: 'Warehouse', description: 'Night beat' }]
             }
         ], { chatRequestId: 'turn-panel' });
 
         expect(eventManager.publish).toHaveBeenCalledWith(
             EventManager.EVENTS.UI.COLLECTION_PANEL_OPEN,
             expect.objectContaining({
-                target: 'user-characters',
-                types: ['characters']
+                target: 'user-scenes',
+                types: ['scenes']
             })
         );
     });
