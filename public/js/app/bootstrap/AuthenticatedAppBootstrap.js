@@ -1,4 +1,5 @@
 import { UI_ELEMENTS } from '../../constants.js';
+import { EventManager } from '../../core/EventManager.js';
 import { OrchestratorLifecycleController } from '../orchestrator/OrchestratorLifecycleController.js';
 import { CharactersUIBootstrap } from '../../widgets/character/CharactersUIBootstrap.js';
 import { ChatIntegration } from '../../widgets/chat/integration/ChatIntegration.js';
