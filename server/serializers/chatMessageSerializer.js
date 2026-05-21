@@ -78,7 +78,9 @@ export const ChatMessageSerializer = {
           role: 'user',
           type: 'user',
           content: metadata.userPrompt,
-          metadata: null
+          metadata: {
+            chatRequestId: metadata.chatRequestId ?? metadata.turnId ?? null
+          }
         }));
       }
       messages.push(buildMessage(row, {

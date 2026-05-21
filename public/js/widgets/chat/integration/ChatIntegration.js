@@ -8,7 +8,6 @@
 import { EventManager } from '../../../core/EventManager.js';
 
 import { ChatManager } from '../core/ChatManager.js';
-import { extractApiResponseContent, extractRenderableContent } from '../core/ResponseExtractor.js';
 import { ModernChatWidget } from '../ui/ModernChatWidget.js';
 import { PromptHelperBridge } from './PromptHelperBridge.js';
 
@@ -22,10 +21,11 @@ export class ChatIntegration {
      * @param stateManager
      * @param eventManager
      */
-    constructor (api, stateManager, eventManager) {
+    constructor (api, stateManager, eventManager, stores = {}) {
         this.api = api;
         this.stateManager = stateManager;
         this.eventManager = eventManager;
+        this.stores = stores;
         this.chatWidget = null;
         this.chatManager = null;
         this.scriptOrchestrator = null;
@@ -55,7 +55,8 @@ export class ChatIntegration {
             this.chatManager = new ChatManager(
                 this.stateManager,
                 this.api,
-                this.eventManager
+                this.eventManager,
+                { stores: this.stores }
             );
             await this.chatManager.initialize({
                 container: chatContainer,
@@ -120,27 +121,6 @@ export class ChatIntegration {
                 EventManager.EVENTS.CHAT.REQUEST_EXPORT,
                 () => {
                     console.warn('[ChatIntegration] Export not implemented yet');
-                }
-            ),
-            this.eventManager.subscribe(
-                EventManager.EVENTS.AI.RESPONSE_RECEIVED,
-                (data) => {
-                    if (this.chatManager && data && data.response) {
-                        console.log('[ChatIntegration] AI.RESPONSE_RECEIVED', {
-                            responseType: typeof data.response,
-                            hasIntent: !!data.intent
-                        });
-                        const content = extractApiResponseContent(data) ||
-                            extractRenderableContent(data.response);
-                        if (!content) {
-                            console.warn('[ChatIntegration] No renderable content on AI.RESPONSE_RECEIVED', data);
-                            return;
-                        }
-                        console.log('[ChatIntegration] Rendering AI.RESPONSE_RECEIVED content', {
-                            contentLength: content.length
-                        });
-                        this.chatManager.processAndRenderMessage(content, 'assistant');
-                    }
                 }
             )
         ];

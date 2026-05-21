@@ -37,4 +37,28 @@ describe('ScriptOperationsHandler append flow', () => {
 
         expect(orchestrator.handleScriptAppend).not.toHaveBeenCalled();
     });
+
+    test('handles EDIT_SCRIPT intent with canonical response.script', async () => {
+        const script = '<script><action>New content</action></script>';
+        const orchestrator = {
+            handleScriptEdit: jest.fn().mockResolvedValue(true)
+        };
+        const handler = new ScriptOperationsHandler({
+            getScriptOrchestrator: () => orchestrator
+        });
+
+        await handler.handleIntent('EDIT_SCRIPT', {
+            response: {
+                script,
+                version_number: 2
+            }
+        });
+
+        expect(orchestrator.handleScriptEdit).toHaveBeenCalledWith({
+            content: script,
+            isFromEdit: true,
+            versionNumber: 2,
+            commands: undefined
+        });
+    });
 });

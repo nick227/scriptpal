@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx fallow *)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\);const j=JSON.parse\\(d\\);const unused=j.unusedFiles||j['unused-files']||[];console.log\\(JSON.stringify\\(unused,null,2\\)\\)\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(node *)",
+      "PowerShell(Out-File *)",
+      "Bash(sed -i 's|src=\"/js/pages/authPage.js\"|src=\"./js/pages/authPage.js\"|' public/auth.html)",
+      "Bash(sed -i 's|src=\"/js/pages/brainstormPage.js\"|src=\"./js/pages/brainstormPage.js\"|' public/brainstorm.html)",
+      "Bash(sed -i 's|src=\"/js/pages/profilePage.js\"|src=\"./js/pages/profilePage.js\"|' public/profile.html)",
+      "Bash(sed -i 's|src=\"/js/pages/publicScriptsPage.js\"|src=\"./js/pages/publicScriptsPage.js\"|' public/public-scripts.html)",
+      "Bash(sed -i 's|src=\"/js/pages/publicScriptViewerPage.js\"|src=\"./js/pages/publicScriptViewerPage.js\"|' public/public-script.html)",
+      "Bash(npm test *)",
+      "Bash(npx jest *)",
+      "Bash(xargs grep -l \"intent\\\\|Intent\")"
+    ]
+  }
+}

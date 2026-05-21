@@ -295,15 +295,15 @@ export class ModernChatWidget extends BaseWidget {
         const message = input.value.trim();
         if (!message) return;
 
-        // Clear input
-        input.value = '';
-        this.autoResizeTextarea();
-
-        // Emit send request
+        // Emit send request before clearing so the manager can create the
+        // optimistic message while the original text is still available.
         this.eventManager?.publish(EventManager.EVENTS.CHAT.REQUEST_SEND, {
             message: message,
             timestamp: new Date().toISOString()
         });
+
+        input.value = '';
+        this.autoResizeTextarea();
     }
 
     /**

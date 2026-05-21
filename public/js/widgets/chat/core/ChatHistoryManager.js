@@ -105,12 +105,16 @@ export class ChatHistoryManager {
     }
 
     appendHistory(messages = []) {
+        this.appendHistorySilently(messages);
+        this.emitHistoryUpdated(this.currentScriptId, messages);
+    }
+
+    appendHistorySilently(messages = []) {
         if (!Array.isArray(messages) || messages.length === 0) {
             return;
         }
 
-        this.lastHistory = [...this.lastHistory, ...messages];
-        this.emitHistoryUpdated(this.currentScriptId, messages);
+        this.lastHistory.push(...messages);
     }
 
     emitHistoryUpdated(scriptId, messages) {

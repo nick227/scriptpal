@@ -72,4 +72,75 @@ describe('ChatManager append integration', () => {
             isFromAppend: true
         });
     });
+
+    test('routes NEXT_FIVE_LINES canonical response.script to orchestrator append', async () => {
+        resetSingleton();
+        const mockStateManager = {
+            subscribe: jest.fn(),
+            setState: jest.fn(),
+            getState: jest.fn((key) => {
+                if (key === 'currentScript') {
+                    return { id: 'script-1', title: 'Test Script' };
+                }
+                if (key === 'editorReady') {
+                    return true;
+                }
+                return null;
+            })
+        };
+        const formattedScript = [
+            '<action>First beat.</action>',
+            '<action>Second beat.</action>'
+        ].join('\n');
+        const mockApi = {
+            getChatMessages: jest.fn().mockResolvedValue([]),
+            getChatResponse: jest.fn().mockResolvedValue({
+                intent: 'NEXT_FIVE_LINES',
+                response: {
+                    script: formattedScript,
+                    message: 'Added the next five lines.',
+                    metadata: { generationMode: 'NEXT_FIVE_LINES' }
+                }
+            })
+        };
+        const mockEventManager = {
+            publish: jest.fn(),
+            subscribe: jest.fn().mockReturnValue(() => {})
+        };
+        const mockElements = {
+            messagesContainer: document.createElement('div'),
+            inputField: document.createElement('input'),
+            sendButton: document.createElement('button')
+        };
+        const mockRenderer = {
+            render: jest.fn().mockResolvedValue(true),
+            renderButtons: jest.fn(),
+            clear: jest.fn(),
+            container: mockElements.messagesContainer
+        };
+
+        const chatManager = new ChatManager(mockStateManager, mockApi, mockEventManager);
+        chatManager.initialize(mockElements);
+        chatManager.renderer = mockRenderer;
+        chatManager.chatHistoryManager = {
+            addMessage: jest.fn().mockResolvedValue(true),
+            loadScriptHistory: jest.fn().mockResolvedValue([]),
+            clearScriptHistory: jest.fn().mockResolvedValue(true),
+            destroy: jest.fn()
+        };
+        chatManager.scriptContextManager = {
+            getAIChatContext: jest.fn().mockResolvedValue({})
+        };
+        const mockOrchestrator = {
+            handleScriptAppend: jest.fn().mockResolvedValue(true)
+        };
+        chatManager.setScriptOrchestrator(mockOrchestrator);
+
+        await chatManager.handleSend('next five lines');
+
+        expect(mockOrchestrator.handleScriptAppend).toHaveBeenCalledWith({
+            content: formattedScript,
+            isFromAppend: true
+        });
+    });
 });

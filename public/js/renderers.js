@@ -142,6 +142,7 @@ export class ModernMessageRenderer extends BaseRenderer {
 
         this.appendElement(messageDiv);
         this.scrollToBottom();
+        return messageDiv;
     }
 
     /**

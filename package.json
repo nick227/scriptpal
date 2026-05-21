@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "workspaces": [
-    "server"
+    "server",
+    "public"
   ],
   "scripts": {
     "dev": "concurrently -k -n client,server \"vite\" \"npm run dev --prefix server\"",

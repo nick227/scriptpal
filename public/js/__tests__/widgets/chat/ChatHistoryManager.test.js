@@ -42,4 +42,20 @@ describe('ChatHistoryManager', () => {
         expect(mockApi.getChatMessages).toHaveBeenCalledTimes(1);
         expect(mockApi.getChatMessages).toHaveBeenCalledWith(5);
     });
+
+    test('appendHistorySilently updates cache without publishing HISTORY_UPDATED', () => {
+        const manager = getInstance({
+            api: mockApi,
+            stateManager: mockStateManager,
+            eventManager: mockEventManager
+        });
+        manager.currentScriptId = 5;
+
+        manager.appendHistorySilently([{ id: 'assistant_1', content: 'Hello', type: 'assistant' }]);
+
+        expect(manager.getCurrentScriptHistory()).toEqual([
+            { id: 'assistant_1', content: 'Hello', type: 'assistant' }
+        ]);
+        expect(mockEventManager.publish).not.toHaveBeenCalled();
+    });
 });

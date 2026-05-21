@@ -19,7 +19,7 @@ export class HistoryManager {
     return true;
   }
 
-  async saveInteraction(userPrompt, assistantResponse, scriptId = null, intent = null) {
+  async saveInteraction(userPrompt, assistantResponse, scriptId = null, intent = null, metadata = {}) {
     try {
       const targetScriptId = scriptId || this.scriptId;
 
@@ -67,7 +67,8 @@ export class HistoryManager {
         content: assistantContent,
         intent,
         metadata: {
-          userPrompt
+          userPrompt,
+          ...(metadata && typeof metadata === 'object' ? metadata : {})
         },
         promptTokens,
         completionTokens,

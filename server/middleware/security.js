@@ -74,7 +74,7 @@ export class SecurityMiddleware {
     return rateLimit({
       windowMs: this.securityConfig.rateLimitWindow,
       max: (req) => this._getRateLimitMax(req),
-      skip: (req) => !req.path.startsWith('/api'),
+      skip: (req) => config.isDevelopment() || !req.path.startsWith('/api'),
       keyGenerator: (req) => this._getRateLimitKey(req),
       message: {
         error: 'Too many requests from this IP, please try again later.',

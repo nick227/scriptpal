@@ -44,6 +44,31 @@ describe('Chat message contract', () => {
       messages.forEach(assertMessageMatchesContract);
     });
 
+    it('echoes chatRequestId on expanded user and assistant messages', () => {
+      const rows = [{
+        id: 1,
+        userId: 1,
+        scriptId: 2,
+        role: 'assistant',
+        content: 'Added 5 lines.',
+        intent: 'NEXT_FIVE_LINES',
+        metadata: JSON.stringify({ userPrompt: 'next 5', chatRequestId: 'cid-123' }),
+        createdAt: new Date()
+      }];
+
+      const messages = ChatMessageSerializer.flattenRows(rows);
+
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({
+        role: 'user',
+        metadata: { chatRequestId: 'cid-123' }
+      });
+      expect(messages[1]).toMatchObject({
+        role: 'assistant',
+        metadata: expect.objectContaining({ chatRequestId: 'cid-123' })
+      });
+    });
+
     it('produces messages matching contract for user rows', () => {
       const rows = [{
         id: 2,
