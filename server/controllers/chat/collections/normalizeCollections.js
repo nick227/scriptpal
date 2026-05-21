@@ -14,6 +14,42 @@ export const normalizeTitleKey = (title) => {
     .trim();
 };
 
+/**
+ * Remove sequence labels the model sometimes adds (Scene 1, Character 2, etc.).
+ * List order / sortIndex carries sequence — titles should be descriptive only.
+ */
+export const stripCollectionItemNumbering = (title, collectionType = '') => {
+  if (typeof title !== 'string') {
+    return '';
+  }
+
+  let cleaned = title.trim();
+  if (!cleaned) {
+    return '';
+  }
+
+  cleaned = cleaned.replace(/^\d+\s*[.)]\s*/, '');
+
+  const typeSingular = typeof collectionType === 'string'
+    ? collectionType.trim().toLowerCase().replace(/s$/, '')
+    : '';
+
+  const prefixPatterns = [
+    /^(?:scene|character|location|theme|outline|beat)\s*#?\s*\d+\s*[-:–—.]?\s*/i,
+    /^#\s*\d+\s*[-:–—.]?\s*/i
+  ];
+
+  if (typeSingular) {
+    prefixPatterns.push(new RegExp(`^${typeSingular}s?\\s*#?\\s*\\d+\\s*[-:–—.]?\\s*`, 'i'));
+  }
+
+  for (const pattern of prefixPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  return cleaned.trim();
+};
+
 const cleanText = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const normalizeTags = (tags) => {
@@ -27,12 +63,15 @@ const normalizeTags = (tags) => {
     .slice(0, 12);
 };
 
-const normalizeLooseItem = (item) => {
+const normalizeLooseItem = (item, collectionType = '') => {
   if (!item || typeof item !== 'object' || Array.isArray(item)) {
     return null;
   }
 
-  const title = cleanText(item.title || item.name);
+  const title = stripCollectionItemNumbering(
+    cleanText(item.title || item.name),
+    collectionType
+  );
   if (!title) {
     return null;
   }
@@ -76,7 +115,7 @@ export const normalizeLooseCollections = ({
 
   validation.groups.forEach((group) => {
     const items = group.items
-      .map(normalizeLooseItem)
+      .map((item) => normalizeLooseItem(item, group.type))
       .filter(Boolean)
       .map((item) => ({
         scriptId,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import { normalizeTitleKey, normalizeLooseCollections, dedupeNormalizedCollections } from '../../controllers/chat/collections/normalizeCollections.js';
+import {
+  normalizeTitleKey,
+  normalizeLooseCollections,
+  dedupeNormalizedCollections,
+  stripCollectionItemNumbering
+} from '../../controllers/chat/collections/normalizeCollections.js';
 import { validateLooseCollections, validateNormalizedCollections } from '../../controllers/chat/collections/validateCollections.js';
 import {
   resolveGenerateCollectionTypes,
@@ -49,6 +54,28 @@ describe('collection validation and normalization', () => {
       { type: 'characters', items: [{ title: 'Mara', panel: 'sidebar' }] }
     ]);
     expect(result.valid).toBe(false);
+  });
+
+  it('strips sequence numbers from collection item titles', () => {
+    expect(stripCollectionItemNumbering('Scene 1: Opening beat', 'scenes')).toBe('Opening beat');
+    expect(stripCollectionItemNumbering('Scene 2 - Warehouse', 'scenes')).toBe('Warehouse');
+    expect(stripCollectionItemNumbering('Character 3 Mara', 'characters')).toBe('Mara');
+  });
+
+  it('normalizes numbered scene titles from AI payloads', () => {
+    const result = normalizeLooseCollections({
+      collections: [{
+        type: 'scenes',
+        items: [
+          { title: 'Scene 1: Dawn arrival', description: 'James arrives.' },
+          { title: 'Scene 2: The nap', description: 'Quiet moment.' }
+        ]
+      }],
+      scriptId: 9
+    });
+
+    expect(result.collections[0].items[0].title).toBe('Dawn arrival');
+    expect(result.collections[0].items[1].title).toBe('The nap');
   });
 
   it('normalizes title and description', () => {

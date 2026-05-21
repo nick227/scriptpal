@@ -35,7 +35,11 @@ const GENERATE_COLLECTIONS_FUNCTIONS = [{
               items: {
                 type: 'object',
                 properties: {
-                  title: { type: 'string', minLength: 1 },
+                  title: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'Descriptive name only — never prefix with Scene 1, Character 2, or other sequence numbers.'
+                  },
                   description: { type: 'string' },
                   notes: { type: 'string' },
                   tags: {
@@ -62,6 +66,8 @@ const DEFAULT_SYSTEM = `You generate screenplay story entities for the writer.
 Return JSON only via the function schema.
 Each item must have title and description only (notes/tags optional).
 Do not output screenplay XML, UI instructions, or database field names.
+Do not number items in titles (no "Scene 1", "Scene 2", "Character 3", etc.) — array order is the sequence.
+Titles must be descriptive labels only (e.g. "Warehouse confrontation", not "Scene 3: Warehouse").
 Group entities by type: scenes, characters, locations, themes, outlines.`;
 
 const filterRequestedTypes = (collections, requestedTypes) => {
@@ -99,6 +105,7 @@ export class GenerateCollectionsChain extends BaseChain {
     const parts = [
       prompt,
       'Generate new story entities for this script using the function schema.',
+      'Do not put sequence numbers in item titles; list order defines the sequence.',
       requested.length
         ? `Only generate these types: ${requested.join(', ')}`
         : `Supported types: ${COLLECTION_TYPE_ENUM.join(', ')}`,
