@@ -21,6 +21,13 @@ describe('response guards — JSON must not reach script or chat', () => {
     expect(looksLikeStructuredPayload('<action>Hello</action>')).toBe(false);
   });
 
+  it('detects malformed script array JSON', () => {
+    const malformed = JSON.stringify({
+      script: ['INT. WAREHOUSE - NIGHT', 'SARAH', 'Hello.']
+    });
+    expect(looksLikeStructuredPayload(malformed)).toBe(true);
+  });
+
   it('strips JSON from writing normalizer script output', () => {
     const result = normalizeWritingResponse({
       assistantMessage: collectionsJson,

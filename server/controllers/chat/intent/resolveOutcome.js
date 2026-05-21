@@ -5,6 +5,7 @@ import {
   isGeneralConversation,
   isAttachHistoryRequest,
   isWriteFromScenesRequest,
+  isSceneWriteContinuationRequest,
   isWriteSceneScreenplayRequest,
   isDiscussScenesRequest,
   resolveGenerateCollectionTypes,
@@ -126,11 +127,15 @@ export const resolveOutcome = (prompt, context = {}) => {
     });
   }
 
-  if (Boolean(context.generateFromScenes) || isWriteFromScenesRequest(normalizedPrompt)) {
+  if (
+    Boolean(context.generateFromScenes)
+    || isWriteFromScenesRequest(normalizedPrompt)
+    || isSceneWriteContinuationRequest(normalizedPrompt)
+  ) {
     return buildResolution({
       outcome: CHAT_OUTCOME.WRITE_FROM_SCENES,
       contextProfile: CONTEXT_PROFILE.SCENES_OUTLINE,
-      attachHistory,
+      attachHistory: attachHistory || isSceneWriteContinuationRequest(normalizedPrompt),
       attachScenes: true,
       attachEntityContext,
       generateCollections,

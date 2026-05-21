@@ -77,12 +77,17 @@ const ATTACH_HISTORY_PATTERN = /\b(that|what you (wrote|said)|last (version|time
 const WRITE_FROM_SCENES_PATTERNS = [
   /\b(write|generate|draft|create)\b[\s\S]{0,50}\b(all|every)\b[\s\S]{0,30}\bscenes?\b/i,
   /\b(write|generate|draft|create|complete|finish|start)\b[\s\S]{0,50}\b(script|screenplay)\b[\s\S]{0,50}\bfrom\b[\s\S]{0,30}\b(scenes?|scene\s*list|outline)\b/i,
+  /\b(write|generate|draft|create)\b[\s\S]{0,60}\b(script|screenplay)\b[\s\S]{0,60}\b(based on|from|using)\b[\s\S]{0,60}\b(scenes?|scene\s*list|outline|collection)\b/i,
+  /\b(script|screenplay)\b[\s\S]{0,50}\b(based on|from|using)\b[\s\S]{0,50}\b(scenes?|scene\s*list|outline|collection)\b/i,
+  /\b(write|generate|draft|create)\b[\s\S]{0,80}\b(scenes?)\b[\s\S]{0,40}\b(collection|outline|list)\b/i,
   /\b(write|generate)\b[\s\S]{0,40}\bfrom\s+my\s+(scenes?|outline)\b(?!\s*(#|\d))/i,
   /\bgenerate\s+(the\s+)?(script|screenplay)\s+from\s+(my\s+)?(scenes?|outline)\b/i,
   /\b(use|using)\b[\s\S]{0,40}\b(current\s+)?scenes?\b[\s\S]{0,50}\b(write|complete|finish)\b/i,
   /\b(use|using)\b[\s\S]{0,40}\b(current\s+)?scenes?\b[\s\S]{0,50}\b(our|the|my)?\s*(script|screenplay)\b/i,
   /\bstart\s+writing\b[\s\S]{0,40}\b(the\s+)?(script|screenplay)\b[\s\S]{0,40}\bfrom\b/i
 ];
+
+const SCENE_WRITE_CONTINUATION_PATTERN = /^(?:ok(?:ay)?|yes|yep|sure|proceed|go ahead|continue|do it|start(?:\s+now)?|please\s+(?:go ahead|proceed|continue))(?:[.!,?\s]+(?:please|now|proceed|continue|go ahead))?$/i;
 
 /** Add a scene row to the outline/list — not screenplay append */
 export const isAddSceneOutlineRequest = (prompt) => {
@@ -117,6 +122,20 @@ export const isWriteFromScenesRequest = (prompt) => {
   }
 
   return WRITE_FROM_SCENES_PATTERNS.some((pattern) => pattern.test(prompt));
+};
+
+/** Short confirmation after a scene-list → script request (e.g. "ok proceed") */
+export const isSceneWriteContinuationRequest = (prompt) => {
+  if (!prompt || typeof prompt !== 'string') {
+    return false;
+  }
+
+  const trimmed = prompt.trim();
+  if (!trimmed || trimmed.length > 48) {
+    return false;
+  }
+
+  return SCENE_WRITE_CONTINUATION_PATTERN.test(trimmed);
 };
 
 const GENERATE_COLLECTION_VERBS = /\b(create|generate|add|suggest|make|draft|build)\b/i;

@@ -16,6 +16,16 @@ describe('ResponseExtractor JSON guards', () => {
         expect(content).toBe('');
     });
 
+    test('extractApiResponseContent does not surface script-array JSON in chat', () => {
+        const malformed = JSON.stringify({
+            script: ['INT. WAREHOUSE - NIGHT', 'SARAH', 'Hello.']
+        });
+        const content = extractApiResponseContent({
+            response: { message: malformed }
+        });
+        expect(content === null || !String(content).includes('"script"')).toBe(true);
+    });
+
     test('extractApiResponseContent does not surface raw collections JSON in chat', () => {
         const data = {
             response: {

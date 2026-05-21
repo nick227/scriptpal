@@ -41,6 +41,19 @@ describe('use-case prompt routing', () => {
     expect(result.editorOperation).toBeNull();
   });
 
+  it('routes write script from scene collection to WRITE_FROM_SCENES', () => {
+    const result = resolveOutcome('write the script based on the 5 scenes in collection', baseContext);
+    expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_FROM_SCENES);
+    expect(result.attachScenes).toBe(true);
+    expect(result.editorOperation).toBe(EDITOR_OPERATION.APPEND);
+  });
+
+  it('routes ok proceed to WRITE_FROM_SCENES with history', () => {
+    const result = resolveOutcome('ok proceed', baseContext);
+    expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_FROM_SCENES);
+    expect(result.attachHistory).toBe(true);
+  });
+
   it('routes write a scene to WRITE_SCENE screenplay append', () => {
     const result = resolveOutcome('Write a scene about Jessica', baseContext);
     expect(result.outcome).toBe(CHAT_OUTCOME.WRITE_SCENE);

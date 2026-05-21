@@ -67,6 +67,15 @@ const isCollectionLikeObject = (parsed) => {
   if (Array.isArray(parsed.collections)) {
     return true;
   }
+  if (Array.isArray(parsed.script)) {
+    return true;
+  }
+  if (typeof parsed.script === 'string' && /^[\[{]/.test(parsed.script.trim())) {
+    return true;
+  }
+  if (Array.isArray(parsed.lines) && parsed.lines.every((line) => typeof line === 'string')) {
+    return true;
+  }
   if (Array.isArray(parsed) && parsed.some((entry) => entry?.type && Array.isArray(entry?.items))) {
     return true;
   }
@@ -93,9 +102,11 @@ export const looksLikeStructuredPayload = (text) => {
       const parsed = JSON.parse(trimmed);
       return isCollectionLikeObject(parsed);
     } catch {
-      return /\b"collections"\s*:/i.test(trimmed)
+      return (
+        /\b"(collections|script|lines)"\s*:/i.test(trimmed)
         && !/\b"idea_nudges"\s*:/i.test(trimmed)
-        && !/\b"current_state_summary"\s*:/i.test(trimmed);
+        && !/\b"current_state_summary"\s*:/i.test(trimmed)
+      );
     }
   }
   return false;

@@ -156,7 +156,7 @@ export const rejectNonScreenplayScriptOutput = ({
   }
   if (looksLikeStructuredPayload(trimmed)) {
     return {
-      message: looksLikeStructuredPayload(message) ? fallbackMessage : (message || fallbackMessage),
+      message: fallbackMessage,
       script: '',
       metadata: {
         ...metadata,

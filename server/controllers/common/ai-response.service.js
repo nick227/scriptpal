@@ -118,7 +118,7 @@ export const buildAiResponse = ({
   );
 
   if (looksLikeStructuredPayload(safeMessage)) {
-    safeMessage = sanitizeChatMessage(null, '');
+    safeMessage = 'I could not apply that to your script. Ask me to discuss your scenes or describe what to write next.';
   }
   if (!safeMessage && safeScript) {
     safeMessage = sanitizeChatMessage(null, safeScript);
