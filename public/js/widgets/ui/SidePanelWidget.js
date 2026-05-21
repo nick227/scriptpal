@@ -64,6 +64,27 @@ export class SidePanelWidget {
         }
     }
 
+    setExpanded (expanded = true) {
+        if (!this.panelContainer) {
+            return;
+        }
+        this.isMinimized = !expanded;
+        this.panelContainer.classList.toggle('is-minimized', this.isMinimized);
+        const scriptsPanel = document.querySelector(UI_ELEMENTS.USER_SCRIPTS_PANEL);
+        if (scriptsPanel) {
+            scriptsPanel.classList.toggle('is-minimized', this.isMinimized);
+        }
+    }
+
+    /** Expand sidebar and activate a collection tab (e.g. user-scenes). */
+    openPanel (target) {
+        if (!target) {
+            return;
+        }
+        this.setExpanded(true);
+        this.setActive(target);
+    }
+
     /**
      *
      */

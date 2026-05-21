@@ -71,6 +71,25 @@ describe('AiCollectionsHandler', () => {
         expect(sceneStore.loadItems).toHaveBeenCalledTimes(1);
     });
 
+    test('publishes COLLECTION_PANEL_OPEN for the primary collection type', async () => {
+        const { handler, eventManager } = buildHandler();
+
+        await handler.handleCollections([
+            {
+                type: 'characters',
+                items: [{ id: 2, title: 'Bob', description: 'Lead' }]
+            }
+        ], { chatRequestId: 'turn-panel' });
+
+        expect(eventManager.publish).toHaveBeenCalledWith(
+            EventManager.EVENTS.UI.COLLECTION_PANEL_OPEN,
+            expect.objectContaining({
+                target: 'user-characters',
+                types: ['characters']
+            })
+        );
+    });
+
     test('creates only when server items lack id', async () => {
         const { handler, sceneStore } = buildHandler();
         sceneStore.createItem.mockResolvedValue({ id: 99, title: 'Draft', description: 'New' });

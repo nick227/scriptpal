@@ -44,7 +44,7 @@ export class AuthenticatedAppBootstrap {
     }
 
     async initChat () {
-        const chat = new ChatIntegration(this.api, this.stateManager, this.eventManager);
+        const chat = new ChatIntegration(this.api, this.stateManager, this.eventManager, this.stores);
         await chat.initialize();
         this.registry.register('chat', chat);
     }
@@ -81,6 +81,16 @@ export class AuthenticatedAppBootstrap {
             defaultTarget: 'user-scripts'
         });
         await this.#sidePanelWidget.initialize();
+        this.eventManager.subscribe(
+            EventManager.EVENTS.UI.COLLECTION_PANEL_OPEN,
+            (payload) => {
+                const target = payload?.target;
+                if (target) {
+                    this.#sidePanelWidget.openPanel(target);
+                }
+            },
+            this
+        );
         return this.#sidePanelWidget;
     }
 

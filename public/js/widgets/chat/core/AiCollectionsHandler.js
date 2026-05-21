@@ -1,6 +1,7 @@
 import { StateManager } from '../../../core/StateManager.js';
 import { EventManager } from '../../../core/EventManager.js';
 import { buildCollectionApplyKey } from './collectionIdempotency.js';
+import { resolveCollectionPanelTarget } from './collectionPanelTargets.js';
 
 const COLLECTION_STORE_KEYS = {
     scenes: 'scene',
@@ -92,11 +93,23 @@ export class AiCollectionsHandler {
         await this.reloadStores(scriptId, typesToReload);
 
         if (applied.length && this.eventManager) {
+            const types = [...typesToReload];
+            const panelTarget = resolveCollectionPanelTarget(types);
+
             this.eventManager.publish(EventManager.EVENTS.AI.RESPONSE_RECEIVED, {
                 scriptId,
                 collectionsApplied: applied.length,
-                types: [...typesToReload]
+                types
             });
+
+            if (panelTarget) {
+                this.eventManager.publish(EventManager.EVENTS.UI.COLLECTION_PANEL_OPEN, {
+                    scriptId,
+                    target: panelTarget,
+                    types,
+                    chatRequestId
+                });
+            }
         }
 
         return applied;
